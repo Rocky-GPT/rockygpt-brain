@@ -642,12 +642,43 @@ def test_allergens_are_matched_only_as_the_labels_publish_them() -> None:
 
 def test_a_part_no_tool_answers_beside_a_shuttle_answer_has_no_office_to_point_at() -> None:
     from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE, UNSUPPORTED_PART_MESSAGE
-    result = ask("next shuttle to the mall and is it late?", shuttle("Garden State Plaza", None,
-                                                                      "next"),
-                 finish("unsupported", student_words="is it late"))
+    result = ask("next shuttle to the mall and can i bring my bike?",
+                 shuttle("Garden State Plaza", None, "next"),
+                 finish("unsupported", student_words="can i bring my bike"))
     said = [n["approved_text"] for n in result.body["facts"]["notices"]
             if n["type"] == "unsupported"]
     assert said == [UNSUPPORTED_PART_MESSAGE] and UNSUPPORTED_AFTER_LOOKUP_MESSAGE not in said
+    assert result.body["status"] == "partial"
+
+
+def test_whether_the_shuttle_is_late_or_a_stop_it_does_not_list_is_answered_by_code() -> None:
+    # 11-03 repeat test: the same code-written shuttle reply was "partial" in some tries, when
+    # the model added an unsupported part for words the reply already answers.
+    def reply(question: str, step: Any, words: str, status: str = "answered") -> ChatResult:
+        result = ask(question, step, finish("unsupported", student_words=words))
+        assert not [n for n in result.body["facts"]["notices"] if n["type"] == "unsupported"]
+        assert result.trace is not None and result.trace["unsupported_dropped"] == [words]
+        assert result.body["status"] == status
+        return result
+
+    # The scope notice says, every time, that timetable times are not live.
+    late = reply("yoooo did i miss the bus or is it still coming", shuttle(None, None, "next"),
+                 "did i miss the bus or is it still coming")
+    assert any(n["type"] == "shuttle_scope" for n in late.body["facts"]["notices"])
+    reply("next shuttle to the mall and is it late?", shuttle("Garden State Plaza", None, "next"),
+          "is it late")
+    # "There is no stop called Newark Airport", with the stops there are.
+    reply("when's the next shuttle to newark airport?", shuttle("Newark Airport", None, "next"),
+          "Newark Airport")
+    # A route it does not list finds nothing, and code's sentence says so with the routes there
+    # are: no refusal is added after it.
+    reply("is the night owl shuttle running", shuttle(None, None, "next", "Night Owl"),
+          "night owl", status="unavailable")
+    # Words the reply does not answer still get the refusal.
+    kept = ask("is the night owl shuttle running and can i bring my bike",
+               shuttle(None, None, "next", "Night Owl"),
+               finish("unsupported", student_words="can i bring my bike"))
+    assert [n for n in kept.body["facts"]["notices"] if n["type"] == "unsupported"]
 
 
 def test_all_with_no_stop_says_where_the_shuttle_goes() -> None:
@@ -1282,3 +1313,18 @@ def test_a_menu_read_for_one_meal_says_which_meal_was_asked() -> None:
     assert _menu_value(meal="lunch")["meal_asked"].casefold() == "lunch"
     assert "meal_asked" not in _menu_value(meal=None)
 
+
+
+def test_food_after_a_time_says_what_is_served_from_then_and_not_open_now() -> None:
+    evening = datetime(2026, 10, 13, 18, 0, tzinfo=EASTERN)
+    result = ask("where can i get food after 9pm?", lookup("Birch Tree Inn", ["hours"]),
+                 finish(), now=evening)
+    entry = derived(result, "hours_on")
+    assert entry["date"] == "2026-10-13" and "open_now" not in entry
+    assert entry["open_at"] == {"relation": "after", "at": "9:00pm", "state": "open", "periods": [
+        {"label": "Late Night", "opens": "9:00pm", "closes": "11:00pm"}]}
+    assert result.body["facts"]["status"] == "complete" and result.body["status"] == "answered"
+    # Asked about now as well, both are worked out.
+    both = derived(ask("is birch open now, and after 9pm?", lookup("Birch Tree Inn", ["hours"]),
+                       finish(), now=evening), "hours_on")
+    assert both["open_now"]["state"] == "open" and both["open_at"] == entry["open_at"]  # dinner

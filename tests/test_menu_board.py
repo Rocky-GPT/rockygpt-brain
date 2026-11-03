@@ -158,10 +158,37 @@ def test_breakfast_is_the_boards_breakfast_sections_in_full() -> None:
 
 def test_a_meal_the_board_does_not_name_says_so_and_lists_the_board() -> None:
     value = board("dinner")
-    assert value["meal_not_on_board"] == "dinner" and len(value["sections"]) == 6
+    assert value["meal_not_on_board"] == "dinner" and len(value["sections"]) == 4
     result, _ = ask("Atrium dinner menu")
     assert result.body["answer"].startswith(
         "The Atrium's menu board doesn't list a separate dinner menu.")
+
+
+def test_a_meal_the_board_does_not_name_leaves_out_another_meals_sections() -> None:
+    # 11-03 practice: "wats for lunch at the atrium today" was given the board's breakfast
+    # sandwiches and sides beside its lunch food.
+    value = board("lunch")
+    assert value["meal_not_on_board"] == "lunch" and value["meals_left_out"] == ["breakfast"]
+    # The count said is in the facts, so the reply's number check holds it to them.
+    assert value["on_board_besides"] == 11
+    assert [s["section"] for s in value["sections"]] == [
+        "Burgers and Sandwiches", "Specialty Sandwiches", "Build Your Own Entree", "Sides"]
+    result, _ = ask("What's for lunch at the Atrium?")
+    answer = result.body["answer"]
+    assert result.trace["writer"] == {"used": True, "by": "code"}
+    assert answer.startswith(
+        "The Atrium's menu board doesn't list a separate lunch menu. It lists 11 items besides "
+        "its breakfast sections. Some of each section, with prices:\n- The Grill, Burgers and "
+        "Sandwiches: Hamburger ($8.99),")
+    assert "Steak & Eggs" not in answer and "Hash Brown" not in answer
+    # Brunch is breakfast and lunch, and a section served all day is every meal's.
+    assert "meals_left_out" not in board("brunch")
+    rows = [{**row, "section": "Breakfast served all day"} if row["section"] == "Breakfast"
+            else row for row in board_rows()]
+    found = menu_board_property(rows, document_rows(), TUESDAY_10AM, "lunch", None)
+    assert found is not None
+    sections = [s["section"] for s in found[0]["values"][0]["value"]["sections"]]
+    assert sections[0] == "Breakfast served all day" and "Breakfast sides" not in sections
 
 
 def test_a_named_food_gets_its_prices_calories_and_allergens() -> None:
@@ -281,3 +308,28 @@ def test_the_evidence_text_names_a_matched_option_and_how_many_items_list_allerg
     assert gluten.startswith("Menu board: Atrium Menu Boards 2026. 4 of its 14 items list "
                              "allergens; the others cannot be checked. No item on the board "
                              "matches")
+
+
+def test_the_length_limit_is_on_the_reply_the_student_reads_not_codes_notes(
+        monkeypatch: Any) -> None:
+    """11-03 repeat test, "where the halal food at" (2 tries of 5): two venues' whole-day menus and
+    Dining Services' contact were 12,500 characters of code's notes for the writer, said in 6,900,
+    and the turn failed on the notes' length with "couldn't produce a valid answer"."""
+    import rockygpt_brain.engine as engine_module
+
+    def answer(output: Any) -> Any:
+        request = ChatRequest.model_validate(
+            {"messages": [{"role": "user", "content": "What's on the Atrium menu?"}]})
+        # Code answers a plain menu question in written output; the model looks it up in text.
+        calls = [] if output == "written" else [menu_lookup(), finish()]
+        engine = ChatEngine(ScriptedGateway(*calls), atrium(), output=output)
+        return asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+
+    notes, said = answer("text").body["answer"], answer("written").body["answer"]
+    assert len(said) < len(notes)
+    monkeypatch.setattr(engine_module, "MAX_ANSWER_CHARS", len(said))
+    result = answer("written")
+    assert result.status_code == 200 and result.body["answer"] == said
+    # A reply the student would read past the limit is still not sent.
+    monkeypatch.setattr(engine_module, "MAX_ANSWER_CHARS", len(said) - 1)
+    assert answer("written").status_code == 502

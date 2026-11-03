@@ -66,6 +66,26 @@ def test_a_program_is_named_by_its_core_name_and_its_level_by_the_questions_word
     assert program_level("Nursing MSN") == "graduate"
 
 
+def test_a_program_is_named_by_a_short_name_of_its_own() -> None:
+    # Dan approved "CS" for the Computer Science programs (09-28: "who is the cs convener"), but
+    # only core names were read: "gimme the email for the cs department chair" named no program,
+    # and the model's catalog pick found none either (11-03 repeat test).
+    programs = [{**p, "aliases": ["CS"]} if str(p["name"]).startswith("Computer Science") else p
+                for p in PROGRAMS]
+    programs.append({"id": "it", "name": "Information Technology BS", "aliases": ["IT"]})
+    assert names(find_programs(programs, "gimme the email for the cs department chair")) == [
+        "Computer Science BS"]
+    assert names(find_programs(programs, "who is the CS convener")) == ["Computer Science BS"]
+    assert names(find_programs(programs, "cs minor requirements")) == ["Computer Science Minor"]
+    assert names(find_programs(programs, "what's the masters in cs")) == ["Computer Science MS"]
+    # A short name that is a word of its own in lower case counts only in capitals.
+    assert names(find_programs(programs, "is IT a good major")) == ["Information Technology BS"]
+    assert find_programs(programs, "is it a good major") == []
+    # A program code is no short name.
+    assert find_programs([{"id": "x", "name": "Accounting BS", "aliases": ["SB-BS-ACCT"]}],
+                         "SB BS ACCT") == []
+
+
 def test_requirements_are_written_out_as_the_catalog_publishes_them() -> None:
     groups: list[dict[str, Any]] = [
         {"label": "Major Requirements", "note": None, "shape": "rule", "course_list": None,
@@ -361,6 +381,11 @@ def test_a_course_is_named_by_an_everyday_form_of_its_title() -> None:
     # "gen ed" is not Genetics, the pronoun "I" is not Roman one, "for" is not Forensic.
     assert courses_by_title(titles, "do the bio labs count as natural science gen ed") == []
     assert courses_by_title(titles, "how do i apply for financial aid") == []
+    # A question's "is" is a verb, a title's "IS" Independent Study's code (11-03: "is there an
+    # honor society" named IS-HONORS).
+    studies = {"ih": "IS-HONORS", "id": "IS-DATA SCIENCE"}
+    assert courses_by_title(studies, "is there an honor society") == []
+    assert courses_by_title(studies, "is there a data science club") == []
 
 
 def test_programs_are_named_by_short_forms_each_with_its_own_level() -> None:

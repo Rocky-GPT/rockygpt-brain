@@ -7,6 +7,12 @@ A name a few offices share ("Public Safety", emergency and non-emergency) looks 
 else is left to the model: no name or two, a name an office and a venue share, a word left over
 that this does not understand, an earlier message the question could refer back to. Code routes
 only what it is sure of.
+
+A campus building named the same way (11-03: "where is the Student Center?", "is the Learning
+Commons open Sunday?") is looked up as a building: where the campus map shows it and the places
+in it, or the hours of the places in it. A building and an office of one name are the office.
+A room said by its building's room-number prefix ("where is ASB 407?") names the building, and
+asks where it is.
 """
 
 import re
@@ -37,8 +43,15 @@ there please ramapo college office offices right now today tonight tomorrow s ti
 phone phones telephone email e mail address hours open opens close closes closing closed contact
 reach located location room building menu menus serving serve serves breakfast brunch lunch dinner
 late night fax call get find and its their food foods eat price prices cost costs sell sells
-who help with
+who help with which inside places
 """.split())
+# "What offices are in D wing?", "what's inside the Student Center?": the places in a building,
+# which its where-answer names (11-03 practice: the question went to the model, which listed
+# three of D's offices from pages).
+_INSIDE = re.compile(r"\b(?:what|whats|which)\b(?: \w+){0,2} (?:in|inside)(?: the)?$")
+# A room number after its building's room-number prefix, as rooms are written ("ASB 407",
+# "ASB-407", "D-224", "SC219"): not a time ("SC 12:30"), a date or "24/7".
+_ROOM_NUMBER = r"\d{2,4}[A-Za-z]?(?![A-Za-z0-9]|[/:.]\d)"
 
 
 def _words(text: str) -> list[str]:
@@ -47,14 +60,63 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", folded.replace("'", ""))
 
 
-def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
-               venues: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
-    """The graph_lookup arguments for a plain lookup of one listed office or venue, or None."""
-    words = _words(message)
-    if not words or len(words) > 16:
-        return None
+def _asked_words(message: str) -> list[str]:
+    """A question's words, "#" read as the word it stands for: "registrar #" asks its number."""
+    return _words(re.sub(r"#", " number ", message))
+
+
+def rooms_said(message: str, building: dict[str, Any]) -> list[str]:
+    """The rooms of a building a message says by the building's room-number prefixes, each
+    with its prefix written as the campus map writes it ("asb 407" is "ASB 407"), in the order
+    said."""
+    return [room for _, _, room in _rooms(message, building)]
+
+
+def _rooms(message: str, building: dict[str, Any]) -> list[tuple[int, int, str]]:
+    """Each room of a building a message says (rooms_said), with where it is said in the
+    message's words as _asked_words reads them: (first word, word after the last, room).
+
+    11-03 repeat test: "where tf is ASB 407?" was answered with the business school's office
+    (ASB-333) or a page of room diagrams, never with the building whose rooms start with ASB.
+    A prefix of three letters or more is read in any case. A shorter one is read only in capitals
+    or before a hyphen, as "bc 20 people" means "because", and a one-letter one before a space
+    never begins a sentence: "A 300-level course" names no room in Academic Building A."""
+    found: list[tuple[int, int, str]] = []
+    for prefix in building.get("room_prefixes") or []:
+        prefix = str(prefix).strip()
+        if not re.fullmatch(r"[A-Za-z]+", prefix):
+            continue
+        written = (rf"(?i:{re.escape(prefix)})[ -]?" if len(prefix) > 2 else
+                   rf"(?:{prefix.upper()}[ -]?|{prefix.lower()}-)")
+        for match in re.finditer(rf"(?<![A-Za-z0-9]){written}{_ROOM_NUMBER}", message):
+            said = match.group(0)
+            if (len(prefix) == 1 and said[1] == " "
+                    and re.search(r"(?:^|[.!?])\s*$", message[:match.start()])):
+                continue
+            first = len(_asked_words(message[:match.start()]))
+            found.append((first, first + len(_asked_words(said)),
+                          f"{prefix}{said[len(prefix):].upper()}"))
+    return sorted(found)
+
+
+def places_named(message: str, offices: Sequence[dict[str, Any]] | None,
+                 venues: Sequence[dict[str, Any]] | None,
+                 buildings: Sequence[dict[str, Any]] | None = None,
+                 ) -> list[set[tuple[str, str]]]:
+    """The listed offices, venues and buildings a message names, one set per name said (a name
+    a few offices share is one set of them), the longest name first wherever two overlap."""
+    return _named(_asked_words(message), message, offices, venues, buildings)[0]
+
+
+def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | None,
+           venues: Sequence[dict[str, Any]] | None,
+           buildings: Sequence[dict[str, Any]] | None = None,
+           ) -> tuple[list[set[tuple[str, str]]], set[int], list[str]]:
+    """Each name said (as a set of the places that share it), the word positions said, and the
+    rooms said by their building's room-number prefix."""
     names: dict[tuple[str, ...], set[tuple[str, str]]] = {}
-    for kind, listed in (("office", offices or []), ("venue", venues or [])):
+    for kind, listed in (("office", offices or []), ("venue", venues or []),
+                         ("building", buildings or [])):
         for entry in listed:
             if entry.get("topic"):
                 continue  # A subject with no office of its own: the model reads its page.
@@ -64,24 +126,61 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
                         rf"\b{re.escape(str(name).strip())}\b", message):
                     continue
                 if key := tuple(_words(str(name))):
-                    names.setdefault(key, set()).add((kind, str(entry["name"])))
-                    if key[0] == "the" and len(key) > 1:
+                    for spoken in ([key, key[1:]] if key[0] == "the" and len(key) > 1
+                                   else [key]):
                         # "Atrium menu" names The Atrium: "the" is no part of what it is called.
-                        names.setdefault(key[1:], set()).add((kind, str(entry["name"])))
+                        owners = names.setdefault(spoken, set())
+                        if kind == "building" and any(k != "building" for k, _ in owners):
+                            continue  # An office or venue of that name is what it names.
+                        owners.add((kind, str(entry["name"])))
     # Every place a name is said, the longest first; a name inside a longer one is not a name.
-    spans: list[tuple[int, int, set[tuple[str, str]]]] = []
+    spans: list[tuple[int, int, set[tuple[str, str]], str | None]] = []
     for key, owners in names.items():
         for start in range(len(words) - len(key) + 1):
             if tuple(words[start:start + len(key)]) == key:
-                spans.append((start, start + len(key), owners))
+                spans.append((start, start + len(key), owners, None))
+    # A room said by its prefix names its building, also where the prefix alone is an office's
+    # other name ("ASB" is the business school's office; "ASB 407" is in its building).
+    rooms: dict[tuple[int, int], tuple[set[tuple[str, str]], str]] = {}
+    for entry in buildings or []:
+        for start, end, room in _rooms(message, entry):
+            if words[start:end] == _words(room):
+                rooms.setdefault((start, end), (set(), room))[0].add(
+                    ("building", str(entry["name"])))
+    spans += [(start, end, owners, room) for (start, end), (owners, room) in rooms.items()]
     spans.sort(key=lambda span: span[0] - span[1])
     covered: set[int] = set()
     said: list[set[tuple[str, str]]] = []
-    for start, end, owners in spans:
+    said_rooms: list[str] = []
+    for start, end, owners, room_said in spans:
         if covered & set(range(start, end)):
             continue
         covered.update(range(start, end))
         said.append(owners)
+        if room_said is not None:
+            said_rooms.append(room_said)
+    return said, covered, said_rooms
+
+
+def asks_inside(message: str, building: dict[str, Any]) -> bool:
+    """Whether a message asks what is in a building it names ("what offices are in Academic
+    Building D?", "what's inside the Student Center?"): then its places are the answer, all of
+    them, not a few beside where it is (11-03 practice: eight of D's twenty-one were named)."""
+    words = _asked_words(message)
+    _, covered, rooms = _named(words, message, None, None, [building])
+    rest = " ".join(w for k, w in enumerate(words) if k not in covered)
+    return bool(covered) and not rooms and _INSIDE.search(rest) is not None
+
+
+def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
+               venues: Sequence[dict[str, Any]] | None,
+               buildings: Sequence[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """The graph_lookup arguments for a plain lookup of one listed office, venue or building, or
+    None."""
+    words = _asked_words(message)
+    if not words or len(words) > 16:
+        return None
+    said, covered, rooms = _named(words, message, offices, venues, buildings)
     # A menu asked of no place ("what's for lunch today?") is every venue's that publishes one,
     # as the lookups read it for the model too.
     menus = {("venue", str(v["name"])) for v in venues or []
@@ -105,8 +204,15 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
         fields += (["email", "phones", "offices"] if field == "contact" else
                    ["phones"] if field == "fax" else [field])
     fields = list(dict.fromkeys(fields))
+    if not fields and kind == "building" and (rooms or _INSIDE.search(text)):
+        fields = ["offices"]  # "How do I get to ASB 407?" asks where it is.
     if not fields or ("menu" in fields and kind != "venue") or (
             not covered and fields != ["menu"]):
+        return None
+    if kind == "building" and (len(places) != 1 or not set(fields) <= {"offices", "hours"}
+                               or "contact" in asked or (rooms and fields != ["offices"])):
+        # A building is asked where it is or what is open in it, and nothing else; a room in
+        # it only where it is.
         return None
     days = [w for w in rest if w in _WEEKDAYS]
     day = (days[0] if len(days) == 1 else None if days else

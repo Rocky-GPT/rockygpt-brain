@@ -13,7 +13,7 @@ lookups: a question about them is not routed here.
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
 
@@ -45,6 +45,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   deadline, amount and condition the chosen sections give for it, exactly as written (a step's
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
   say.
+- A weekly timetable a section lists (sessions by course and hour, each staff member's hours) is
+  given only when the student asks when or what times. Asked where or how to get help, name the
+  place, how to book or join and who to contact, and say its page lists the times, with its mark.
 - When sections disagree about the same date, amount or rule for the same people, place and term,
   the newer page wins: when their page_updated dates differ, give the value of the section whose
   page_updated is later, with its mark, then say in one short sentence that an older page (named by
@@ -76,6 +79,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   not list is not offered in the catalog; say so plainly.
 - calendar.events are the college calendar's events in the window code chose (calendar.window):
   give each one's title, day and time, place and host as written, with its number. When
+  calendar.said_by_code is true, already_written already gives these events and says whether any
+  match what was asked: never list, restate or count them again; say only what else is asked
+  about them. When
   calendar.topic_matched is false, first say the calendar lists nothing for what was asked in
   that window, then give what the sections say about it (a fair's season, a series' next
   date), then offer the window's other events; with no events, say so and give
@@ -157,9 +163,15 @@ _A_DETAIL = re.compile(
     r"address|today|tonight|tomorrow|now)\b")
 
 
+# "Where's" is "where is": the read writes its clean question in everyday English, and a place
+# asked about that way goes to the lookups like "where is" does (11-03 check set: "Where's the
+# Bradley Center?" went to the how-to pages, which have no section saying where it is).
+_WHERE_IS = re.compile(r"\bwhere(?:'|’)?s\b")
+
+
 def routes_here(message: str) -> bool:
     """Whether a message is a how-to, policy or what-is question for the one-call path."""
-    text = message.casefold()
+    text = _WHERE_IS.sub("where is", message.casefold())
     if _WHAT_IS.search(text) and not _A_DETAIL.search(text):
         return True
     if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text) \
@@ -338,6 +350,35 @@ def pick_messages(question: str, index: MeaningIndex,
              for n, key in enumerate(pool, start=1)]
     return [{"role": "system", "content": PICK_PROMPT},
             {"role": "user", "content": f"Question: {question}\n\n" + "\n".join(lines)}]
+
+
+# The sections are picked this many times at once, and those most picks choose are read first
+# (11-03 repeat test: the same question, the same 60 sections by meaning every time, and one pick
+# a try read different pages, so the replies named different offices and contacts).
+PICKS = 3
+
+
+def agreed_pick(picks: Sequence[Mapping[str, Any] | None], pool_size: int,
+                ) -> dict[str, Any] | None:
+    """The sections most picks choose, as one pick's arguments: by how many picks chose each,
+    then by its places in them (a pick that left it out counts it last), then by its place in
+    the pool. None when no pick came back; the usual choice is then read (with_picked)."""
+    valid: list[list[int]] = []
+    for pick in picks:
+        if not isinstance(pick, Mapping):
+            continue
+        numbers = pick.get("n")
+        valid.append(list(dict.fromkeys(
+            n for n in (numbers if isinstance(numbers, list) else [])
+            if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= pool_size))[:PICKED])
+    if not valid:
+        return None
+    votes = {n: sum(n in chosen for chosen in valid) for chosen in valid for n in chosen}
+
+    def place(n: int) -> int:
+        return sum(chosen.index(n) if n in chosen else PICKED for chosen in valid)
+    kept = [n for n, count in votes.items() if count > len(valid) // 2]
+    return {"n": sorted(kept, key=lambda n: (-votes[n], place(n), n))}
 
 
 def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],
@@ -524,6 +565,36 @@ def statements(text: str) -> list[str]:
         pieces.append(line[start:])
         pieces.append("\n")
     return pieces[:-1]
+
+
+# Words that do not change what a statement says when only they differ ("movie and film events",
+# "movie or film events"), and the citation marks, which say where, not what.
+_SAME_SAYING = frozenset("a an the and or".split())
+_MARKS = re.compile(r"\[\d+(?:\s*[,–-]\s*\d+)*\]")
+
+
+def _said_words(statement: str) -> frozenset[str]:
+    return frozenset(re.findall(r"[a-z0-9]+", _MARKS.sub(" ", statement.casefold()))) - _SAME_SAYING
+
+
+def without_repeats(text: str, already: Sequence[str]) -> tuple[str, list[str]]:
+    """The model's text without the statements that say again what code already wrote before it,
+    and those statements: a statement repeats one of code's when every word of it, citation marks
+    and a few small words aside, is in that one statement (11-03 practice: a film question's
+    answer came twice, code's list and then the model's copy of it). What code wrote is the
+    answer to what it covers, so its own words are the ones that stay."""
+    said = [_said_words(piece) for part in already for piece in statements(part) if piece.strip()]
+    kept: list[str] = []
+    dropped: list[str] = []
+    for piece in statements(text):
+        words = _said_words(piece) if piece.strip() else frozenset()
+        if words and any(words <= other for other in said):
+            dropped.append(piece.strip())
+            if kept and kept[-1] == " ":
+                kept.pop()
+            continue
+        kept.append(piece)
+    return re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip(), dropped
 
 
 def without_unsupported(text: str, check: Any) -> tuple[str, list[str]] | None:

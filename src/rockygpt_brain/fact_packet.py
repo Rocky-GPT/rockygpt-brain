@@ -23,7 +23,11 @@ Version 1.0:
                      or multiple schedule readings. For today's hours that apply, are not
                      unverified and are a plain time range (or 24 hours, or closed), `open_now`
                      {state "open" or "closed", now} says which it is at the turn's campus time,
-                     so a writer never compares hours with a clock itself.
+                     so a writer never compares hours with a clock itself. When the student
+                     asked about a clock time ("food after 9pm", "open at 10am"), `open_at`
+                     {relation "after" or "at", at, state, ...} says what those hours give for
+                     that time on that date instead (listed_open_at for listed hours), and
+                     open_now is kept only if they also asked about now.
     missing        [{subject, predicate, reason}]   a requested fact we cannot state: reason
                    "unknown" (nobody checked, or the page could not be read), "no_citable_source"
                    (a value exists but nothing it comes from has a usable secure link: withheld)
@@ -183,6 +187,78 @@ def open_now(hours: Any, at: datetime) -> dict[str, str] | None:
             "now": shown}
 
 
+def _periods(hours: Any) -> list[dining.Period] | None:
+    """A day's hours as periods, read as open_now reads them: plain ranges joined by commas,
+    "24 hours", "closed" ([]), or a venue's labelled meal periods; None for anything else."""
+    if not isinstance(hours, str):
+        return None
+    text = " ".join(hours.casefold().split())
+    if text in {"24 hours", "open 24 hours"}:
+        return [dining.Period(None, 0, dining.MIDNIGHT)]
+    windows: list[dining.Period] = []
+    for found in _WINDOW.finditer(text):
+        start = _minutes(found[1], found[2], found[3])
+        end = _minutes(found[4], found[5], found[6]) or dining.MIDNIGHT
+        if end <= start:
+            return None
+        windows.append(dining.Period(None, start, end))
+    leftover = re.sub(r"[\s,;&]|\band\b", "", _WINDOW.sub("", text))
+    if windows and not leftover:
+        return windows
+    return dining.parse(hours)
+
+
+def open_at(hours: Any, minute: int, relation: str) -> dict[str, Any] | None:
+    """What a day's hours say for the time a student asked about, when they are plain enough to
+    say (11-03: "where can I get food after 9pm" was answered with each venue's whole day and
+    whether it was open at that moment).
+
+    `relation` "after" asks what is open from that time on: the periods that end after it (one
+    already open then is `open_at_asked`), or closed with the day's last closing. "at" asks
+    whether it is open at that minute, as open_now does, with when that stretch closes or when it
+    next opens. `at` is the time as the pages write one; midnight is 12:00am. A period that opens
+    at the very time asked ("Late Night 9:00pm to 11:00pm", after 9pm) is said with both ends.
+    Hours of "24 hours" are `all_day`, never "until 12:00am"."""
+    periods = _periods(hours)
+    if periods is None or relation not in ("after", "at"):
+        return None
+    ordered = sorted(periods, key=lambda p: p.start)
+    found: dict[str, Any] = {"relation": relation, "at": dining.clock_text(minute)}
+    if any(p.start == 0 and p.end == dining.MIDNIGHT for p in ordered):
+        return {**found, "state": "open", "all_day": True}
+    if relation == "after":
+        later = [p for p in ordered if p.end > minute]
+        if not later:
+            found["state"] = "closed"
+            if ordered:
+                found["last_closes"] = dining.clock_text(max(p.end for p in ordered))
+            return found
+        found["state"] = "open"
+        found["periods"] = [{**({"label": p.label} if p.label else {}),
+                             "opens": dining.clock_text(p.start),
+                             "closes": dining.clock_text(p.end),
+                             **({"open_at_asked": True} if p.start < minute else {})}
+                            for p in later]
+        return found
+    current = dining.at(ordered, minute)
+    if current is not None:
+        end = current.end
+        for period in ordered:  # Periods that meet are one stretch of service.
+            if period.start == end and period.end > end:
+                end = period.end
+        found.update(state="open", closes=dining.clock_text(end))
+        if current.label:
+            found["meal"] = current.label
+        return found
+    found["state"] = "closed"
+    coming = dining.after(ordered, minute)
+    if coming is not None:
+        found["next_opens"] = dining.clock_text(coming.start)
+        if coming.label:
+            found["next_meal"] = coming.label
+    return found
+
+
 def fresh_for_date(fact: dict[str, Any], sources: dict[str, dict[str, Any]]) -> bool:
     """Whether a schedule fact's evidence is fresh and its reviewed absences are current. Whether
     it covers a particular date is the derived fact's `applies`, not this."""
@@ -240,6 +316,8 @@ class _Builder:
         # What the student wants to do or know, as the reading of the question put it for a
         # how-to lookup, so a writer leaves out a rule for another situation.
         self.wants: list[str] = []
+        # The rooms asked of a building by its room-number prefix ("Where is ASB 407?").
+        self.rooms: list[str] = []
         self.dataset: dict[str, Any] | None = None
 
     def _open_now(self, picked: dict[str, Any], asked_on: date) -> dict[str, Any]:
@@ -258,6 +336,22 @@ class _Builder:
         state = open_now(picked["value"].get("hours"), self.as_of)
         return {"open_now": state} if state else {}
 
+    @staticmethod
+    def _open_at(picked: dict[str, Any], asked: dict[str, Any]) -> dict[str, Any]:
+        """What the day's hours say for the time the student asked about, on whatever date was
+        asked. Hours a schedule lists without published dates give listed_open_at, said as "by
+        its listed hours" beside the dates the page does not publish."""
+        if "status" in picked:
+            return {}
+        minute, relation = asked["minute"], asked["relation"]
+        if picked.get("applicability") == "unverified":
+            listed = open_at(picked["value"].get("listed_hours"), minute, relation)
+            return {"listed_open_at": listed} if listed else {}
+        if not picked["applies"] or picked.get("applicability"):
+            return {}
+        state = open_at(picked["value"].get("hours"), minute, relation)
+        return {"open_at": state} if state else {}
+
     def office(self, part: dict[str, Any], *, purpose: str | None = None) -> None:
         reader = part["facts"]
         entity = {"id": part["office"]["id"], "name": part["office"]["name"],
@@ -267,6 +361,9 @@ class _Builder:
             self.fields.extend(f for f in part["fields"] if f not in self.fields)
             if isinstance(part.get("about"), str) and part["about"] not in self.wants:
                 self.wants.append(part["about"])
+            for room in part.get("rooms") or []:
+                if isinstance(room, str) and room not in self.rooms:
+                    self.rooms.append(room)
         self.dataset = self.dataset or {"version": reader.get("dataset_version"),
                                         "identityHash": reader.get("identity_hash")}
         first_new = len(self.facts)
@@ -441,7 +538,11 @@ class _Builder:
                     **({"status": fact["status"]}
                        if fact["status"] != "known" and not (
                            venue and fact["status"] == "multiple") else {}),
-                    **self._open_now(picked, asked_on),
+                    # A time asked ("after 9pm") is answered for that time; whether it is open
+                    # at this moment is said only when the student also asked that.
+                    **(self._open_now(picked, asked_on)
+                       if not when.get("at") or when["at"].get("now") else {}),
+                    **(self._open_at(picked, when["at"]) if when.get("at") else {}),
                     **{key: picked[key] for key in ("applicability", "applicability_reason")
                        if key in picked}})
             if venue and superseded:
@@ -606,8 +707,22 @@ def _intent(builder: _Builder) -> str:
     return real[0] if real else "unknown"
 
 
+def _beside_the_day(entry: dict[str, Any], asked_days: dict[str, set[str]]) -> bool:
+    """Whether a schedule gap is about weekdays other than the one asked of that office: "food
+    after 9pm" on a Tuesday is answered whole though the Atrium lists no weekend hours (11-03).
+    The writers leave such a gap unsaid too (plain_writer._unknown_days)."""
+    days = asked_days.get(entry["subject"]["id"], set())
+    return (entry.get("reason") == "partially_unknown_schedule" and bool(days)
+            and isinstance(entry.get("days"), list) and not days & set(entry["days"]))
+
+
 def _status(builder: _Builder) -> str:
     kinds = {notice["type"] for notice in builder.notices}
+    asked_days: dict[str, set[str]] = {}
+    for derived in builder.derived:
+        if derived["predicate"] == "hours_on":
+            asked_days.setdefault(derived["subject"]["id"], set()).add(derived["day"])
+    missing = [entry for entry in builder.missing if not _beside_the_day(entry, asked_days)]
     # A fact the Brain worked a date out from is judged by that derived fact, not on its own.
     replaced = {fid for derived in builder.derived for fid in derived["from"]}
     asked = [fact for fact in builder.facts
@@ -622,7 +737,7 @@ def _status(builder: _Builder) -> str:
     if not answered and builder.unresolved:
         return "not_found"
     if answered:
-        degraded = (builder.missing or builder.ambiguities or builder.unresolved
+        degraded = (missing or builder.ambiguities or builder.unresolved
                     or kinds & ({"evidence_incomplete", "incomplete"} | CANNOT_ANSWER)
                     or any(not f["current"] or f["status"] != "known" for f in asked)
                     or any(not d["current"] for d in builder.derived)
@@ -646,7 +761,8 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
         "version": PACKET_VERSION,
         "request": {"intent": _intent(builder), "entities": list(builder.entities.values()),
                     "fields": builder.fields, "asOf": as_of, "dataset": builder.dataset,
-                    **({"wants": builder.wants} if builder.wants else {})},
+                    **({"wants": builder.wants} if builder.wants else {}),
+                    **({"rooms": builder.rooms} if builder.rooms else {})},
         "status": _status(builder),
         "facts": builder.facts,
         "derived_facts": builder.derived,

@@ -45,6 +45,13 @@ MAX_TRIP_ROWS = 128
 GRAPH_RECORDS_ARTIFACT = "graph-records"
 # The most academic calendar dates one read returns (about 300 across the published terms).
 MAX_CALENDAR_DATES = 2_000
+# The campus map's own refresh window (rockygpt-data source-seeds.ts, campus-map: 4,320 hours).
+# Its building rows are published without one of their own, so a building is read with the map's.
+CAMPUS_MAP_FRESHNESS_HOURS = 4_320
+# The places one building's facts list: Academic Building D holds 21 offices and desks.
+MAX_BUILDING_PLACES = 60
+# What a building holds: every place the graph locates in it (located_at), but no person.
+BUILDING_PLACE_KINDS = ("office", "venue", "facility", "organization", "school", "club")
 # A building's map row (or its group's), and the places the campus map lists that a node is: one
 # office can be several map places (Admissions is both "Campus Tours" and the admissions office).
 # A staff person's record: the names, addresses and titles their offices' own pages print.
@@ -103,6 +110,12 @@ def _discovery_tokens(value: str) -> frozenset[str]:
 
 # The one way published names are read by their words, for callers outside this module.
 discovery_tokens = _discovery_tokens
+
+
+def _said(name: str) -> str:
+    """A name as said: its words, without a leading "the" ("The Village" is "village")."""
+    words = re.findall(r"[a-z0-9]+", name.casefold().replace("’", "'").replace("'", ""))
+    return " ".join(words[1:] if len(words) > 1 and words[0] == "the" else words)
 
 
 class EvidenceUnavailable(RuntimeError):
@@ -283,6 +296,120 @@ def _source(row: dict[str, Any], now: datetime, on: date | None = None) -> dict[
         "normalization_metadata": _json_safe(metadata),
         "caveats": caveats,
     }
+
+
+def _map_row(snapshot: Snapshot, building: dict[str, Any]) -> dict[str, Any]:
+    """A building's one campus map record."""
+    rows = snapshot.record_reader(building, "buildings")
+    if len(rows) != 1:
+        raise EvidenceUnavailable("A building identity has no single map record.")
+    return rows[0]
+
+
+def _map_source(record: dict[str, Any], record_id: str, url: str | None, collection: str,
+                now: datetime) -> dict[str, Any]:
+    """A campus map record as a source. The campus map publishes no freshness promise of its
+    own: its seed's is used."""
+    source = _source({**record, "id": record_id, "canonical_url": url,
+                      "freshness_sla_hours": record.get("freshness_sla_hours")
+                      or CAMPUS_MAP_FRESHNESS_HOURS}, now)
+    source.update(collection=collection, source_record_keys=[record["source_record_key"]],
+                  record_ids=[record["id"]])
+    return source
+
+
+def _namesake(place: dict[str, Any], building: dict[str, Any]) -> bool:
+    """A place of the building's own name (a residence hall's office, the school a building is
+    named for) is the building, not a place in it."""
+    return _said(place["name"]) in {_said(name) for name in [building["name"],
+                                                              *building["aliases"]]}
+
+
+def _placed(snapshot: Snapshot, place: dict[str, Any], building: dict[str, Any],
+            row: dict[str, Any], sources: dict[str, dict[str, Any]],
+            now: datetime) -> tuple[list[str], bool]:
+    """What puts a place in a building (its located_at link to it), as the ids of the sources
+    that say so, each added to `sources`: the campus map's own entry for the place, an official
+    page a person reviewed, the map's building of the place's name, or the place's own published
+    room among the building's room numbers. No ids: nothing citable placed it there. The flag
+    says a reviewed page did. `row` is the building's map record (_map_row)."""
+    evidence = [e for r in place.get("relationships") or []
+                if isinstance(r, dict) and r.get("type") == "located_at"
+                and r.get("target_entity_id") == building["id"]
+                for e in r.get("evidence") or [] if isinstance(e, dict)]
+    map_url = _url(row.get("source_url"))
+    ids: list[str] = []
+    reviewed = False
+    for e in evidence:
+        collection, page = e.get("collection"), _url(e.get("source_url"))
+        if collection == "map_places":
+            # The campus map's own entry for the place puts it in this building.
+            for mapped in snapshot.record_reader(place, "map_places"):
+                if mapped.get("source_record_key") == e.get("source_record_key"):
+                    sid = str(mapped["id"])
+                    sources.setdefault(sid, _map_source(
+                        mapped, sid, _url(mapped.get("source_url")), "map_places", now))
+                    ids.append(sid)
+        elif collection == "buildings" and e.get("field") == "reviewed_locations" and page:
+            # An official page a person reviewed as placing it here (the campus-hours page's
+            # "Library in the Peter P. Mercer Learning Commons").
+            sid = f"{row['id']}:reviewed:{page}"
+            sources.setdefault(sid, _map_source(row, sid, page, "buildings", now))
+            ids.append(sid)
+            reviewed = True
+        elif collection == "buildings" and page and page == map_url:
+            # The map's building of its own name.
+            sources.setdefault(row["id"], _map_source(row, row["id"], map_url, "buildings", now))
+            ids.append(row["id"])
+    if not ids and any(e.get("collection") == "contacts" for e in evidence):
+        # Its own published room ("SC-120") is in the building's room numbers.
+        for contact in snapshot.contact_reader(place):
+            own = _source(contact, now)
+            if own["citation_urls"]:
+                sources.setdefault(own["id"], own)
+                ids.append(own["id"])
+                break
+    return list(dict.fromkeys(ids)), reviewed
+
+
+def building_property(snapshot: Snapshot, place: dict[str, Any],
+                      now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """The buildings the graph places an office or venue in (its located_at links), each with
+    where the campus map shows it, as one known "building" property and its sources: what
+    placed it there (_placed) and the building's map record. None when nothing citable does.
+    A building of the place's own name is the place itself (_namesake), not where it is."""
+    targets = {r.get("target_entity_id") for r in place.get("relationships") or []
+               if isinstance(r, dict) and r.get("type") == "located_at"}
+    sources: dict[str, dict[str, Any]] = {}
+    said: list[dict[str, Any]] = []
+    cited: list[str] = []
+    for building in snapshot.entities:
+        if building["id"] not in targets or building["kind"] != "building" \
+                or _namesake(place, building):
+            continue
+        rows = snapshot.record_reader(building, "buildings")
+        if len(rows) != 1:
+            continue  # No single map record: nothing says where the building is.
+        row = rows[0]
+        ids, _ = _placed(snapshot, place, building, row, sources, now)
+        map_url = _url(row.get("source_url"))
+        if not ids or not map_url:
+            continue
+        sources.setdefault(row["id"], _map_source(row, row["id"], map_url, "buildings", now))
+        said.append({"name": building["name"], "map": map_url})
+        cited.extend([*ids, row["id"]])
+    if not said:
+        return None
+    cited = list(dict.fromkeys(cited))
+    value = _json_safe(said)
+    assertions = [{"id": f"{place['id']}:building:{n}", "source_id": sid, "field": "building",
+                   "raw_value": None, "value": value, "caveats": []}
+                  for n, sid in enumerate(cited)]
+    return ({"key": "building", "label": "Building", "category": "contact", "status": "known",
+             "values": [{"value": value, "assertion_ids": [a["id"] for a in assertions],
+                         "source_ids": cited}],
+             "assertions": assertions},
+            [sources[sid] for sid in cited])
 
 
 def _disjoint(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -1375,6 +1502,23 @@ _BOARD_MARKS = {"Marked vegan (VG) on the board.": "vegan",
                 "Marked vegetarian (V) on the board.": "vegetarian"}
 # A filter that keeps more board items than a reply can say in full lists them by name and price.
 MAX_BOARD_DETAILED = 8
+# The meals a board section may be named for. Brunch is breakfast and lunch, so neither is
+# another meal than brunch; a section served all day is every meal's.
+_BOARD_MEALS = ("breakfast", "brunch", "lunch", "dinner", "late night")
+_SAME_MEALS = {"brunch": ("breakfast", "lunch"), "breakfast": ("brunch",), "lunch": ("brunch",)}
+_ALL_DAY = re.compile(r"\ball[ -]day\b")
+
+
+def _other_meal(section: str, asked: str) -> str | None:
+    """The meal a board section is named for when it is not the meal asked ("Breakfast sides" when
+    lunch is asked), by the section's own words; None for a section named for no meal, for the meal
+    asked, or served all day."""
+    words = " ".join(section.casefold().split())
+    if _ALL_DAY.search(words):
+        return None
+    return next((meal for meal in _BOARD_MEALS
+                 if meal != asked and meal not in _SAME_MEALS.get(asked, ())
+                 and re.search(rf"\b{meal}\b", words)), None)
 
 
 def _board_allergens(text: Any) -> list[str]:
@@ -1458,7 +1602,8 @@ def menu_board_property(
 
     The board is not dated: its items stand while the dining site links the file they were read
     from (the build publishes them only then), and it names no lunch or dinner. A meal asked is
-    the board's sections that name it ("Breakfast"); a board with none says so and is read whole.
+    the board's sections that name it ("Breakfast"); a board with none says so and is read
+    without the sections it names for another meal (no breakfast sandwiches for lunch).
     Filters keep the items a student asks about: foods by name, station, section, description or
     option; vegan or vegetarian by the board's own marks; allergens by what an item says it
     contains, where the board lists that at all. None when the rows are not a readable board."""
@@ -1491,6 +1636,18 @@ def menu_board_property(
             value["meal_asked"] = " ".join(meal.split())
         else:
             value["meal_not_on_board"] = " ".join(meal.split())
+            # 11-03 practice: "wats for lunch at the atrium today" was given the board's
+            # breakfast sandwiches and sides beside its lunch food.
+            others = {id(r): _other_meal(str(clean(r.get("section")) or ""), asked)
+                      for r in ordered}
+            kept_rows = [r for r in ordered if others[id(r)] is None]
+            if kept_rows and len(kept_rows) < len(ordered):
+                picked = kept_rows
+                value["meals_left_out"] = list(dict.fromkeys(
+                    meal_named for meal_named in others.values() if meal_named))
+                # The count said is a fact, so the reply's check finds its number (run 11: the
+                # count code worked out was refused, and the evidence text was sent instead).
+                value["on_board_besides"] = len(kept_rows)
     query = dict(query or {})
     nutrients = [w for w in query.get("contains") or [] if set(w.casefold().split()) & _NUTRIENTS]
     if nutrients:
@@ -2791,6 +2948,17 @@ class EntityFacts:
                             )
             if not rows and not venue:
                 caveats.append("No original contact evidence is published for this office.")
+            # Where it is, when its own records publish no room (none read, or its pages list
+            # none): the building the graph places it in, cited to what placed it there (11-03
+            # practice: "where is the Bradley Center?" said the lounge had no location, though
+            # the campus map puts it in the Bill Bradley Sports and Recreation Center).
+            room = next((n for n, prop in enumerate(properties) if prop["key"] == "offices"), None)
+            if (room is not None and properties[room]["status"] in {"unknown", "not_published"}
+                    and not properties[room]["values"] and not properties[room].get("issues")
+                    and (placement := building_property(snapshot, entity, now)) is not None):
+                properties[room], placed_by = placement
+                held = {source["id"] for source in sources}
+                sources.extend(source for source in placed_by if source["id"] not in held)
             return {
                 "schema_version": 4,
                 "mapping_version": "entity-facts-6",
@@ -2943,6 +3111,96 @@ class EntityFacts:
             return [{"id": e["id"], "kind": e["kind"], "name": e["name"],
                      "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
+
+    def room_prefixes(self) -> dict[str, list[str]]:
+        """Each campus building's room-number prefixes as its one campus map record publishes
+        them, by the building's id, for discovery only: a room said by its prefix ("ASB 407")
+        names the building it is in (router.py)."""
+        with self.snapshot() as snapshot:
+            found: dict[str, list[str]] = {}
+            for building in snapshot.entities:
+                if building["kind"] != "building":
+                    continue
+                rows = snapshot.record_reader(building, "buildings")
+                prefixes = [p for p in (rows[0].get("room_prefixes") or [] if len(rows) == 1
+                                        else []) if isinstance(p, str) and p.strip()]
+                if prefixes:
+                    found[building["id"]] = prefixes
+            return found
+
+    def get_building_facts(self, entity_id: str, dataset_version: str, *,
+                           identity_hash: str | None = None,
+                           as_of: datetime | None = None) -> dict[str, Any]:
+        """A campus building as the graph publishes it, in an office's facts shape (11-03): where
+        the campus map shows it (map), the room-number prefixes that place a room in it
+        (room_prefixes), and the offices, venues and other places the graph locates in it
+        (places_in, by its located_at links). Each place is cited to what placed it there: the
+        campus map, an official page a person reviewed, or the place's own published room."""
+        if (not isinstance(entity_id, str) or not entity_id or len(entity_id) > 100
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("A canonical building and a dataset pin are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            now = as_of if as_of is not None else self.now()
+            if now.tzinfo is None:
+                raise InvalidFactRequest("The fact clock must include its timezone.")
+            building = next((e for e in snapshot.entities
+                             if e["id"] == entity_id and e["kind"] == "building"), None)
+            if building is None:
+                raise UnknownEntity("No building has that canonical identity.")
+            row = _map_row(snapshot, building)
+            map_url = _url(row.get("source_url"))
+            sources: dict[str, dict[str, Any]] = {}
+            sources[row["id"]] = _map_source(row, row["id"], map_url, "buildings", now)
+            properties: list[dict[str, Any]] = []
+
+            def known(key: str, label: str, value: Any, source_ids: list[str]) -> None:
+                # One assertion per source: each source says the value.
+                assertions = [{"id": f"{entity_id}:{key}:{n}", "source_id": sid, "field": key,
+                               "raw_value": None, "value": _json_safe(value), "caveats": []}
+                              for n, sid in enumerate(source_ids)]
+                properties.append({"key": key, "label": label, "category": "building",
+                                   "status": "known",
+                                   "values": [{"value": _json_safe(value),
+                                               "assertion_ids": [a["id"] for a in assertions],
+                                               "source_ids": source_ids}],
+                                   "assertions": assertions})
+
+            if map_url:
+                known("map", "Campus map", map_url, [row["id"]])
+            prefixes = [p for p in row.get("room_prefixes") or [] if isinstance(p, str) and p]
+            if prefixes:
+                known("room_prefixes", "Room numbers", prefixes, [row["id"]])
+            places: list[tuple[dict[str, Any], bool, list[str]]] = []
+            for place in snapshot.entities:
+                if place["kind"] not in BUILDING_PLACE_KINDS or _namesake(place, building):
+                    # A place of the building's own name (a residence hall's office, the
+                    # school a building is named for) is the building, not a place in it.
+                    continue
+                ids, reviewed = _placed(snapshot, place, building, row, sources, now)
+                if not ids:
+                    continue  # Nothing citable placed it here: it is not said.
+                places.append(({"name": place["name"], "kind": place["kind"]}, reviewed, ids))
+                if len(places) > MAX_BUILDING_PLACES:
+                    raise EvidenceUnavailable("A building holds more places than one read lists.")
+            if places:
+                # A place an official page says is in it comes first, then food, then the rest.
+                order = {kind: n for n, kind in enumerate(BUILDING_PLACE_KINDS)}
+                order["venue"] = -1
+                places.sort(key=lambda p: (not p[1], 0 if p[1] else order[p[0]["kind"]],
+                                           str(p[0]["name"]).casefold()))
+                cited = list(dict.fromkeys(i for _, _, ids in places for i in ids))
+                known("places_in", "Places in it", [p for p, _, _ in places], cited)
+                # Sources in the order they are first cited, so their numbers read in order.
+                sources = {sid: sources[sid] for sid in dict.fromkeys([row["id"], *cited])}
+            return {"schema_version": 4, "mapping_version": "building-facts-1",
+                    "dataset_version": snapshot.dataset_version,
+                    "identity_hash": snapshot.identity_hash,
+                    "entity": {"id": building["id"], "kind": "building",
+                               "name": building["name"]},
+                    "category": row.get("category"),
+                    "sources": list(sources.values()), "properties": properties,
+                    "complete": True}
 
     def club_directory_ids(self) -> list[str]:
         """Every identity that links a club directory (Archway group) row: the clubs and

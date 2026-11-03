@@ -18,13 +18,15 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call
+from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call, triage
+from rockygpt_brain import kinds as kinds_module
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
     citation_url,
     literal,
     phone_lines,
+    plain_links,
     readable_quote,
     render_facts,
     tidy_evidence,
@@ -48,7 +50,7 @@ from rockygpt_brain.contract import (
     ChatRequest,
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
-from rockygpt_brain.hours_on import DAY_CHOICES, target_date
+from rockygpt_brain.hours_on import DAY_CHOICES, asked_clock, names_another_day, target_date
 from rockygpt_brain.plain_writer import plain_text
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget
 from rockygpt_brain.retrieval import (
@@ -59,9 +61,15 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
-from rockygpt_brain.retrieval.entity_facts import discovery_tokens
+from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
-from rockygpt_brain.router import code_route, shuttle_route
+from rockygpt_brain.router import (
+    asks_inside,
+    code_route,
+    places_named,
+    rooms_said,
+    shuttle_route,
+)
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -91,6 +99,8 @@ LOG = logging.getLogger(__name__)
 TURN_SECONDS = 52.0
 CATALOG_URL = "https://catalog.ramapo.edu/programs"
 MAX_TOOL_ATTEMPTS = 8
+# A building's hours are its places' own: at most this many of its offices and venues are read.
+MAX_BUILDING_HOURS = 4
 MAX_RESULTS = 8
 MAX_ANSWER_CHARS = 12_000
 
@@ -477,21 +487,22 @@ UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about tha
                                     "way to ask.")
 # After a shuttle or dining answer there is no office above to ask.
 UNSUPPORTED_PART_MESSAGE = "I don't have verified information about that part."
+# After a lookup that already said what it has no verified information about (11-03 practice:
+# "where is the bradley center" said "I don't have verified information" twice in a row).
+UNSUPPORTED_GAP_SAID_MESSAGE = ("I can look up published contact details and hours for Ramapo "
+                                "offices, the posted shuttle timetable, and dining hours and "
+                                "menus.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
-    "greeting": ("Hi! I'm RockyGPT. I can look up published contact details and hours for Ramapo "
-                 "offices, the posted shuttle timetable, and dining hours and menus. What do "
-                 "you need?"),
-    "thanks": ("You're welcome! Ask me for an office's contact details, a shuttle time or "
-               "dining hours whenever you need them."),
+    "greeting": triage.SOCIAL_TEXTS["greeting"],
+    "thanks": triage.SOCIAL_TEXTS["thanks"],
     "okay": ("Okay, thanks for letting me know. If anything changes, call 911, or call or text "
              "988 to talk with someone. I can look up office contact details whenever you need "
              "them."),
-    "about": ("I'm RockyGPT, an AI assistant for Ramapo College students. Right now I can look "
-              "up published office contact details such as email, phone, room and hours, the "
-              "posted shuttle timetable, and dining hours and menus, with sources. I can't see "
-              "your personal student records."),
+    "about": triage.SOCIAL_TEXTS["about_bot"],
 }
+# The office lines a feeling or problem gets, after code's kind sentence (triage.py).
+SUPPORT_LINKS = re.compile(r"\n\nSources: ((?:\[\d+\]\([^)\s]+\) ?)+)$")
 
 
 ERRORS: dict[str, tuple[int, str, bool]] = {
@@ -768,6 +779,13 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)*", text.casefold().replace("\u2019", "'"))
 
 
+def _said_name(name: str) -> str:
+    """A place's name as said, a leading "the" dropped: "the Learning Commons" names the
+    Learning Commons."""
+    words = _words(name)
+    return " ".join(words[1:] if len(words) > 1 and words[0] == "the" else words)
+
+
 _FILLER = frozenset("please order that this with from your there these they have will into "
                     "also when what which them their about".split())
 
@@ -796,10 +814,19 @@ _ALLERGY_WORDS = frozenset(
 
 # Where a shuttle stops: its stop description says where it picks up and where it does not go.
 _STOP_WORDS = frozenset("stop stops stopping go goes going pick picks pickup".split())
+# Where a shuttle is right now ("did I miss the bus or is it still coming", "is it late"): beside
+# timetable times, the scope notice says every time that they are not live and that delays are
+# not in them, so a part about it is already answered (11-03 repeat test: the model added "I don't
+# have verified information about that part" in some tries and not others).
+_LIVE_WORDS = frozenset(
+    "bus buses shuttle shuttles still coming come comes came miss missed late running run runs "
+    "delayed delay delays live real tracking track tracker arrive arrives arriving arrived yet "
+    "already gone left".split())
 
 
 def _asked_words(student_words: str | None, message: str, offices: set[str],
-                 menu_read: bool = False, stop_described: bool = False) -> str | None:
+                 menu_read: bool = False, stop_described: bool = False,
+                 shuttle_scoped: bool = False) -> str | None:
     """The student's own words that an unsupported part is about, or None when there are none.
 
     The model must give the words it cannot answer. Words that are not in the student's message, or
@@ -812,7 +839,8 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
         return None
     named = {word for name in offices for word in _words(name)}
     if all(word in _ANSWERABLE_WORDS or word in named
-           or (menu_read and word in _MENU_ANSWERABLE_WORDS) for word in said):
+           or (menu_read and word in _MENU_ANSWERABLE_WORDS)
+           or (shuttle_scoped and word in _LIVE_WORDS) for word in said):
         return None
     # Beside a menu, a part about allergies is answered: every item carries its allergen labels.
     if menu_read and set(said) & _ALLERGY_WORDS:
@@ -1050,6 +1078,25 @@ def keep_named_day(requests: list[Any], message: str, today: Any) -> list[Any]:
     return out
 
 
+def with_asked_time(requests: list[Any], message: str) -> list[Any]:
+    """"Where can I get food after 9pm": hours asked at a clock time are one day's, so the time
+    can be answered (11-03: the model left the day out in three of five tries, and each venue's
+    whole week was said). It is the one weekday the student names, or today when they name no
+    day; with days in general ("on weekends", "usually") the week stays whole."""
+    if asked_clock(message) is None:
+        return requests
+    day = named_weekday(message) or (None if names_another_day(message) else "today")
+    if day is None:
+        return requests
+    return [item.model_copy(update={"day": day})
+            if isinstance(item, OfficeRequest) and "hours" in item.fields and item.day is None
+            else item for item in requests]
+
+
+# Words that also ask about this moment beside a clock time ("is it open now, and after 9pm?").
+_NOW_ASKED = re.compile(r"\b(?:now|rn|right now|currently|atm)\b", re.IGNORECASE)
+
+
 def with_meal_hours(requests: list[Any]) -> list[Any]:
     """A meal's menu ("what is for dinner") is read with that day's hours, so the answer starts
     with when the meal is served (Dan 11-02); code adds them, the model need not ask."""
@@ -1213,6 +1260,10 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("unsupported_part", model,
               "A finish part unsupported, when only shuttle or dining facts are shown above it.",
               UNSUPPORTED_PART_MESSAGE),
+        entry("unsupported_gap_said", model,
+              "A finish part unsupported, when a lookup above found the office but none of what "
+              "was asked, and already says it has no verified information about it.",
+              UNSUPPORTED_GAP_SAID_MESSAGE),
         entry("clarification", model + ["the code"],
               "A finish part clarification (not added when a lookup already asked which office), "
               "or a finish with nothing in it, no lookup result and no safety reply just before.",
@@ -1271,8 +1322,21 @@ class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
                  output: Literal["text", "json", "written"] = "text",
-                 howto_one_call: bool | None = None, lookup_writer: bool | None = None) -> None:
+                 howto_one_call: bool | None = None, lookup_writer: bool | None = None,
+                 read_first: bool | None = None, reads: int | None = None,
+                 picks: int | None = None) -> None:
         self.gateway, self.facts = gateway, facts
+        # Dan 11-03: in written output one small model call reads what kind of message it is
+        # before anything is searched (triage.py), unless code already understands the whole
+        # message. BRAIN_READ_FIRST=0 turns it off.
+        self.read_first = (os.environ.get("BRAIN_READ_FIRST", "1") != "0"
+                           if read_first is None else read_first)
+        # How many reads are made at once, what most say being the reading (triage.READS), and
+        # how many section picks, the sections most choose being read first (one_call.PICKS).
+        self.reads = max(1, reads if reads is not None
+                         else int(os.environ.get("BRAIN_READS", "") or triage.READS))
+        self.picks = max(1, picks if picks is not None
+                         else int(os.environ.get("BRAIN_PICKS", "") or one_call.PICKS))
         # A how-to or policy question answered by one model call from code-found evidence
         # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
         self.howto_one_call = (os.environ.get("BRAIN_HOWTO_ONE_CALL") == "1"
@@ -1293,6 +1357,8 @@ class ChatEngine:
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
         self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
+        # The buildings and every office's and venue's names, read once per release (_names).
+        self._names_cache: tuple[tuple[str, str], dict[str, Any]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1510,6 +1576,158 @@ class ChatEngine:
         return [{"entity_id": ids[name], "name": name, "match": "building"}
                 for name in names if name in ids]
 
+    def _names(self) -> dict[str, Any]:
+        """Read once per release: the buildings by name, other names and room-number prefixes
+        (as the router reads names), every office's and venue's name and other names as said
+        plainly, and each office's and venue's id by its name."""
+        key = self.facts.active_release()
+        if self._names_cache is not None and self._names_cache[0] == key:
+            return self._names_cache[1]
+        rooms = self.facts.room_prefixes()
+        buildings = [{"name": b["name"], "also_called": list(b["aliases"]), "entity_id": b["id"],
+                      **({"room_prefixes": rooms[b["id"]]} if b["id"] in rooms else {})}
+                     for b in self.facts.identities(("building",))]
+        places = self.facts.identities(("office", "venue"))
+        names = {"buildings": buildings,
+                 "places": {_said_name(str(name)) for place in places
+                            for name in [place["name"], *place["aliases"]]},
+                 "ids": {str(place["name"]): place["id"] for place in places}}
+        self._names_cache = (key, names)
+        return names
+
+    def _buildings(self) -> list[dict[str, Any]]:
+        """The campus buildings by name and other names, as the router reads names."""
+        try:
+            return list(self._names()["buildings"])
+        except EvidenceUnavailable:
+            return []
+
+    def _building_called(self, name: str) -> dict[str, Any] | None:
+        """The one building a name is the whole name or other name of, as said."""
+        asked = _said_name(name)
+        if not asked:
+            return None
+        try:
+            buildings = self._names()["buildings"]
+        except EvidenceUnavailable:
+            return None
+        named = [b for b in buildings
+                 if any(_said_name(str(n)) == asked for n in [b["name"], *b["also_called"]])]
+        return named[0] if len(named) == 1 else None
+
+    def _building_named(self, query: str) -> dict[str, Any] | None:
+        """The one building a lookup's query is the whole name of ("Student Center", "the
+        Learning Commons"), when no office or venue is called that: an office named like its
+        building is the office (and where-questions get the building too, _same_name)."""
+        try:
+            if _said_name(query) in self._names()["places"]:
+                return None
+        except EvidenceUnavailable:
+            return None
+        return self._building_called(query)
+
+    def _same_name(self, result: OfficeResult, request: OfficeRequest) -> dict[str, Any] | None:
+        """The building an office or venue found for a where-question is named like ("Where is
+        Pine Hall?": the residence hall's office is Pine Hall, and so is its building), so
+        where the campus map shows it is said with the office's own room."""
+        part = result.part or {}
+        office = part.get("office") if part.get("kind") == "office_facts" else None
+        if ("offices" not in request.fields or not isinstance(office, dict)
+                or office.get("kind") == "building"):
+            return None
+        return self._building_called(str(office.get("name", "")))
+
+    def _building(self, request: OfficeRequest, building: dict[str, Any], graph: CampusGraph,
+                  as_of: datetime, *, latest: str = "") -> OfficeResult:
+        """A building named (11-03: "where da student center at"): where the campus map shows
+        it, its room numbers and the places in it, as the graph publishes them. A building has no
+        hours of its own: hours asked of it are its offices' and venues' own (hours_places), read
+        after it in the same round. Asked what is in it (`latest`, the student's message), its
+        places are asked for too (places_in), so every one is named."""
+        with measure("Open root · Ramapo"):
+            graph.open("ramapo", [], as_of)
+        with measure("Open Offices · read published directory"):
+            graph.open("offices", [], as_of)
+        if graph.version is None:
+            raise EvidenceUnavailable("No published release to read a building from.")
+        with measure("Read the building's map record and the places in it"):
+            facts = self.facts.get_building_facts(building["entity_id"], graph.version,
+                                                  identity_hash=graph.identity_hash, as_of=as_of)
+        with measure("Render verified evidence"):
+            rendered = render_facts(facts)
+        detail: dict[str, Any] = {
+            "path": graph.path(graph.current_node), "result_count": 1,
+            "dataset_version": graph.version, "identity_hash": graph.identity_hash,
+            "as_of": as_of.isoformat(), "office": facts["entity"]["name"],
+            "resolvedBy": "building"}
+        fields: list[str] = list(request.fields)
+        if asks_inside(latest, building) and "places_in" not in fields:
+            fields.append("places_in")
+        part: dict[str, Any] = {
+            "kind": "office_facts", "query": request.query, "fields": fields,
+            "office": {"id": building["entity_id"], "name": facts["entity"]["name"],
+                       "kind": "building"},
+            "facts": facts}
+        if rooms := rooms_said(latest, building):
+            # "Where is ASB 407?": the room asked, which its prefix places in this building.
+            part["rooms"] = rooms
+        if "hours" in request.fields:
+            part["hours_places"] = detail["hours_places"] = self._hours_places(
+                facts, graph, as_of)
+        detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
+                            "complete": rendered.complete}
+        return OfficeResult(rendered, detail=detail, part=part)
+
+    def _namesake(self, request: OfficeRequest, building: dict[str, Any], graph: CampusGraph,
+                  as_of: datetime) -> OfficeResult | None:
+        """The building of an office's own name (_same_name), or None when its map record cannot
+        be read: the office's own room still answers."""
+        try:
+            return self._building(request, building, graph, as_of)
+        except DatasetChanged:
+            raise
+        except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+            return None
+
+    def _place_hours(self, request: OfficeRequest, graph: CampusGraph,
+                     as_of: datetime, latest: str = "") -> OfficeResult | None:
+        """The hours of one place in a building, by its exact name; None when they cannot be
+        read, and the building's other places are said without it."""
+        try:
+            return self._lookup(request, graph, as_of, exact_name_only=True, latest=latest)
+        except DatasetChanged:
+            raise
+        except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+            return None
+
+    def _hours_places(self, facts: dict[str, Any], graph: CampusGraph,
+                      as_of: datetime) -> list[str]:
+        """The offices and venues in a building that publish hours, in the order the building's
+        facts list them (a place an official page says it is first, then food), at most
+        MAX_BUILDING_HOURS."""
+        inside = [place for prop in facts["properties"] if prop["key"] == "places_in"
+                  for value in prop["values"] for place in value["value"]
+                  if place.get("kind") in ("office", "venue")]
+        ids = self._names()["ids"]
+        found: list[str] = []
+        for place in inside:
+            entity_id = ids.get(str(place["name"]))
+            if entity_id is None or graph.version is None:
+                continue
+            try:
+                read = self.facts.get_office_facts(entity_id, ["hours"], graph.version,
+                                                   identity_hash=graph.identity_hash,
+                                                   as_of=as_of)
+            except DatasetChanged:
+                raise  # The turn answers from one release.
+            except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+                continue  # A place whose hours cannot be read is not said to have any.
+            if any(prop["key"] == "hours" and prop["values"] for prop in read["properties"]):
+                found.append(str(place["name"]))
+            if len(found) == MAX_BUILDING_HOURS:
+                break
+        return found
+
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "",
                 latest: str = "",
@@ -1532,6 +1750,15 @@ class ChatEngine:
             ("diet", request.diet), ("contains", said(request.items)),
             ("with_allergens", said(request.with_allergens)),
             ("without_allergens", said(request.without_allergens))) if value}
+        building = None if exact_name_only or menu else self._building_named(request.query)
+        if building is not None:
+            try:
+                return self._building(request, building, graph, as_of, latest=latest)
+            except DatasetChanged:
+                raise
+            except (EvidenceUnavailable, UnknownEntity) as error:
+                # A building whose map record cannot be read is looked up like any name.
+                LOG.warning("brain_building_unreadable reason=%s", str(error)[:120])
         opened = graph.lookup(request.query, list(request.fields), as_of,
                               exact_name_only=exact_name_only, conversation=conversation,
                               latest=latest, on=on,
@@ -1652,11 +1879,15 @@ class ChatEngine:
                         value["value"]["details_asked"] = list(request.details)
         if request.day and "hours" in request.fields:
             # Worked out here, on the campus clock, so a writer never has to.
-            when: dict[str, str] = {
+            when: dict[str, Any] = {
                 "day": request.day,
                 "date": target_date(request.day, as_of.date()).isoformat()}
             if request.meal:
                 when["meal"] = request.meal  # A venue's one period, when one was named.
+            if asked := asked_clock(latest):
+                # "After 9pm": what is open then is worked out for that time (fact_packet.open_at).
+                when["at"] = {"relation": asked[0], "minute": asked[1],
+                              **({"now": True} if _NOW_ASKED.search(latest) else {})}
             part["when"] = when
             detail["day"] = when
         return OfficeResult(rendered, detail=detail, part=part, leads=leads)
@@ -1889,13 +2120,16 @@ class ChatEngine:
 
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
+                       kinds: Mapping[str, Sequence[str]] | None = None,
+                       named_clubs: bool = True,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
                                   list[dict[str, Any]], list[dict[str, Any]], str | None]:
         """The calendar events in the question's window and the clubs it names, read through the
         shared reader (events.py), numbered after the evidence before them, what code works
         out from them (counts, food, the topic's other dates, a club's events), and the events
-        in code's own words (events.topic_text); scores are the event cards' meaning, when the
-        index has them."""
+        in code's own words (events.topic_text); scores are the event cards' meaning and kinds
+        their kinds (kinds.py), when the index has them. With `named_clubs` False (a kind's
+        clubs are listed already: _kind_list), no club is read."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
@@ -1924,7 +2158,16 @@ class ChatEngine:
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
-                                                 all_upcoming())
+                                                 all_upcoming(), kinds=kinds)
+            if matched is False and label == events.DEFAULT_LABEL:
+                # Nothing matches and no time was named: the next two weeks' other events say
+                # nothing about what was asked (11-03 practice: "any karaoke nights" was answered
+                # with a long list of unrelated events).
+                ranked = []
+            # Counted before the list is cut, so the reply says how many match, not how many
+            # it shows.
+            totals = events.match_totals(ranked)
+            ranked = events.shown_events(ranked)
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
             outside_values: list[dict[str, Any]] = []
@@ -1932,35 +2175,49 @@ class ChatEngine:
                 window_ids = {v.get("_id") for v in values}
                 later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
                 found, again = events.rank_events(later, message, now, now + timedelta(days=366),
-                                                  scores, all_upcoming(), by_share=True)
+                                                  scores, all_upcoming(), by_share=True,
+                                                  kinds=kinds)
                 outside_values = found[:events.MAX_OUTSIDE] if again else []
                 outside = numbered(outside_values, outside_window=True)
             words = events.asked_topic(message)
+            asked_kinds, rest = (events.asked_kinds(message, words) if kinds and words
+                                 else (frozenset(), []))
+            kinds_said = kinds_module.names(asked_kinds)
             in_window = len(events.in_window(values, start, end))
             valued = [{**line, "_value": value}
                       for line, value in zip(chosen, ranked, strict=True)]
             computed = events.computed_answers(
                 label, start, end, in_window, valued, matched, words, events.asks_food(message),
-                outside, numbered_from + 1)
+                outside, numbered_from + 1, asked=message, kinds_said=kinds_said,
+                only_kinds=bool(asked_kinds) and not rest, totals=totals)
             said = events.topic_text(
                 label, start, end, in_window, valued, matched,
                 [{**line, "_value": value}
                  for line, value in zip(outside, outside_values, strict=True)],
-                numbered_from + 1)
+                numbered_from + 1, kinds_said=kinds_said,
+                only_kinds=bool(asked_kinds) and not rest, totals=totals)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
                         **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
+                        **({"kinds_asked": kinds_said} if kinds_said else {}),
                         "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
-                                  message) if events.asks_clubs(message) else []
+                                  message) if named_clubs and events.asks_clubs(message) else []
         if found:
-            for facts in self.facts.get_club_facts([c["id"] for c in found], version,
-                                                   identity_hash=identity_hash, as_of=now):
-                value = facts["properties"][0]["values"][0]["value"]
-                item = {"n": numbered_from + len(sources) + 1, **value}
-                clubs.append(item)
-                sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
+            found = events.kind_members(found, self._club_directory())
+            # The reader takes MAX_CLUBS_READ clubs at a time; an umbrella entry stands for up to
+            # MAX_CATEGORY_CLUBS ("Honor Societies": 25 of 31, 11-03 practice, where reading them
+            # at once failed and the question fell to the slower model loop).
+            ids = [c["id"] for c in found]
+            for at in range(0, len(ids), MAX_CLUBS_READ):
+                for facts in self.facts.get_club_facts(ids[at:at + MAX_CLUBS_READ], version,
+                                                       identity_hash=identity_hash, as_of=now):
+                    value = facts["properties"][0]["values"][0]["value"]
+                    item = {"n": numbered_from + len(sources) + 1, **value}
+                    clubs.append(item)
+                    sources.append({"n": item["n"], "url": value.get("url"),
+                                    "title": value["name"]})
             computed = [*computed, *events.club_answers(
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed, said
@@ -2112,19 +2369,12 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None, [], {}
-        term = academic_calendar.term_asked(message, calendar["terms"],
-                                            academic_calendar.term_spans(calendar["dates"]),
-                                            today)
-        if term is None:
-            return None, [], {}
-        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
-        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
-        if not url or not entries:
-            return None, [], {}
         n = numbered_from + 1
-        return (academic_calendar.calendar_text(term, entries, n),
-                [{"n": n, "url": url, "title": f"{term['name']} academic calendar"}],
-                {"term": term, "entries": entries})
+        found = academic_calendar.dates_said(message, kind, calendar, today, n)
+        if found is None:
+            return None, [], {}
+        said, url, facts = found
+        return said, [{"n": n, "url": url, "title": "Academic calendar"}], facts
 
     def _clubs_by_words(self, clubs: list[dict[str, Any]], message: str,
                         sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2187,6 +2437,8 @@ class ChatEngine:
             if not statuses or named is None:
                 return None
             listed = next((e for e in self._club_directory() if e.get("id") == named["id"]), None)
+            if listed is not None and events.names_its_kind(listed):
+                return None  # "Honor Societies" names a kind: its clubs are listed instead.
             entry = {"n": 1, **{k: v for k, v in listed.items() if k != "id"}} if listed else None
             status = statuses.get(named["id"])
             if status is not None:
@@ -2306,6 +2558,9 @@ class ChatEngine:
         if named:
             people = people_module.narrow(people, message, schools)
             computed = people_module.computed_answers(people, message, directory)
+        elif stand_ins := people_module.stand_ins(message):
+            # "Professor A or Professor B": no one was named, and no one is said for them.
+            computed.append({"fact": people_module.stand_in_fact(stand_ins)})
         if people_module.asks_leadership(people_module.about_named(message, people)
                                          if named else message):
             given = {p.get("profile_url") or p.get("name") for p in people}
@@ -2370,16 +2625,90 @@ class ChatEngine:
             self._club_cache = (version, entries)
         return self._club_cache[1]
 
+    def _clubs_by_kind(self, index: MeaningIndex, message: str,
+                       ) -> tuple[list[dict[str, Any]], str] | None:
+        """Every directory entry of the kinds a question asks for and nothing else ("cultural
+        clubs", "is there a club for musicians"), with the kinds as a reply says them; None when
+        the question asks something besides kinds, or the index gives no club those kinds (then
+        meaning finds the nearest)."""
+        if not index.kinds:
+            return None
+        asked, rest = events.asked_kinds(message, events.asked_topic(message))
+        if not asked or rest:
+            return None
+        listed = kinds_module.with_included(asked)
+        chosen = [entry for entry in self._club_directory()
+                  if listed & set(index.kinds.get(str(entry["id"]), ()))]
+        return (chosen, kinds_module.names(asked)) if chosen else None
+
+    def _kind_list(self, index: MeaningIndex | None, message: str, numbered_from: int,
+                   ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]],
+                              list[dict[str, Any]]] | None:
+        """Every directory club of the kind a question asks for and nothing else, listed by
+        code: the clubs under the category an entry it names stands for ("are there any honor
+        societies": the 31 listed under Honor Society), or the clubs given the kinds it asks for
+        ("what cultural clubs are there", kinds.py). Each is numbered from `numbered_from` by
+        name, and one a ramapo.edu page marks inactive says so. Returns the text, its sources,
+        the clubs and the facts the text holds; None when the question asks for no kind, or for
+        something besides it ("honor societies for nursing" is the reply's to pick), or no club
+        is of it."""
+        directory = self._club_directory()
+        umbrella = events.kind_named(message, directory)
+        if umbrella is not None and not events.only_kind_asked(message, umbrella):
+            return None
+        by_kind = (self._clubs_by_kind(index, message)
+                   if umbrella is None and index is not None else None)
+        chosen = (events.members_of(umbrella, directory) if umbrella is not None
+                  else by_kind[0] if by_kind is not None else [])
+        if not chosen:
+            return None
+        sources: list[dict[str, Any]] = []
+        if umbrella is not None:
+            sources.append({"n": numbered_from + 1, "url": umbrella.get("url"),
+                            "title": umbrella.get("name")})
+            lead = (f"The club directory lists {len(chosen)} clubs under "
+                    f"{literal(events.kind_head(umbrella))}")
+        else:
+            assert by_kind is not None
+            lead = (f"By what their entries describe, the club directory lists {len(chosen)} "
+                    f"{by_kind[1]} club{'' if len(chosen) == 1 else 's'}")
+        cited = {"n": sources[0]["n"]} if sources else {}
+        ordered = sorted(chosen, key=lambda e: str(e.get("name") or "").casefold())
+        clubs = []
+        for entry in ordered:
+            clubs.append({"n": numbered_from + len(sources) + 1,
+                          **{k: v for k, v in entry.items() if k != "id"}})
+            sources.append({"n": clubs[-1]["n"], "url": entry.get("url"),
+                            "title": entry.get("name")})
+        version, identity_hash = self.facts.active_release()
+        statuses = self.facts.identity_statuses(("club", "organization"), version,
+                                                identity_hash=identity_hash)
+        inactive: dict[int, dict[str, Any]] = {}
+        for entry, club in zip(ordered, clubs, strict=True):
+            status = statuses.get(entry["id"])
+            if (status and status.get("state") == "inactive" and status.get("as_of")
+                    and status.get("source_url")):
+                inactive[club["n"]] = {**status, "n": numbered_from + len(sources) + 1}
+                sources.append({"n": inactive[club["n"]]["n"], "url": status["source_url"],
+                                "title": f"{entry.get('name')} (ramapo.edu)"})
+        head = f"{lead} [{cited['n']}]" if cited else lead
+        said = events.club_list_text(
+            f"Yes. {head}" if events.asks_club_exists(message) else head, clubs, inactive)
+        return said, sources, clubs, [{"fact": f"{lead}.", **cited}, *inactive.values()]
+
     def _clubs_by_meaning(self, index: MeaningIndex, vectors: Sequence[Sequence[float]],
                           numbered_from: int,
                           ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """The clubs whose cards best match each searched text's meaning (the question, and each
-        interest it lists), and every club of the category most of them share ("frats and
-        sororities" is all of Greek Life), read through the reader (events.club_category)."""
+        interest it lists), of the kind most of a text's clubs share (events.of_shared_kind),
+        and every club of the category most of them share ("frats and sororities" is all of
+        Greek Life), read through the reader (events.club_category)."""
         names = {e["id"]: str(e["name"]) for e in self.facts.identities(("club", "organization"))}
         found: dict[str, dict[str, Any]] = {}
         for vector in vectors:
-            for club in events.clubs_by_meaning(index.academic_scores(vector, "club"), names):
+            for club in events.of_shared_kind(
+                    events.clubs_by_meaning(index.academic_scores(vector, "club"), names),
+                    index.kinds):
                 found.setdefault(club["id"], club)
         if not found:
             return [], []
@@ -2427,6 +2756,8 @@ class ChatEngine:
         academic: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
         clubs: list[dict[str, Any]] = []
+        # Whether the clubs are every club of a kind asked, listed by code (_kind_list).
+        kind_listed = False
         people: list[dict[str, Any]] = []
         vectors: list[list[float]] = []
         offices: list[dict[str, Any]] = []
@@ -2441,7 +2772,7 @@ class ChatEngine:
             (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
             and kind != "course")
         try:
-            async with asyncio.timeout(self.turn_seconds):
+            async with asyncio.timeout(max(0.0, budget.deadline - time.monotonic())):
                 # Only what is on in a window: code lists the calendar's events, with no model
                 # call and no search (Dan 11-02: code works out the answer).
                 if kind == "events" and calendar_asked and earlier is None and not people_asked:
@@ -2527,6 +2858,33 @@ class ChatEngine:
                             dataset_version or self.facts.active_release()[0], people=found,
                             computed=people_facts):
                         return done
+                # A kind of club asked ("are there any honor societies", "what cultural clubs are
+                # there"): code lists every club of it, and with nothing else asked that is the
+                # whole reply (Dan 11-03: code writes as much of each answer as it can; 11-03
+                # practice: given 25 honor societies, the reply named 5).
+                listing = (await asyncio.to_thread(self._kind_list, index, latest, len(sources))
+                           if calendar_asked and events.asks_clubs(latest) else None)
+                if listing is not None:
+                    said, found_sources, kind_clubs, listed_facts = listing
+                    dataset_version = dataset_version or self.facts.active_release()[0]
+                    # The kind's events, or when its clubs meet, are the model's to say from
+                    # its clubs; else the list starts the reply.
+                    lists = (not events.asks_events(latest)
+                             and not events.asks_club_events(latest))
+                    if (lists and earlier is None and not people_asked and not named_people
+                            and not (programs and any(programs))
+                            and not one_call.asks_more(latest)):
+                        if done := self._code_answer(turn, trace, said, found_sources,
+                                                     dataset_version, clubs=kind_clubs,
+                                                     computed=listed_facts):
+                            return done
+                    kind_listed = True
+                    sources = [*sources, *found_sources]
+                    clubs = kind_clubs[:events.MAX_CATEGORY_CLUBS]
+                    computed = [*computed, *listed_facts]
+                    if lists:
+                        code_parts.append(said)
+                        code_view["clubs"] = kind_clubs
                 if searchable:
                     assert index is not None and embed_many is not None
                     with measure("Embed the question's parts"):
@@ -2536,26 +2894,36 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources, calendar_facts, events_said = \
+                        calendar, named_clubs, found_sources, calendar_facts, events_said = \
                             await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
-                                                    len(sources), event_scores)
+                                                    len(sources), event_scores,
+                                                    index.kinds if index is not None else None,
+                                                    not kind_listed)
+                    clubs = clubs or named_clubs
                     sources = [*sources, *found_sources]
                     computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
                     # The events code chose, said by code; with nothing else asked, that is the
                     # whole reply (11-03: the reply kept 2 of the 3 wellness events it was given).
                     # When none matches the topic, the pages may still say when it is held (a
-                    # fair's season), and the model reads them for the rest.
+                    # fair's season), and the model reads them for the rest. Sessions may be an
+                    # office's (tutoring, counseling), so the model reads the pages beside them.
                     if events_said and earlier is None and not people_asked \
                             and (calendar or {}).get("topic_matched") is not False \
                             and not named_people and not (programs and any(programs)) \
-                            and not events.asks_clubs(latest) and not one_call.asks_more(latest):
+                            and not events.asks_clubs(latest) and not one_call.asks_more(latest) \
+                            and not events.asks_sessions(latest):
                         if done := self._code_answer(turn, trace, events_said, sources,
                                                      dataset_version, calendar=calendar,
                                                      computed=computed):
                             return done
                     if events_said:
                         code_parts.append(events_said)
+                        # The model is told the events are said, so the calendar's own rules
+                        # ("first say nothing matches") don't have it say them again (run 11:
+                        # "any movie screenings" said the no-screenings line and the December
+                        # event twice, the second time in the model's words).
+                        calendar = {**(calendar or {}), "said_by_code": True}
                         code_view["calendar"] = calendar
                 if searchable:
                     assert index is not None
@@ -2605,11 +2973,15 @@ class ChatEngine:
                     # an anime club") are found by their cards' meaning.
                     # People the question asks about but names by no directory name ("who
                     # researches machine learning") are found by their cards' meaning.
-                    if people_asked and not people and people_module.asks_people_list(latest):
+                    # A letter standing in for a name ("professor A or professor B") names no
+                    # one: no one is found by meaning in its place (11-03 repeat test).
+                    stand_ins = people_module.stand_ins(latest)
+                    if people_asked and not people and people_module.asks_people_list(latest) \
+                            and not stand_ins:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and index.academic
+                    if (people_asked and index.academic and not stand_ins
                             and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
                         # Code first: the profiles whose own courses, interests or title hold
@@ -2652,7 +3024,8 @@ class ChatEngine:
                         clubs = self._clubs_by_words(clubs, latest, sources)
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
-                    elif calendar_asked and clubs and events.asks_clubs(latest):
+                    elif calendar_asked and clubs and events.asks_clubs(latest) \
+                            and not kind_listed:
                         # A club named ("College Republicans") does not hide the others the
                         # question names by a word ("young democrats").
                         clubs = self._clubs_by_words(clubs, latest, sources)
@@ -2680,15 +3053,12 @@ class ChatEngine:
                     pool_scores, pool = one_call.chosen_units(
                         index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
                         per_page=one_call.POOL_PER_PAGE)
-                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
                     with measure("Pick the sections to read by heading"):
-                        picking = await self.gateway.complete(
-                            input=one_call.pick_messages(question, index, pool),
-                            tools=[one_call.PICK_TOOL], budget=budget)
-                    pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
+                        picks = await self._picks(one_call.pick_messages(question, index, pool),
+                                                  budget, trace)
                     chosen = one_call.with_picked(
                         index, vectors, pool_scores, pool,
-                        pick.arguments if pick is not None and pick.name == "pick_units" else None)
+                        one_call.agreed_pick(picks, len(pool)))
                 if searchable and index is not None:
                     with measure("Read the evidence"):
                         offices, found = await asyncio.to_thread(
@@ -2711,8 +3081,11 @@ class ChatEngine:
                     computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
                         gen_ed_lines), *computed]
-                if calendar_asked and events.asks_clubs(latest) and offices:
+                if calendar_asked and events.asks_clubs(latest) and offices and not kind_listed:
                     # A group a page given names is checked against the club directory by code.
+                    # A kind asked is its listed clubs: the other groups a page about it names
+                    # (the Student Government Association that recognizes its chapters, an honor
+                    # society for its members) are not of it (11-03 practice).
                     given = {c.get("url") for c in clubs}
                     text = " ".join(str(section.get(k) or "") for office in offices
                                     for section in office.get("sections") or []
@@ -2761,7 +3134,7 @@ class ChatEngine:
                         input=one_call.messages(latest, earlier if question != latest else None,
                                                 offices, turn.campus_now.date(), academic,
                                                 calendar, clubs, people, computed, code_parts,
-                                                contacts_by_code=contacts.asks_who(latest)),
+                                                contacts_by_code=True),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -2795,7 +3168,7 @@ class ChatEngine:
                                                     [*offices, *more], turn.campus_now.date(),
                                                     academic, calendar, clubs, people,
                                                     computed, code_parts,
-                                                    contacts_by_code=contacts.asks_who(latest)),
+                                                    contacts_by_code=True),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -2808,10 +3181,18 @@ class ChatEngine:
                 LOG.warning("brain_one_call_second_look_failed error=%s",
                             getattr(error, "code", type(error).__name__))
         written = str(arguments.get("text") or "").strip()
-        # Who to go to: the contacts of the offices the reply sends the student to, as the
-        # directory publishes them, written by code after the model's words.
+        if code_parts and written:
+            # The model is asked to write only what code's parts leave out; what it says again
+            # is not said twice.
+            written, repeated = one_call.without_repeats(written, code_parts)
+            if repeated:
+                trace["oneCallRepeats"] = repeated[:5]
+        # The contacts of the offices the reply sends the student to, as the directory publishes
+        # them, written by code after the model's words, in every reply (11-03 repeat test: the
+        # writer chose which contacts to give, and the same question got different phone
+        # numbers, emails and rooms, or none, from try to try).
         after: list[str] = []
-        if contacts.asks_who(latest) and offices and written:
+        if offices and written:
             try:
                 to_reach = self._cited_offices(written, offices)
                 said, found_sources, contact_facts = await asyncio.to_thread(
@@ -2883,19 +3264,13 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None
-        spans = academic_calendar.term_spans(calendar["dates"])
-        term = academic_calendar.term_asked(message, calendar["terms"], spans,
-                                            turn.campus_now.date())
-        if term is None:
+        found = academic_calendar.dates_said(message, kind, calendar, turn.campus_now.date())
+        if found is None:
             return None
-        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
-        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
-        if not url:
-            return None
-        return self._code_answer(
-            turn, trace, academic_calendar.calendar_text(term, entries),
-            [{"n": 1, "url": url, "title": f"{term['name']} academic calendar"}], version,
-            calendar={"term": term, "entries": entries})
+        said, url, facts = found
+        return self._code_answer(turn, trace, said,
+                                 [{"n": 1, "url": url, "title": "Academic calendar"}], version,
+                                 calendar=facts)
 
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
@@ -3294,19 +3669,387 @@ class ChatEngine:
         question should still be answered beside: its text comes first, as for a model's own."""
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
-        result = await self._answer(turn, request, trace, floor_situation)
+        if floor_situation is not None and self.output == "written":
+            result = await self._beside_emergency(turn, request, trace, floor_situation,
+                                                  read=True)
+        else:
+            result = await self._answer(turn, request, trace, floor_situation)
+        read = trace.get("read")
+        if isinstance(read, dict):
+            trace["modelCalls"] = trace.get("modelCalls", 0) + read.get("calls", 0)
+            trace["committedNusd"] = trace.get("committedNusd", 0) + read.get("nusd", 0)
         # A failure, or a reply cut short by one, was decided by the error, not the model.
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
             trace["decidedBy"], trace["errorCode"] = "error", code
+        # Every reply leaves by here, so this is where a web address written on its own in a
+        # sentence is made into a link, whoever wrote the sentence.
+        answer = result.body.get("answer")
+        if isinstance(answer, str) and answer:
+            result = replace(result, body={**result.body, "answer": plain_links(answer)})
         return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,
                       trace: dict[str, Any], floor_situation: str | None = None) -> ChatResult:
+        """Read the message first (triage.py) when code does not already understand it: code
+        writes the whole reply to anything that is not a campus question, and a campus question
+        is answered in its clean words, after code's short lead and before the offices for a
+        problem the student shared. Any read that fails leaves the turn as it was."""
+        started = time.monotonic()
+        if not (self.read_first and self.output == "written" and floor_situation is None):
+            return await self._campus_answer(turn, request, trace, floor_situation)
+        context = build_context(request)
+        reading = None if await self._code_understands(context) else await self._read(
+            turn, context, trace)
+        if reading is None:
+            return await self._campus_answer(turn, request, trace, started=started)
+        reading = await self._read_checked(context, reading, trace)
+        # A follow-up keeps the conversation exactly as it is: the read fixes spelling only and
+        # never guesses what "it" or "that" means. A limit's own campus question has no "it".
+        question = (reading.question if not context.recent_messages
+                    or reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
+        if reading.danger != "none":
+            return await self._read_emergency(turn, request, reading, trace, question, started)
+        if (done := await self._read_reply(turn, context, reading, trace)) is not None:
+            return done
+        # Code's lead says the hello or thanks, so the answer after it does not say it again
+        # (11-03 practice: "Hi!" then the whole greeting after the answer).
+        result = await self._campus_answer(turn, request, trace, question=question,
+                                           started=started,
+                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)))
+        answer = result.body.get("answer")
+        if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
+            return result
+        lead = self._read_lead(turn, reading)
+        if lead:
+            result = replace(result, body={**result.body, "answer": f"{lead}\n\n{answer}"})
+        if reading.needs or reading.limit in triage.LIMIT_OFFICES:
+            result = await self._with_support(result, reading.needs, reading.limit)
+        return result
+
+    async def _code_understands(self, context: Context) -> bool:
+        """Whether code already understands the whole message, so it is not read first: one kind
+        of academic calendar date asked plainly ("when are finals?"), or a plain lookup of one
+        listed office, venue or the shuttle ("Registrar phone number"). Plain questions don't
+        wait for the read."""
+        latest = context.latest_message
+        if context.recent_messages or names_a_danger(latest):
+            return False
+        if academic_calendar.kind_asked(latest) is not None:
+            return True
+        _, offices, _, venues, _, _ = await self._lists()
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(latest, offices, venues, buildings) is not None
+                or shuttle_route(latest) is not None)
+
+    async def _read_checked(self, context: Context, reading: triage.Reading,
+                            trace: dict[str, Any]) -> triage.Reading:
+        """The read, with what code knows for sure put first (11-03 practice). A message the read
+        calls nonsense that names a listed office or venue is a question about it, however it is
+        typed ("registrar # ?"): it goes on in the student's own words. Homework and writing
+        always have the same campus side, tutoring and writing help, asked when the read left
+        the question empty ("solve this: ..." names no subject). What is coming up on the
+        calendar is never off-topic or a prediction."""
+        read = trace.get("read")
+        corrected: triage.Reading | None = None
+        if reading.social == "nonsense" and not reading.question and reading.danger == "none":
+            _, offices, _, venues, _, _ = await self._lists()
+            buildings = await asyncio.to_thread(self._buildings)
+            if places_named(context.latest_message, offices, venues, buildings):
+                corrected = replace(reading, social="none",
+                                    question=context.latest_message.strip())
+                why = "names_a_place"
+        elif not reading.question and reading.limit in triage.LIMIT_QUESTIONS:
+            corrected = replace(reading, question=triage.LIMIT_QUESTIONS[reading.limit])
+            why = "limit_question"
+        elif reading.limit == "clock" and triage.asks_only_the_clock(reading.question):
+            # "whats todays date": the clock line answers it whole; asked again as a campus
+            # question, the date was said twice (11-03 practice).
+            corrected = replace(reading, question="")
+            why = "clock_only"
+        elif (reading.limit == "live_status" and reading.question
+              and not triage.LIVE_WORDS.search(reading.question)
+              and await self._published(reading.question)):
+            # "wats for lunch at the atrium today": today's menu, hours, events and shuttle
+            # times are published, so nothing live is asked (11-03 practice).
+            corrected = replace(reading, limit="none")
+            why = "published_lookup"
+        elif (reading.limit in ("off_topic", "prediction") and reading.danger == "none"
+              and not triage.RESULT_WORDS.search(context.latest_message)
+              and events.asks_events(context.latest_message)
+              and events.names_events(context.latest_message)):
+            # What is coming up is the campus calendar's, which code reads: "any sports games
+            # coming up" was once read as sports scores, "is there a semi formal coming up" as a
+            # prediction (11-03 practice). A game's result is neither, and neither is a question
+            # naming only a time: "what's the weather this weekend" stays a prediction (11-03
+            # practice: corrected, it listed the weekend's events).
+            corrected = replace(reading, limit="none",
+                                question=reading.question or context.latest_message.strip())
+            why = "calendar_lookup"
+        if corrected is None:
+            return reading
+        if isinstance(read, dict):
+            read["corrected"] = {"why": why, **corrected.as_trace()}
+        return corrected
+
+    async def _published(self, question: str) -> bool:
+        """Whether a question asks what the college publishes for a day, which code looks up: a
+        place's hours or menu, the shuttle times, the calendar's events or dates."""
+        if events.asks_events(question) or academic_calendar.kind_asked(question) is not None:
+            return True
+        _, offices, _, venues, _, _ = await self._lists()
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(question, offices, venues, buildings) is not None
+                or shuttle_route(question) is not None)
+
+    async def _picks(self, messages: list[dict[str, Any]], budget: TurnBudget,
+                     trace: dict[str, Any]) -> list[dict[str, Any] | None]:
+        """The section pick made self.picks times at once (one_call.PICKS), each with its own
+        share of what is left of the turn's allowance, counted in the turn's; each pick's
+        arguments, or None for a pick that failed or came back malformed. Every pick failing is
+        the turn's failure, as one pick failing was."""
+        left = max(budget.max_cost_nusd - budget.committed_nusd, 0)
+        shares = [TurnBudget(budget.request_id, budget.deadline, max_calls=1,
+                             max_cost_nusd=left // self.picks) for _ in range(self.picks)]
+
+        async def one(share: TurnBudget) -> dict[str, Any] | GatewayError:
+            try:
+                picking = await self.gateway.complete(input=messages, tools=[one_call.PICK_TOOL],
+                                                      budget=share)
+            except GatewayError as error:
+                return error
+            pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
+            return pick.arguments if pick is not None and pick.name == "pick_units" else {}
+
+        try:
+            outcomes = await asyncio.gather(*(one(share) for share in shares))
+        finally:
+            budget.calls += sum(share.calls for share in shares)
+            budget.committed_nusd += sum(share.committed_nusd for share in shares)
+            budget.max_calls = max(budget.max_calls, budget.calls)
+        errors = [o for o in outcomes if isinstance(o, GatewayError)]
+        if len(errors) == len(outcomes):
+            raise errors[0]
+        if len(outcomes) > 1:
+            trace["oneCallPicks"] = [
+                None if isinstance(o, GatewayError) else o.get("n") for o in outcomes]
+        return [o if isinstance(o, dict) and o else None for o in outcomes]
+
+    async def _read(self, turn: Turn, context: Context,
+                    trace: dict[str, Any]) -> triage.Reading | None:
+        """What kind of message the latest one is (triage.py): what most of the small model calls
+        made at once (self.reads) say, each with its own call and time allowance. None when the
+        message is long, or every read fails, runs late or comes back malformed, and the turn then
+        goes on exactly as it would without it."""
+        latest = context.latest_message
+        if len(latest) > triage.MAX_READ_CHARS:
+            return None
+        previous_user = next((m.content for m in reversed(context.recent_messages)
+                              if m.role == "user"), None)
+        previous_reply = next((m.content for m in reversed(context.recent_messages)
+                               if m.role == "assistant"), None)
+        messages = triage.read_messages(latest, previous_user, previous_reply)
+        budgets = [TurnBudget(turn.request_id, time.monotonic() + triage.READ_SECONDS,
+                              max_calls=1, max_cost_nusd=self.max_turn_nusd // self.reads)
+                   for _ in range(self.reads)]
+        read: dict[str, Any] = {}
+        trace["read"] = read
+
+        async def one(budget: TurnBudget) -> triage.Reading | str:
+            try:
+                async with asyncio.timeout(triage.READ_SECONDS):
+                    completion = await self.gateway.complete(
+                        input=messages, tools=[triage.READ_TOOL], budget=budget)
+            except Exception as error:  # noqa: BLE001 - any failure leaves the turn as it was
+                return str(getattr(error, "code", type(error).__name__))
+            calls = completion.tool_calls
+            reading = (triage.reading_of(calls[0].arguments, latest)
+                       if len(calls) == 1 and calls[0].name == "read_message"
+                       and not completion.text.strip() else None)
+            return "malformed" if reading is None else reading
+
+        try:
+            with measure("Read the message"):
+                outcomes = await asyncio.gather(*(one(budget) for budget in budgets))
+        finally:
+            read.update(calls=sum(b.calls for b in budgets),
+                        nusd=sum(b.committed_nusd for b in budgets))
+        readings = [o for o in outcomes if isinstance(o, triage.Reading)]
+        failed = [o for o in outcomes if isinstance(o, str)]
+        if failed:
+            LOG.warning("brain_read_failed request_id=%s codes=%s", turn.request_id,
+                        ",".join(failed))
+        reading = triage.majority(readings)
+        if reading is None:
+            read["failed"] = failed[0] if failed else "malformed"
+            return None
+        read.update(reading.as_trace())
+        if len(readings) > 1:
+            read["reads"] = [r.as_trace() for r in readings]
+        if failed:
+            read["readsFailed"] = failed
+        return reading
+
+    async def _read_reply(self, turn: Turn, context: Context, reading: triage.Reading,
+                          trace: dict[str, Any]) -> ChatResult | None:
+        """Code's whole reply when the message asks no campus question: a feeling or problem
+        shared, something RockyGPT can't do, or small talk. None for a campus question, and for
+        a read that found nothing to say."""
+        if reading.question:
+            return None
+        lead = triage.social_lead(reading.social, reading.needs)
+        if reading.needs:
+            kind = triage.SUPPORT_TEXTS[reading.needs[0]]
+            said = f"{lead} {kind}" if lead else kind
+            reply = self._json(answered(turn, said, "answered"),
+                               [{"kind": "support", "needs": list(reading.needs),
+                                 "approved_text": kind}], turn)
+            trace["decidedBy"] = "read"
+            return await self._with_support(reply, reading.needs)
+        part: dict[str, Any]
+        status = "answered"
+        if reading.limit == "clock":
+            text = CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT))
+            part = {"kind": "clock", "campusNow": turn.campus_now.isoformat()}
+            text = f"{lead} {text}" if lead else text
+        elif reading.limit in triage.LIMIT_TEXTS:
+            text = triage.LIMIT_TEXTS[reading.limit] + triage.LIMIT_ALONE.get(reading.limit, "")
+            part = {"kind": ("account_limit" if reading.limit in ("my_records", "do_it_for_me")
+                             else "unsupported"), "limit": reading.limit}
+            text, status = (f"{lead} {text}" if lead else text), "unavailable"
+        elif reading.social == "joke":
+            text, part = f"{triage.joke(context.latest_message)} {triage.JOKE_AFTER}", {
+                "kind": "joke"}
+        elif reading.social == "okay" and earlier_emergency(context):
+            # "ok im safe now" after an emergency reply: the reminder of 911 and 988 stays.
+            text, part = FIXED_REPLIES["okay"], {"kind": "okay"}
+        elif reading.social in triage.SOCIAL_TEXTS:
+            text, part = triage.SOCIAL_TEXTS[reading.social], {"kind": reading.social}
+        else:
+            return None
+        trace["decidedBy"] = "read"
+        return self._json(answered(turn, text, status), [{**part, "approved_text": text}], turn)
+
+    def _read_lead(self, turn: Turn, reading: triage.Reading) -> str:
+        """Code's few words before a campus answer: a hello back, what RockyGPT can't do of what
+        was asked, and one kind sentence for a problem the student shared."""
+        said = [triage.social_lead(reading.social, reading.needs) or ""]
+        if reading.limit == "clock":
+            said.append(CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT)))
+        elif reading.limit == "off_topic":
+            said.append(triage.OFF_TOPIC_BESIDE)
+        else:
+            said.append(triage.LIMIT_TEXTS.get(reading.limit, ""))
+        if reading.needs:
+            said.append(triage.SUPPORT_TEXTS[reading.needs[0]])
+        return " ".join(s for s in said if s)
+
+    async def _with_support(self, result: ChatResult, needs: Sequence[str],
+                            limit: str = "none") -> ChatResult:
+        """The reply, then the offices whose job the student's problem is, or what they asked
+        RockyGPT to do (triage.py), each with the phones, email and room the directory
+        publishes, numbered after the reply's own sources. An office the reply already names is
+        not listed again; the reply goes out as it was when none can be read and checked."""
+        answer = str(result.body.get("answer") or "")
+        by_name = {str(office.get("name")): office
+                   for office in self.facts.identities(("office",))}
+        offices = [by_name[name] for name in triage.support_offices(needs, limit)
+                   if name in by_name and name.casefold() not in answer.casefold()]
+        if not offices:
+            return result
+        numbered_from = max((int(n) for n in re.findall(r"\[(\d+)\]", answer)), default=0)
+        try:
+            with measure("Read the support offices' contacts"):
+                lines, sources, listed = await asyncio.to_thread(
+                    self._office_contacts, offices, numbered_from)
+        except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
+            return result
+        view = {"offices": listed, "sources": [{"n": s["n"], "urls": [s["url"]]}
+                                               for s in sources]}
+        if lines is None or unsupported_by(lines, view):
+            return result
+        found = SUPPORT_LINKS.search(answer)
+        body, links = (answer[:found.start()], found.group(1).strip()) if found else (answer, "")
+        links = " ".join(x for x in (links, *(f"[{s['n']}]({s['url']})" for s in sources)) if x)
+        text = f"{body}\n\n{triage.support_lead(len(offices))}\n{lines}\n\nSources: {links}"
+        citations = [*result.body.get("citations", []),
+                     *({"id": f"support-{s['n']}", "title": s["title"], "url": s["url"]}
+                       for s in sources)]
+        return replace(result, body={**result.body, "answer": text, "citations": citations,
+                                     "datasetVersion": result.body.get("datasetVersion")
+                                     or self.facts.active_release()[0]})
+
+    async def _read_emergency(self, turn: Turn, request: ChatRequest, reading: triage.Reading,
+                              trace: dict[str, Any], question: str | None,
+                              started: float) -> ChatResult:
+        """An emergency the read found in words the phrase floor does not list: the floor's same
+        reply. The read can only add an emergency, never take one away: the floor has already
+        run. As the floor does for a question asked beside one (Dan 10-20: crisis first, then
+        policy), the question is answered after it, except beside self-harm, whose reply is sent
+        alone and at once. Any failure of that answer leaves the emergency reply, never an
+        error."""
+        reply = await self.safety_reply(turn, reading.danger)
+        floor = reply.trace or {}
+        trace.update(decidedBy="read", situation=floor.get("situation"))
+        if reading.danger != "self_harm" and reading.question:
+            try:
+                async with asyncio.timeout(max(0.0, started + self.turn_seconds
+                                               - time.monotonic())):
+                    fuller = await self._beside_emergency(turn, request, trace, reading.danger,
+                                                          question=question, started=started)
+                answer = fuller.body.get("answer")
+                if fuller.status_code == 200 and isinstance(answer, str) and situation_of(answer):
+                    return fuller
+            except Exception:  # noqa: BLE001 - the emergency reply stands
+                LOG.warning("brain_read_emergency_answer_failed request_id=%s", turn.request_id)
+            trace.update(decidedBy="read", situation=floor.get("situation"))
+        trace["lookups"].extend(floor.get("lookups", []))
+        return reply
+
+    async def _beside_emergency(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                                situation: str, *, question: str | None = None,
+                                started: float | None = None, read: bool = False) -> ChatResult:
+        """The phrase floor's emergency text and campus numbers first, then the student's own
+        question answered the way any question is (Dan 10-20: crisis first, then policy). 11-03:
+        the question beside "broke into my car ... not 911" went down the old lookup path and came
+        out as raw evidence ("+12016847432"). A failed answer, or one that is itself an emergency
+        reply, is returned as it is, and the floor's own reply stands.
+
+        `read` is for the floor's own message: it is read first like any other, so a feeling it
+        shares gets its kind words and offices and its question is asked in clean words (11-03
+        check set: "my parents are gonna kill me" over a failed midterm got the emergency text
+        and nothing for the exam). The read can add an emergency, never take the floor's away."""
+        if read and self.read_first and situation != "self_harm":
+            result = await self._answer(turn, request, trace)
+        else:
+            result = await self._campus_answer(turn, request, trace, question=question,
+                                               started=started)
+        answer = result.body.get("answer")
+        if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
+            return result
+        help_, _ = await self._campus_help([situation], trace, None, None, turn.campus_now)
+        emergency = "\n\n".join(self._emergency_chunks([situation], help_))
+        cited = {c["id"]: c for r in help_ for c in r.citations}
+        citations = [*cited.values(),
+                     *(c for c in result.body.get("citations", []) if c.get("id") not in cited)]
+        trace["situation"] = situation
+        return replace(result, body={**result.body, "answer": f"{emergency}\n\n{answer}",
+                                     "status": "partial", "citations": citations})
+
+    async def _campus_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                             floor_situation: str | None = None, *, question: str | None = None,
+                             started: float | None = None, greeted: bool = False) -> ChatResult:
+        """The campus answer: code's routes, then the model's. `question` is the read's clean
+        question, which every route and search reads in place of the student's words; `started`
+        is when the turn began, so the read's time comes out of the turn's own; `greeted` is
+        whether code's lead already says hello or thanks."""
         with measure("Prepare conversation and root"):
             context = build_context(request)
-            budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
-                                max_cost_nusd=self.max_turn_nusd)
+            if question:
+                context = replace(context, latest_message=question)
+            budget = TurnBudget(turn.request_id,
+                                (time.monotonic() if started is None else started)
+                                + self.turn_seconds, max_cost_nusd=self.max_turn_nusd)
             results: dict[str, OfficeResult] = {}
             version: str | None = None
             identity_hash: str | None = None
@@ -3355,10 +4098,18 @@ class ChatEngine:
             # its listed service label and asks only how to reach it: the lookup code is sure of
             # comes before the pages (11-03, the live answer gave the IT Help Desk's number).
             listed = await self._lists()
-            if not (plain and code_route(context.latest_message, listed[1], listed[3])):
+            buildings = await asyncio.to_thread(self._buildings)
+            if not (plain and code_route(context.latest_message, listed[1], listed[3],
+                                         buildings)):
                 done = await self._one_call(turn, context, budget, trace)
                 if done is not None:
                     return done
+        # A page answer that fell back leaves the four-call loop its own calls: its picks and
+        # writer had used four or five of the turn's five, so the loop stopped on its first or
+        # second call with "reached RockyGPT's work limit" (11-03 repeat test, q1 and q38). The
+        # turn's cost limit and deadline still hold.
+        if budget.calls:
+            budget.max_calls = budget.calls + TurnBudget.max_calls
         listing, offices, known, venues, stops, routes = listed or await self._lists()
         with measure("Prepare model input"):
             inputs = model_input(turn, context, graph.root(), offices, venues, stops, routes)
@@ -3368,14 +4119,15 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
-        plan, plan_tool = (code_route(context.latest_message, offices, venues) if plain
+        plan, plan_tool = (code_route(context.latest_message, offices, venues,
+                                      await asyncio.to_thread(self._buildings)) if plain
                            else None), "graph_lookup"
         if plan is None and plain:
             plan, plan_tool = shuttle_route(context.latest_message), "shuttle_lookup"
         if plan is not None:
             trace["decidedBy"] = "code"
         try:
-            async with asyncio.timeout(self.turn_seconds):
+            async with asyncio.timeout(max(0.0, budget.deadline - time.monotonic())):
                 while finish is None:
                     if plan is not None and results:
                         finish = Finish(parts=[])
@@ -3405,8 +4157,9 @@ class ChatEngine:
                             requests = GraphRequests.model_validate(call.arguments).requests
                             requests = self._every_venue(self._dining_kind(requests),
                                                          context.latest_message)
-                        requests = with_meal_hours(keep_named_day(
-                            requests, context.latest_message, turn.campus_now.date()))
+                        requests = with_asked_time(with_meal_hours(keep_named_day(
+                            requests, context.latest_message, turn.campus_now.date())),
+                            context.latest_message)
                         requests, situational = with_situation_procedures(
                             requests, context.latest_message)
                         attempts += len(requests)
@@ -3555,6 +4308,58 @@ class ChatEngine:
                                            "clarification": each.clarification,
                                            "error": each.error_code})
                             looked_up.append((rid, len(output) - 1, sibling))
+                        # "Where is Pine Hall": the hall's office has the room, and its building
+                        # of the same name is where the campus map shows it (11-03).
+                        if (building := self._same_name(result, item)) is not None:
+                            namesake = item.model_copy(update={
+                                "query": building["name"], "fields": ["offices"], "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {building['name']}"):
+                                found = await asyncio.to_thread(
+                                    self._namesake, namesake, building,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now)
+                            if found is not None:
+                                rid = f"r{len(results) + 1}"
+                                results[rid] = found
+                                trace["lookups"].append({
+                                    "tool": "graph_lookup", "traversedBy": "code",
+                                    "status": _lookup_status(found),
+                                    "foundBy": "same_name_building",
+                                    "arguments": namesake.model_dump(), **found.detail})
+                                output.append({"query": building["name"],
+                                               "rendered": found.rendered.text,
+                                               "supported": found.rendered.supported,
+                                               "complete": found.rendered.complete,
+                                               "clarification": found.clarification,
+                                               "error": found.error_code})
+                                looked_up.append((rid, len(output) - 1, namesake))
+                        # "Is the Learning Commons open Sunday": a building's hours are its own
+                        # places' hours, each read as its own lookup (11-03). Code named each
+                        # place, so the building the message names asks nothing about which.
+                        for name in (result.part or {}).get("hours_places") or []:
+                            inside = item.model_copy(update={"query": name, "fields": ["hours"],
+                                                             "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {name}"):
+                                hours = await asyncio.to_thread(
+                                    self._place_hours, inside,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now, context.latest_message)
+                            if hours is None:
+                                continue
+                            rid = f"r{len(results) + 1}"
+                            results[rid] = hours
+                            trace["lookups"].append({
+                                "tool": "graph_lookup", "traversedBy": "code",
+                                "status": _lookup_status(hours), "foundBy": "building_place",
+                                "arguments": inside.model_dump(), **hours.detail})
+                            output.append({"query": name, "rendered": hours.rendered.text,
+                                           "supported": hours.rendered.supported,
+                                           "complete": hours.rendered.complete,
+                                           "clarification": hours.clarification,
+                                           "error": hours.error_code})
+                            looked_up.append((rid, len(output) - 1, inside))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
                                                 turn.campus_now, meaning,
                                                 {id(requests[n]) for n in situational})
@@ -3566,7 +4371,8 @@ class ChatEngine:
             with measure("Compose final response"):
                 try:
                     return await self._finish(turn, context, finish, results, version,
-                                              identity_hash, trace, known, budget, floor_situation)
+                                              identity_hash, trace, known, budget, floor_situation,
+                                              greeted=greeted)
                 except GatewayError:
                     named: list[str] = [part.situation or "other" for part in finish.parts
                                         if part.kind == "safety"]
@@ -3709,11 +4515,14 @@ class ChatEngine:
                       identity_hash: str | None, trace: dict[str, Any],
                       known: dict[str, str] | None = None,
                       budget: TurnBudget | None = None,
-                      floor_situation: str | None = None) -> ChatResult:
+                      floor_situation: str | None = None, *,
+                      greeted: bool = False) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
         limited = False
+        # A lookup whose evidence text says it is not whole: judged again by the packet below.
+        incomplete = False
         clarify = False
         # The kind of each emergency the model named, after one the phrase floor named.
         situations: list[str] = [floor_situation] if floor_situation else []
@@ -3726,7 +4535,7 @@ class ChatEngine:
             if result.part is not None:
                 parts.append(result.part)
             supported |= result.rendered.supported
-            limited |= not result.rendered.complete
+            incomplete |= not result.rendered.complete
             clarify |= result.clarification
             citations.update({c["id"]: c for c in result.rendered.citations})
             if result.error_code:
@@ -3740,6 +4549,10 @@ class ChatEngine:
             r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
             and r.part["office"].get("kind", "office") == "office" and shows_contact(r.part)
             for r in results.values())
+        # An office found with none of what was asked: its reply says it has no verified
+        # information about each thing asked.
+        gap_said = any(not r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
+                       for r in results.values())
         for part in finish.parts:
             if part.kind == "recall":
                 if (part.message_index is None
@@ -3803,23 +4616,38 @@ class ChatEngine:
                                   if prop["key"] == "menu" for value in prop["values"]
                                   if isinstance(value.get("value"), dict)
                                   for word in value["value"].get("filter", {}).get("contains", [])}
-                    stop_described = any(
-                        r.part and r.part.get("kind") == "shuttle_facts"
-                        and isinstance(r.part.get("answer"), dict)
-                        and (r.part["answer"].get("stop_description")
-                             or r.part["answer"].get("departs_from"))
-                        for r in results.values())
+                    shuttles = [r.part["answer"] for r in results.values()
+                                if r.part and r.part.get("kind") == "shuttle_facts"
+                                and isinstance(r.part.get("answer"), dict)]
+                    stop_described = any(answer.get("stop_description")
+                                         or answer.get("departs_from") for answer in shuttles)
+                    # A stop or route the timetable does not list is answered by code's sentence
+                    # that says so, with the ones it does list (11-03: "the next shuttle to
+                    # Mahwah station" added "I don't have verified information about that part"
+                    # in one try of five).
+                    unlisted = {str(answer[key]) for answer in shuttles
+                                for flag, key in (("stop_unknown", "asked"),
+                                                  ("route_unknown", "asked_route"))
+                                if answer.get(flag) and answer.get(key)}
+                    looked_up |= unlisted
+                    # Timetable times are said with the notice that they are not live.
+                    scoped = any(answer.get("trips") or answer.get("none_left")
+                                 or answer.get("none_after") or answer.get("service") == "none"
+                                 for answer in shuttles)
                     about = _asked_words(part.student_words, context.latest_message, looked_up,
-                                         menu_read, stop_described)
-                    if shown and about is None:
+                                         menu_read, stop_described, scoped)
+                    if about is None and (shown or unlisted):
                         # Office facts are above and nothing the student asked is unsupported: a
                         # contact note that mentions appointments is not a question about them.
+                        # Code's "no route called Night Owl" answers it too, though it finds none.
                         trace.setdefault("unsupported_dropped", []).append(part.student_words)
                         continue
                     if about:  # For the inspector: what the model said it could not answer.
                         trace.setdefault("unsupported_about", []).append(about)
                     said = (UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown_office
-                            else UNSUPPORTED_PART_MESSAGE if shown else UNSUPPORTED_MESSAGE)
+                            else UNSUPPORTED_PART_MESSAGE if shown
+                            else UNSUPPORTED_GAP_SAID_MESSAGE if gap_said
+                            else UNSUPPORTED_MESSAGE)
                     parts.append({"kind": "unsupported", "afterLookup": shown,
                                   "approved_text": said})
                     chunks.append(said)
@@ -3854,6 +4682,8 @@ class ChatEngine:
                 elif part.kind == "okay" and not (
                         earlier_emergency(context) or says_it_is_over(context.latest_message)):
                     continue  # "okay" answers a worry that is over; with none in view it misfired
+                elif part.kind in ("greeting", "thanks") and greeted:
+                    continue  # Code's lead before the answer already said it.
                 elif part.kind in FIXED_REPLIES:
                     parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})
                     chunks.append(FIXED_REPLIES[part.kind])
@@ -3892,15 +4722,26 @@ class ChatEngine:
             trace["situation"] = emergency_kind(situations)
             citations.update({c["id"]: c for r in help_ for c in r.citations})
         text = "\n\n".join(dict.fromkeys(emergency + chunks))
-        if len(text) > MAX_ANSWER_CHARS:
-            raise GatewayError("provider_invalid_response")
-        status = "partial" if situations or supported and limited else (
+        status = "partial" if situations or supported and (limited or incomplete) else (
             "answered" if supported else ("clarification" if clarify else "unavailable"))
         reply = self._json(answered(turn, text, status, list(citations.values()), version),
                            parts, turn)
+        packet = reply.body.get("facts")
+        if (status == "partial" and incomplete and not limited and not situations
+                and isinstance(packet, dict) and packet.get("status") == "complete"):
+            # A lookup's evidence text judges its whole record; the packet judges what was asked.
+            # "Food after 9pm" on a Tuesday is answered whole though the Atrium lists no weekend
+            # hours (11-03): with nothing else limiting the reply, the packet's word stands.
+            reply = replace(reply, body={**reply.body, "status": "answered"})
         if self.output == "written" and budget is not None:
             reply = await self._written(reply, text, budget, trace, _plain_language(finish),
                                         lead="\n\n".join(emergency))
+        # The limit is on the reply the student reads, not on code's notes for the writer: two
+        # venues' whole-day menus and Dining Services' contact were 12,500 characters of notes,
+        # said in 6,900, and the length of the notes failed the turn (11-03 repeat test, "where
+        # the halal food at", 2 tries of 5).
+        if len(str(reply.body.get("answer") or "")) > MAX_ANSWER_CHARS:
+            raise GatewayError("provider_invalid_response")
         return reply
 
     async def _written(self, result: ChatResult, code_text: str, budget: TurnBudget,
@@ -3931,7 +4772,7 @@ class ChatEngine:
             return keep("nothing_to_write")
         if not self.lookup_writer:
             with measure("Write the answer from the facts in code's words"):
-                said = plain_text(view)
+                said = plain_text(view, limit=WRITER_TEXT_LIMIT)
             if said is None:
                 return keep("plain_writer_cannot_say")
         else:
@@ -3950,8 +4791,10 @@ class ChatEngine:
                     return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
-        if len(said) >= WRITER_TEXT_LIMIT:
-            return keep("cut_off")  # Stopped at the length limit, mid-sentence.
+        if self.lookup_writer and len(said) >= WRITER_TEXT_LIMIT:
+            # A model stopped at the length limit, mid-sentence. Code's sentences are never cut:
+            # a long reply quotes its pages shorter (plain_text), and is never the evidence text.
+            return keep("cut_off")
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
@@ -3963,7 +4806,11 @@ class ChatEngine:
                      n["approved_text"] for n in view.get("notices", [])
                      if isinstance(n.get("approved_text"), str))
                  if not already_said(text, said) and not (emergency and text in lead)]
-        sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
+        # The sources the reply cites, or all of them when it cites none (11-03 practice: "is
+        # dunkin open rn" listed four, one cited, as each day's hours record is its own source).
+        marks = set(re.findall(r"\[(\d+)\]", "\n".join([said, *fixed])))
+        sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", [])
+                   if s.get("urls") and (not marks or str(s.get("n")) in marks)]
         text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
         trace["writer"] = {"used": True, **({} if self.lookup_writer else {"by": "code"})}

@@ -148,22 +148,7 @@ release before it too.
   `python -m rockygpt_brain.retrieval.graph_sync DIR [--force] [--events]` (the workspace's
   `./run-local.sh sync-prod` and the dev UI's "Sync from production").
 
-### Self-building copy: the Brain follows Postgres
-
-With `BRAIN_GRAPH_DIR=DIR` the Brain keeps a copy of the active release itself, reading Postgres to
-learn the release and to build it.
-
-- **Built in the background.** The first question after a new release (or a wake-up) is answered
-  straight from Postgres while one background thread builds the graph, so no student waits for
-  it. The build reads the whole release in one transaction with its own 60-second limit.
-- **Never costs an answer.** If the graph cannot be built, opened or read, questions are answered
-  from Postgres and the graph is put aside for 60 seconds. A missing LadybugDB install is logged
-  at startup and the Brain keeps using Postgres.
-- **Follows the data.** Each question first asks Postgres which release is active (a cheap
-  probe); every 30 seconds the graph is also checked against a digest of the release's evidence
-  rows, so an in-place edit shows up within about 30 seconds.
-
-### Both modes
+### The graph file
 
 - **Small.** The engine runs with a 64 MB buffer pool, one thread and a 1 GB file limit. In a test
   against the development release the graph file was about 6 MB, built in about half a second,
@@ -171,11 +156,11 @@ learn the release and to build it.
 - **Visible.** `GET /v1/dev/runtime` reports `factsBackend` (what is serving now) and
   `factsGraph` (counters, the release served, the last error).
 - **Safe to share.** Each build writes its own temporary file and removes every side-file the
-  engine leaves; an unfinished build file is only deleted once it is an hour old.
+  engine leaves.
 
-On Render's free tier the disk is erased on every sleep, so a graph-only Brain there needs the
-published directory delivered to it (nothing does that yet); the self-building copy simply
-rebuilds after each wake.
+The Brain never builds a graph itself. The one way it gets campus data is a published file
+(above); without `BRAIN_GRAPH_ONLY_DIR` it reads Postgres directly, which is kept only as a
+rollback.
 
 ### Meaning index on Postgres
 
@@ -187,6 +172,25 @@ stores the index beside it (`rockygpt_v2.release_meaning_indexes`, data migratio
 vectors (on 400 written questions it kept 99.5% of the float index's ten best units). The Brain
 loads it on its own thread for the active release and identity publication; until it has, and
 when none is stored, questions are answered without it.
+
+The same build gives every event and club card its kinds (`src/rockygpt_brain/kinds.py`: art and
+crafts, cultural, sports, volunteering and 22 more). The chat model reads each card three times,
+beside different listings each time, and the card keeps the kinds most of its reads give
+(`LABEL_READS`). The picks are cached by the card's text in the job's cache (`kinds.json`), so a
+day's build pays only for new listings. The model's rules (`RULES`: a club by its main purpose, a
+room booking has no kind, and only the listing's own words count, so a name that says nothing
+gets no kind), the number of reads and the list are versioned together, so changing any of them
+gives every card its kinds again. A
+question naming a kind ("any art events", "cultural clubs") lists every event or club of it and
+of the narrower kinds it includes (international includes study abroad, academic includes study
+help), in code's own words: a club directory entry named for its category ("Honor Societies")
+stands for every club listed under it, and a club a ramapo.edu page marks inactive says so in the
+list. A question naming a member of a kind ("painting") is still matched on the listings' words,
+and the clubs its meaning finds keep the kind most of them share, so a club near only in its
+words (the Balkan Club for "ballet") is left out.
+An index built before kinds has none, and kind questions are then answered as before.
+`build_meaning_index.py --kinds-only` gives an index already built its kinds (a laptop's copy of
+production's, for testing).
 
 ## Fact Packet output (optional, off by default)
 

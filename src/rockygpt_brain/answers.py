@@ -103,6 +103,17 @@ def _value_text(key: str, value: Any) -> str:
         more = "…" if len(value["text"]) > PROCEDURE_TEXT_CHARS or value.get("text_cut") else ""
         return (f"{literal(value.get('heading', ''))}: {literal(start)}{more} "
                 f"(see {literal(value.get('page', ''))})")
+    if key == "places_in" and isinstance(value, list):
+        # A building's places, by their published names.
+        return "; ".join(literal(place["name"]) if isinstance(place, dict) and "name" in place
+                         else literal(place) for place in value)
+    if key == "room_prefixes" and isinstance(value, list):
+        return ", ".join(literal(prefix) for prefix in value)
+    if key == "building" and isinstance(value, list):
+        # The buildings an office with no published room is in, with their campus map links.
+        return "; ".join(f"{literal(b['name'])} (campus map: {literal(b['map'])})"
+                         if isinstance(b, dict) and {"name", "map"} <= set(b) else literal(b)
+                         for b in value)
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
@@ -538,3 +549,28 @@ def tidy_evidence(text: str) -> str:
             if not (p.startswith("**") and (k + 1 == len(paragraphs)
                                             or paragraphs[k + 1].startswith("**")))]
     return "\n\n".join(kept)
+
+
+# A web address written on its own in a sentence takes the sentence's punctuation into the link:
+# of 250 answers in the 11-03 repeat test, 32 addresses ended in a comma, a period, a semicolon
+# or a backslash ("https://g.ramapo.edu/," and "https://web.ramapo.edu/\"), and the backslash
+# ones do not open at all. Written as a link, the punctuation stays outside it.
+_WRITTEN_LINK = re.compile(r"\[[^\]\n]*\]\([^)\s]*\)")
+_PLAIN_ADDRESS = re.compile(rf"{_WRITTEN_LINK.pattern}|(?P<bare>https?://[^\s<>\[\]()]+)")
+_ADDRESS_TAIL = ",.;:!?'\"\\"
+
+
+def plain_links(text: str) -> str:
+    """Every web address written on its own in a reply made into a link, so that the punctuation
+    that follows it is not read as part of the address. An address already written as a link, and
+    the text around it, are left exactly as they are."""
+    def one(match: re.Match[str]) -> str:
+        bare = match.group("bare")
+        if bare is None:
+            return match.group(0)
+        url = bare.rstrip(_ADDRESS_TAIL)
+        if not url or url.endswith("//"):  # "https://" alone is not an address.
+            return match.group(0)
+        return f"[{url}]({url}){bare[len(url):]}"
+
+    return _PLAIN_ADDRESS.sub(one, text)

@@ -15,7 +15,7 @@ from rockygpt_brain.one_call import (
     search_text,
     with_picked,
 )
-from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
 from rockygpt_brain.turn import intake
 from test_engine import NOW, ScriptedGateway, completion, finish
 from test_meaning import index_of, meaning_service
@@ -55,6 +55,12 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     assert not routes_here("when is the next shuttle to the train station")
     assert not routes_here("registrar email")
     assert not routes_here("library hours")
+    # "Where's" is "where is" (11-03 check set: the read's "Where's the ...?" went to the how-to
+    # pages, while "where is" goes to the lookups).
+    for where in ("Where's the Science Center?", "wheres the science center",
+                  "where’s the science center", "where is the science center"):
+        assert not routes_here(where), where
+    assert routes_here("where's the form to declare a minor")
     # What a place or office is, only its own pages say (11-02: "The name is Birch Tree Inn.").
     assert routes_here("What is the Birch Tree Inn?")
     assert routes_here("what does the office of specialized services do")
@@ -93,6 +99,42 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
         "fallback": "not_in_the_evidence"}
     assert result.trace["decidedBy"] != "one_call"
     assert "tutors@example.com" not in result.body["answer"]
+
+
+def test_a_page_answer_that_falls_back_leaves_the_four_call_loop_its_own_calls() -> None:
+    class Counting(PartsGateway):
+        """Counts calls against the turn's limit, as the real gateway does."""
+
+        async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                           budget: TurnBudget) -> Completion:
+            if budget.calls >= budget.max_calls:
+                raise GatewayError("turn_limit")
+            budget.calls += 1
+            return await super().complete(input=input, tools=tools, budget=budget)
+
+    service = meaning_service()
+    service.index = index_of([("page-advising", "0", ["advising"], [[0, 1, 0]]),
+                              ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+                             service.index.names, labels=True)
+    picked = Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
+                        [{"type": "function_call", "call_id": "p", "name": "pick_units",
+                          "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Center for Reading and Writing", "fields": ["procedures"],
+         "about": "become a peer tutor"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    # 11-03 repeat test (q38): the three picks and the writer used four of the turn's five
+    # calls, the writer wrote nothing, and the four-call loop stopped on its second call with
+    # "reached RockyGPT's work limit".
+    gateway = Counting(picked, picked, picked, one_reply("", [1]), lookup, pick, finish())
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.trace is not None and result.trace["oneCall"] == {"fallback": "no_text"}
+    assert result.status_code == 200 and result.body["status"] == "answered"
+    assert "limitation" not in result.body and "March 1" in result.body["answer"]
+    assert result.trace["modelCalls"] == len(gateway.inputs) == 7
 
 
 def test_one_statement_the_evidence_does_not_hold_is_dropped_and_the_rest_kept() -> None:
@@ -214,14 +256,33 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     picked = Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
                         [{"type": "function_call", "call_id": "p", "name": "pick_units",
                           "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
-    gateway = PartsGateway(picked, one_reply("Apply with the online form by March 1. [1]", [1]))
+    gateway = PartsGateway(picked, picked, picked,
+                           one_reply("Apply with the online form by March 1. [1]", [1]))
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how do i become a peer tutor"}]})
     engine = ChatEngine(gateway, service, output="written",
                         howto_one_call=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
+    # The pick is made three times at once, from the same headings (one_call.PICKS).
+    assert gateway.inputs[0] == gateway.inputs[1] == gateway.inputs[2]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    assert result.trace["oneCallPicks"] == [[1], [1], [1]]
+
+
+def test_the_sections_most_picks_choose_are_read_first() -> None:
+    from rockygpt_brain.one_call import agreed_pick
+    # 11-03 repeat test: one pick a try read different pages for the same 60 sections.
+    assert agreed_pick([{"n": [4, 2, 9]}, {"n": [2, 4, 7]}, {"n": [2, 5]}], 60) == {"n": [2, 4]}
+    # Chosen by as many picks, the one placed earlier in them leads; a pick that left it out
+    # counts it last.
+    assert agreed_pick([{"n": [5, 3]}, {"n": [3, 5]}, {"n": [3]}], 60) == {"n": [3, 5]}
+    # A failed or malformed pick is no vote: two that came back decide, both agreeing.
+    assert agreed_pick([None, {"n": [1, 2]}, {"n": [2, 61, True]}], 60) == {"n": [2]}
+    # Picks that agree on nothing leave the usual choice (with_picked reads it), and no pick
+    # back at all is no pick.
+    assert agreed_pick([{"n": [1]}, {"n": [2]}, {"n": [3]}], 60) == {"n": []}
+    assert agreed_pick([None, None], 60) is None
 
 
 def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
@@ -286,6 +347,21 @@ def test_a_reply_naming_a_course_the_facts_do_not_hold_is_not_sent() -> None:
         "a course the facts do not hold: CHEM 211"]
     # A word of no subject the facts hold ("room 425") is not checked as a course.
     assert unsupported_by("It meets in room 425.", view) == []
+
+
+def test_a_word_before_a_course_number_is_not_a_course() -> None:
+    # 11-03 repeat test: "MATH 353 or 370", read casefolded, held the course "OR 370", and a whole
+    # CS major answer went unsent. Courses are read in capitals, as the catalog writes them; the
+    # number after any other word is still checked as a number.
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": "Choose MATH 353 STATISTICS or MATH 370 APPLIED STATISTICS; CMPS 240 or "
+                     "CMPS 285", "sources": [{"n": 1}]}
+    assert unsupported_by("Take MATH 353 STATISTICS or 370 APPLIED STATISTICS, and CMPS 240 "
+                          "or 285 [1].", view) == []
+    assert unsupported_by("Take MATH 353 or 371 [1].", view) == [
+        "a number the facts do not hold: 371"]
+    # A code written in small letters is still held to its numbers.
+    assert unsupported_by("Take cmps 999 [1].", view) == ["a number the facts do not hold: 999"]
 
 
 def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> None:

@@ -52,6 +52,12 @@ give the page for the rest.
   closed, now is the time it is). Say it plainly first, with that day's hours, and never work out
   open or closed yourself when open_now is absent. listed_open_now is the same for hours whose
   dates are not published: say "by its listed hours it is open (or closed) now", never plainly.
+- open_at answers the time the student asked about (at). With relation after, periods are what
+  is open from then on (open_at_asked: already open then, so say until when), closed means
+  nothing is (last_closes is the day's closing), and it is said instead of the day's other
+  hours. With relation at, it is open or closed then: say that first, then the day's hours.
+  all_day means open 24 hours. listed_open_at is the same by listed hours whose dates are not
+  published.
 - open_now can carry meal (the period in service), closes, next_meal and next_opens: say them as
   given. closes is when service stops; meal_ends and then_meal mean the next meal follows straight
   on, so never say it closes at meal_ends. With reopens it opens again then (reopens_meal) until
@@ -107,8 +113,13 @@ give the page for the rest.
   which says what was asked. For which all, say where the shuttle goes that day when stops_served
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
-  give each trip's time when trips lists them. times_not_asked means every trip is timed but the
-  student did not ask for the times: never say times are not provided or not published. When
+  give each trip's time when trips lists them. from_now means trips are only the next ones still
+  to come today: say they are the next, then how many more leave later today
+  (more_later_today), the last of them (last_later_today), and that the posted timetable has the
+  full day. times_not_asked means every trip is timed but the
+  student did not ask for the times: never say times are not provided or not published; today
+  say when the next still to come leaves (next_at) and how many are still to come
+  (still_to_come_today). When
   none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   none_after is true, nothing is listed after the after time, and the day's last still leaves at
@@ -200,6 +211,8 @@ _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _NUMBER = re.compile(r"\d+")
 _COURSE = re.compile(r"\b([a-z]{2,6}) ?(\d{3}[a-z]?)\b")
+# A course code as the catalog writes it, its subject in capitals ("CMPS 147", "MATH 353").
+_COURSE_CODE = re.compile(r"\b([A-Z]{2,6}) ?(\d{3}[A-Z]?)\b")
 _LIST_ITEM = re.compile(r"(?m)^[ \t]*\d{1,2}[.)][ \t]")
 # A citation mark: one source's number ("[3]"), or several written together ("[3, 4]", "[4–6]").
 # Models group them though asked for one: on 11-02 15 of 100 replies had grouped marks, read as
@@ -287,13 +300,23 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
         if number not in digits:
             problems.append(f"a phone number the facts do not hold: {phone.strip()}")
     rest = _PHONE.sub(" ", rest)
-    # A course code of a subject the facts hold ("CHEM 425") must be one of their codes.
-    codes = {f"{m.group(1)} {m.group(2)}" for m in _COURSE.finditer(held)}
+    # A course code of a subject the facts hold ("CHEM 425") must be one of their codes. Codes
+    # are read as the catalog writes them, in capitals: read casefolded, the "or 370" of "MATH 353
+    # STATISTICS or 370 APPLIED STATISTICS" was a course "OR 370" that the facts do not hold, and
+    # a whole CS major answer was thrown away for it (11-03 repeat test). Any other word before
+    # a number leaves the number to the number check below.
+    codes = {f"{m.group(1)} {m.group(2)}"
+             for m in _COURSE_CODE.finditer(json.dumps(view, ensure_ascii=False))}
     subjects = {code.split()[0] for code in codes}
-    for m in _COURSE.finditer(rest):
-        if m.group(1) in subjects and f"{m.group(1)} {m.group(2)}" not in codes:
-            problems.append(f"a course the facts do not hold: {m.group(0).upper()}")
-    rest = _COURSE.sub(lambda m: " " if m.group(1) in subjects else m.group(0), rest)
+    checked: set[str] = set()
+    for m in _COURSE_CODE.finditer(_URL.sub(" ", text)):
+        if m.group(1) in subjects:
+            code = f"{m.group(1)} {m.group(2)}"
+            checked.add(code.casefold())
+            if code not in codes:
+                problems.append(f"a course the facts do not hold: {code}")
+    rest = _COURSE.sub(lambda m: " " if f"{m.group(1)} {m.group(2)}" in checked else m.group(0),
+                       rest)
     rest = _MARKER.sub(lambda m: " " if all(str(n) in sources for n in marked(m.group(1)))
                        else m.group(0), rest)
     # A numbered step ("2. Submit the form") numbers the reply's own list, not a fact.

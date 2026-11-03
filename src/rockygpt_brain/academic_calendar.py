@@ -35,8 +35,9 @@ _KINDS = (
 )
 # A break the question names: its entries are the ones whose titles name it.
 _BREAK_NAMES = ("thanksgiving", "spring", "winter", "fall", "summer")
-_TERM = re.compile(r"\b(winter|spring|summer|fall|autumn)(?:\s+(?:semester|term|session))?"
-                   r"(?:\s+(20\d{2}))?\b")
+# "Spring break" names a break, not the spring term: winter break is no part of the winter session.
+_TERM = re.compile(r"\b(winter|spring|summer|fall|autumn)(?!\s+(?:break|recess)\b)"
+                   r"(?:\s+(?:semester|term|session))?(?:\s+(20\d{2}))?\b")
 _NEXT = re.compile(r"\bnext (?:semester|term)\b")
 # Words of a plain calendar question besides its kind and term words; any other word means it
 # asks more ("if I'm a transfer student"), and the model reads it.
@@ -136,6 +137,157 @@ def entries_asked(message: str, kind: str, term: dict[str, Any],
     return sorted(found, key=lambda e: (str(e.get("date")), str(e.get("title"))))
 
 
+def break_named(message: str) -> str | None:
+    """The one break a question names by its season or holiday ("winter break", "Thanksgiving"),
+    or None: a season named as a term ("spring semester") names no break."""
+    text = message.casefold()
+    named = [w for w in _BREAK_NAMES if re.search(rf"\b{w}\b", text)
+             and not re.search(rf"\b{w}\s+(?:semester|term|session|20\d\d)\b", text)]
+    return named[0] if len(named) == 1 else None
+
+
+# A break between two terms the calendar does not list by name: winter break is the weeks between
+# the fall and spring semesters, summer break those between the spring and fall semesters.
+_BETWEEN = {"winter": ("fall", "spring"), "summer": ("spring", "fall")}
+
+
+Bounds = tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]
+
+
+def between_terms(season: str, terms: Sequence[dict[str, Any]],
+                  spans: dict[str, tuple[date, date]], dates: Sequence[dict[str, Any]],
+                  today: date) -> Bounds | None:
+    """The semesters around the next winter or summer break (the semester that begins after it
+    has not begun yet) and the calendar's dates that bound it: the earlier semester's last day of
+    classes, the first day of any classes between them (the winter session's), and the later
+    semester's first day of classes. None when the calendar does not list both semesters."""
+    ending_season, starting_season = _BETWEEN[season]
+    dated = sorted((t for t in terms if t.get("name") in spans),
+                   key=lambda t: spans[str(t["name"])][0])
+    starting = next((t for t in dated if t.get("season") == starting_season
+                     and spans[str(t["name"])][0] >= today), None)
+    if starting is None:
+        return None
+    before = [t for t in dated if t.get("season") == ending_season
+              and spans[str(t["name"])][1] <= spans[str(starting["name"])][0]]
+    if not before:
+        return None
+    ending = before[-1]
+
+    def of(term: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+        return sorted((e for e in dates if term["name"] in (e.get("terms") or [])
+                       and e.get("kind") == kind), key=lambda e: str(e.get("date")))
+    ends, begins = of(ending, "classes_end"), of(starting, "classes_begin")
+    if not ends or not begins:
+        return None
+    last, first = ends[-1], begins[0]
+    between = sorted((e for e in dates if e.get("kind") == "classes_begin"
+                      and str(last["date"]) < str(e.get("date")) < str(first["date"])),
+                     key=lambda e: (str(e.get("date")), str(e.get("title"))))
+    return ending, starting, [last, *between, first]
+
+
+_MONTHS = {name: number for number, name in enumerate(
+    ("january", "february", "march", "april", "may", "june", "july", "august", "september",
+     "october", "november", "december"), start=1)}
+# A question about a date already gone ("when was add/drop?"): what passed is what is asked.
+_PAST = re.compile(r"\b(?:was|were|did)\b")
+# "The next break" asks only what is still ahead ("next semester" names a term instead).
+_NEXT_ONE = re.compile(r"\bnext\b(?!\s+(?:semester|term)\b)")
+
+
+def last_day(entry: dict[str, Any]) -> date:
+    """An entry's last day: its own day, or the last of the days it spans ("December 09, 12:00 am
+    -- December 15, 11:59 pm" ends December 15)."""
+    first = date.fromisoformat(str(entry["date"]))
+    span = _DAY_SPAN.match(" ".join(str(entry.get("time") or "").split()))
+    month = _MONTHS.get(span.group(1).casefold()) if span else None
+    if span and month:
+        try:
+            return date(first.year + (1 if month < first.month else 0), month, int(span.group(2)))
+        except ValueError:
+            pass
+    return first
+
+
+def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
+               n: int = 1) -> tuple[str, str, dict[str, Any]] | None:
+    """Code's answer to when one kind of academic date is, from the calendar's own entries: its
+    text, the calendar page it cites as [n], and what it says (for the every-word check). None
+    when no term or entry fits, and the model reads the calendar pages.
+
+    Dates start from today (11-03: "wen is spring brk" got March 2028 from a housing page):
+    - a date already over is marked as passed, and left out when the next one is asked;
+    - a question naming no term, about a date to come, gets the term in session, or the next one
+      that lists that kind of date still ahead when the term in session lists none;
+    - winter and summer break, which the calendar does not list by name, are said by the dates
+      around them: the earlier semester's last day, the winter session's first, the later
+      semester's first;
+    - a break the term does not list ("fall break") is said not to be listed, beside the days with
+      no classes it does list."""
+    terms, dates = calendar["terms"], calendar["dates"]
+    spans = term_spans(dates)
+    text = message.casefold()
+    named_term = bool(_TERM.search(text) or _NEXT.search(text))
+    season = break_named(message) if kind == "break" else None
+    if season in _BETWEEN and not named_term:
+        found = between_terms(season, terms, spans, dates, today)
+        if found is None:
+            return None
+        ending, starting, entries = found
+        url = _url_of([ending, starting], entries)
+        if url is None:
+            return None
+        lines = _lines(entries, today)
+        said = "\n".join([f"The academic calendar doesn't list a {season} break by name. "
+                          f"Between the {literal(ending['name'])} and "
+                          f"{literal(starting['name'])} semesters it lists [{n}]:", *lines])
+        return said, url, {"terms": [ending, starting], "entries": entries}
+    term = term_asked(message, terms, spans, today)
+    if term is None:
+        return None
+    entries = entries_asked(message, kind, term, dates)
+    if not named_term and not _PAST.search(text) and all(last_day(e) < today for e in entries):
+        # Nothing of that kind still ahead in this term: the next term that lists one is asked.
+        later = sorted((t for t in terms if t.get("name") in spans
+                        and spans[str(t["name"])][0] > spans[str(term["name"])][0]),
+                       key=lambda t: spans[str(t["name"])][0])
+        for other in later:
+            ahead = entries_asked(message, kind, other, dates)
+            if any(last_day(e) >= today for e in ahead):
+                term, entries = other, ahead
+                break
+    if _NEXT_ONE.search(text) and any(last_day(e) >= today for e in entries):
+        entries = [e for e in entries if last_day(e) >= today]
+    if not entries and season is not None:
+        # A break the term does not list: said so, with the days with no classes it lists.
+        entries = [e for e in entries_asked("", "break", term, dates) if last_day(e) >= today]
+        url = _url_of([term], entries)
+        if url is None:
+            return None
+        lead = (f"The {literal(term['name'])} academic calendar doesn't list a {season} break "
+                f"[{n}].")
+        said = "\n".join([f"{lead} The days with no classes it lists are:",
+                          *_lines(entries, today)]) if entries else lead
+        return said, url, {"term": term, "entries": entries}
+    url = _url_of([term], entries)
+    listed = calendar_text(term, entries, n, today)
+    if url is None or listed is None:
+        return None
+    return listed, url, {"term": term, "entries": entries}
+
+
+def _url_of(terms: Sequence[dict[str, Any]], entries: Sequence[dict[str, Any]]) -> str | None:
+    return next((str(url) for url in [*(t.get("source_url") for t in terms),
+                                      *(e.get("source_url") for e in entries)] if url), None)
+
+
+def _lines(entries: Sequence[dict[str, Any]], today: date | None) -> list[str]:
+    return [f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
+            f"{' (already passed)' if today is not None and last_day(e) < today else ''}"
+            for e in entries]
+
+
 def _day(value: str) -> str:
     day = date.fromisoformat(value)
     return f"{day:%A, %B} {day.day}, {day.year}"
@@ -158,11 +310,11 @@ def _time(value: Any) -> str:
 
 
 def calendar_text(term: dict[str, Any], entries: Sequence[dict[str, Any]],
-                  n: int = 1) -> str | None:
+                  n: int = 1, today: date | None = None) -> str | None:
     """Code's answer: the entries asked, each with its day, title and time as the term's academic
-    calendar lists them [n]. None when there are none (the model reads the pages then)."""
+    calendar lists them [n], and whether it has already passed (by `today`). None when there are
+    none (the model reads the pages then)."""
     if not entries:
         return None
-    lines = [f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
-             for e in entries]
-    return "\n".join([f"The {literal(term['name'])} academic calendar lists [{n}]:", *lines])
+    return "\n".join([f"The {literal(term['name'])} academic calendar lists [{n}]:",
+                      *_lines(entries, today)])

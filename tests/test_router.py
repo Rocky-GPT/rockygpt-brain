@@ -2,7 +2,13 @@
 
 from typing import Any
 
-from rockygpt_brain.router import code_route, shuttle_route
+from rockygpt_brain.router import (
+    asks_inside,
+    code_route,
+    places_named,
+    rooms_said,
+    shuttle_route,
+)
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
@@ -91,3 +97,146 @@ def test_who_to_contact_for_help_with_an_offices_service_label_is_routed_by_code
                       "fields": ["email", "phones", "offices"]}]}
     assert code_route("Who can help me with Canvas quizzes?", offices, VENUES) is None
     assert code_route("Who is the director of the IDC?", offices, VENUES) is None
+
+
+def test_a_number_sign_asks_for_the_number() -> None:
+    # 11-03 practice: "#" stands for "number", so "registrar # ?" asks the Registrar's phone.
+    assert route("registrar # ?") == {"query": "Registrar", "fields": ["phones"]}
+    assert route("financial aid #") == {"query": "Financial Aid", "fields": ["phones"]}
+
+
+def test_the_places_a_message_names_are_found_however_it_is_typed() -> None:
+    assert places_named("counseling center???", OFFICES, VENUES) == [
+        {("office", "Counseling Center")}]
+    # A name a few offices share is one name; a name inside a longer one is not a name.
+    assert places_named("public safety", OFFICES, VENUES) == [
+        {("office", "Public Safety (Emergency)"), ("office", "Public Safety (Non-Emergency)")}]
+    assert places_named("it help desk!!", OFFICES, VENUES) == [{("office", "IT Help Desk")}]
+    assert places_named("birch rn??", OFFICES, VENUES) == [{("venue", "Birch Tree Inn")}]
+    # Mashed keys, a topic with no office of its own, and "its" in lower case name no place.
+    assert places_named("jdjdjsjskskaka", OFFICES, VENUES) == []
+    assert places_named("scholarships", OFFICES, VENUES) == []
+    assert places_named("its fine", OFFICES, VENUES) == []
+
+
+BUILDINGS: list[dict[str, Any]] = [
+    {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"]},
+    {"name": "Peter P. Mercer Learning Commons", "also_called": ["Learning Commons"]},
+    {"name": "Laurel Hall North Building", "also_called": ["Laurel Hall"]},
+    {"name": "Laurel Hall South Building", "also_called": ["Laurel Hall"]},
+    # The map's building of the same name as an office: the office is what it names.
+    {"name": "Library"}]
+
+
+def test_a_building_is_routed_by_code_when_asked_where_it_is_or_what_is_open_in_it() -> None:
+    # 11-03 practice: "where da student center at" found nothing, as no office is called that.
+    def building(message: str) -> dict[str, Any] | None:
+        return code_route(message, OFFICES, VENUES, BUILDINGS)
+
+    assert building("Where is the Student Center?") == {
+        "requests": [{"query": "Student Center (SC)", "fields": ["offices"]}]}
+    assert building("Is the Learning Commons open on Sunday?") == {"requests": [
+        {"query": "Peter P. Mercer Learning Commons", "fields": ["hours"], "day": "sunday"}]}
+    # A building has no menu, phone or email of its own, and two buildings of one name are
+    # for the model to ask about.
+    assert building("What's for lunch in the student center?") is None
+    assert building("How do I contact the Student Center?") is None
+    assert building("What is the phone number for the Student Center?") is None
+    assert building("Where is Laurel Hall?") is None
+    # A building named like an office is the office.
+    assert building("Where is the library?") == {
+        "requests": [{"query": "Library", "fields": ["offices"]}]}
+    assert places_named("student center rn", OFFICES, VENUES, BUILDINGS) == [
+        {("building", "Student Center (SC)")}]
+    assert places_named("the library", OFFICES, VENUES, BUILDINGS) == [{("office", "Library")}]
+
+
+def test_what_is_in_a_building_is_its_places() -> None:
+    # 11-03 practice: "what offices are in academic building d" went to the model, which listed
+    # three of D's offices from pages; the building's where-answer names its places.
+    def building(message: str) -> dict[str, Any] | None:
+        return code_route(message, OFFICES, VENUES, BUILDINGS)
+
+    where = {"requests": [{"query": "Student Center (SC)", "fields": ["offices"]}]}
+    assert building("what offices are in the student center") == where
+    assert building("What's in the Student Center?") == where
+    assert building("which offices are inside the student center") == where
+    # Hours asked of it are still its places' hours, and an office has no places in it.
+    assert building("what is open in the student center") == {
+        "requests": [{"query": "Student Center (SC)", "fields": ["hours"]}]}
+    assert route("what is in the registrar") is None
+
+
+def test_a_message_asks_what_is_in_the_building_it_names() -> None:
+    d = {"name": "Academic Building D", "also_called": []}
+    sc = {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"]}
+    assert asks_inside("what offices are in academic building d", d)
+    assert asks_inside("What's inside the Student Center?", sc)
+    assert asks_inside("which places are in the SC", sc)
+    # Where it is, its hours, or something more than what is in it, is not.
+    assert not asks_inside("Where is Academic Building D?", d)
+    assert not asks_inside("is the student center open on saturday", sc)
+    assert not asks_inside("what offices are in academic building d and when do they open", d)
+    # Another building named is not this one.
+    assert not asks_inside("what offices are in academic building d", sc)
+
+
+ROOMED: list[dict[str, Any]] = [
+    {"name": "Anisfield School of Business (ASB)",
+     "also_called": ["ASB", "Anisfield School of Business"], "room_prefixes": ["ASB"]},
+    {"name": "Academic Building A", "also_called": [], "room_prefixes": ["A"]},
+    {"name": "Academic Building D", "also_called": [], "room_prefixes": ["D"]},
+    {"name": "Berrie Center", "also_called": [], "room_prefixes": ["BC"]},
+    {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"],
+     "room_prefixes": ["SC"]},
+    {"name": "Peter P. Mercer Learning Commons", "also_called": ["Learning Commons"],
+     "room_prefixes": ["LC", "LIB", "LIBRARY"]}]
+# The business school's office is also called ASB, like its building.
+WITH_ASB = [*OFFICES, {"name": "Anisfield School of Business", "also_called": ["ASB"]}]
+
+
+def test_a_room_said_by_its_prefix_names_its_building_and_asks_where_it_is() -> None:
+    # 11-03 repeat test: "where tf is ASB 407?" got the business school's office (ASB-333) or a
+    # page of room diagrams, never the building whose room numbers start with ASB.
+    def room(message: str) -> str | None:
+        found = code_route(message, WITH_ASB, VENUES, ROOMED)
+        if found is None:
+            return None
+        assert [r["fields"] for r in found["requests"]] == [["offices"]]
+        return str(found["requests"][0]["query"])
+
+    for message in ("Where is ASB 407?", "where is asb-407", "How do I get to ASB407?",
+                    "ASB 407?", "Where is room ASB 407?"):
+        assert room(message) == "Anisfield School of Business (ASB)", message
+    for message in ("Where is D-224?", "where is d-224", "Where is D224?"):
+        assert room(message) == "Academic Building D", message
+    assert room("Where is room SC-219A?") == "Student Center (SC)"
+    assert room("where is LIBRARY 101") == "Peter P. Mercer Learning Commons"
+    # The prefix alone is still the office of that name, and a room is asked only where it is.
+    assert route_with_asb("Where is ASB?") == {"query": "Anisfield School of Business",
+                                                "fields": ["offices"]}
+    assert room("is ASB 407 open?") is None
+    assert room("Where is LC 101 and LC 102?") is None  # Two rooms are for the model.
+    assert places_named("ASB 407", WITH_ASB, VENUES, ROOMED) == [
+        {("building", "Anisfield School of Business (ASB)")}]
+    assert not asks_inside("what is in ASB 407", ROOMED[0])
+
+
+def route_with_asb(message: str) -> dict[str, Any] | None:
+    found = code_route(message, WITH_ASB, VENUES, ROOMED)
+    return found["requests"][0] if found else None
+
+
+def test_a_room_is_said_only_the_way_rooms_are_written() -> None:
+    asb, a, _, bc, sc, lc = ROOMED
+    assert rooms_said("where is asb 407 or ASB-210", asb) == ["ASB 407", "ASB-210"]
+    assert rooms_said("where is sc-219a", sc) == ["SC-219A"]
+    # Two letters or one are a prefix only in capitals or before a hyphen: "bc" is "because".
+    assert rooms_said("bc 20 people are going", bc) == []
+    assert rooms_said("where is sc 219", sc) == []
+    # "A" beginning a sentence is the article, and a room number is no time, date or "24/7".
+    assert rooms_said("A 300-level course", a) == []
+    assert rooms_said("Is there a 300 level course", a) == []
+    assert rooms_said("Where is A 204?", a) == ["A 204"]
+    assert rooms_said("is the library 24/7", lc) == []
+    assert rooms_said("meet at SC 12:30", sc) == []

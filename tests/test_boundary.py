@@ -315,3 +315,76 @@ def test_someone_not_answering_messages_is_not_unresponsive(message: str) -> Non
 ])
 def test_a_person_who_cannot_respond_still_gets_the_safety_help(message: str) -> None:
     assert is_safety(message)
+
+
+# 11-03: "i want to kms" went to page search and got 988 and Counseling but no 911 or Public
+# Safety. The read step (triage.py) catches any wording; the commonest slang also holds here.
+@pytest.mark.parametrize("message", [
+    "i want to kms",
+    "lowkey wanna kms rn",
+    "i wanna kms from all this stress",
+    "kms",
+    "im gonna unalive myself",
+    "i want to unalive",
+    "i wanna die",
+])
+def test_the_commonest_self_harm_slang_gets_the_self_harm_text(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.situation == "self_harm"
+    assert result.also_answer is False
+
+
+@pytest.mark.parametrize("message", [
+    "i ran 5 kms today",
+    "the mall is like 3 kms away",
+    "how many kms is it to the train station",
+    "is the 10km race this weekend",
+])
+def test_kilometers_are_not_self_harm_slang(message: str) -> None:
+    assert read(message) == CONTINUE
+
+
+@pytest.mark.parametrize("message", [
+    "failed my quiz and my mom is going to kill me",
+    "if i get a C my dad will kill me",
+    "coach is gonna kill us if we lose",
+])
+def test_going_to_kill_me_keeps_the_danger_text_and_is_also_answered(message: str) -> None:
+    # Most often a figure of speech, and a real threat is worded the same way: the danger text
+    # still comes first, and the rest of the message is read and answered beside it.
+    result = read(message)
+    assert result.kind == "safety" and result.situation == "danger"
+    assert result.message == SAFETY_TEXTS["danger"] and result.also_answer is True
+
+
+@pytest.mark.parametrize("message", [
+    "he has a knife and says he is going to kill me",
+    "someone broke into my room and is going to kill me",
+    "my ex is going to hurt me",
+    "im going to kill myself",
+    "im going to kill him",
+])
+def test_a_threat_with_anything_more_is_the_floors_reply_alone(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.also_answer is False
+
+
+@pytest.mark.parametrize("message", [
+    "anything about narcan or overdoses",
+    "is there overdose prevention training on campus",
+    "where can i learn about overdoses",
+    "my friend overdosed, where do i get naloxone",
+])
+def test_overdoses_asked_about_keep_the_emergency_text_and_are_also_answered(
+        message: str) -> None:
+    # A question about Narcan or overdoses as a topic still gets the emergency text first, then
+    # its answer (11-03 practice: the Narcan training on the calendar was never named).
+    result = read(message)
+    assert result.kind == "safety" and result.message == SAFETY_TEXTS["other"]
+    assert result.also_answer is True
+
+
+@pytest.mark.parametrize("message", ["my roommate overdosed", "i think he is overdosing"])
+def test_an_overdose_happening_is_the_floors_reply_alone(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.also_answer is False

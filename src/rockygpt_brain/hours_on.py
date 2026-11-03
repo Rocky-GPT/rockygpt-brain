@@ -17,13 +17,67 @@ Rules, all in code:
     has no hours for the date (`hours` is null), and carries `listed_hours`, what the schedule
     itself lists for that weekday, so the student can be told what is listed and why it is not
     confirmed for the date.
+  - A clock time the student asks about ("after 9pm", "at 10:30 p.m.") is read from their own
+    words (asked_clock), and what the day's hours say for it is worked out like open now
+    (fact_packet.open_at). A time asked with no day named is today's.
 """
 
+import re
 from datetime import date, timedelta
 from typing import Any
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 DAY_CHOICES = ("today", "tomorrow", *(name.lower() for name in WEEKDAYS))
+MIDNIGHT = 24 * 60
+EARLIEST = 5 * 60  # The first time of day a clock time is read as that day's.
+
+# A clock time as students write one, with the word before it: "after 9pm", "past 10:30 p.m.",
+# "at noon". A time with no am or pm ("after 9") is never read, since it could be either. A time
+# from midnight to before 5am is the night after the day asked ("anything open after 1am?"), which
+# one day's hours cannot answer, so it is not read either.
+_CLOCK = re.compile(
+    r"(?:\b([a-z]+)\s+(?:my\s+|the\s+)?)?"
+    r"(?:\b(\d{1,2})(?::([0-5]\d))?\s*([ap])\.?\s*m\b\.?|\b(midnight|noon)\b)",
+    re.IGNORECASE)
+# What the word before the time asks: what is open from then on, or whether it is open then.
+_RELATIONS = {"after": "after", "past": "after", "at": "at", "around": "at", "about": "at"}
+# Words before a time that ask something else ("open until 10pm", "before 8am", "from 9pm to
+# 11pm"): the time is not read, and the day's hours are said as they are.
+_OTHER_RELATIONS = frozenset("before until till til by from to between and or than".split())
+# Words that name a day or days other than today: a time asked with one is that day's.
+_OTHER_DAY = re.compile(
+    r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mondays|tuesdays|wednesdays|"
+    r"thursdays|fridays|saturdays|sundays|tomorrow|tmrw|tmr|tmrow|weekends?|weekdays?|every|"
+    r"usually|normally|always)\b", re.IGNORECASE)
+
+
+def asked_clock(message: str) -> tuple[str, int] | None:
+    """The one clock time a message asks about and how: ("after", 1260) for "food after 9pm",
+    ("at", 600) for "open at 10am", in minutes from the start of the day. None when the message
+    names no time, more than one, a time asked some other way ("until 10pm"), or a time in the
+    night after the day (midnight to before 5am)."""
+    found: set[tuple[str, int]] = set()
+    for match in _CLOCK.finditer(message):
+        before = (match[1] or "").casefold()
+        if before in _OTHER_RELATIONS:
+            return None
+        if match[5]:
+            minute = MIDNIGHT if match[5].casefold() == "midnight" else 12 * 60
+        else:
+            hour = int(match[2])
+            if not 1 <= hour <= 12:
+                return None
+            minute = (hour % 12 + (12 if match[4].casefold() == "p" else 0)) * 60 + int(
+                match[3] or 0)
+        if not EARLIEST <= minute < MIDNIGHT:
+            return None
+        found.add((_RELATIONS.get(before, "at"), minute))
+    return found.pop() if len(found) == 1 else None
+
+
+def names_another_day(message: str) -> bool:
+    """Whether a message names a day other than today, or days in general ("on weekends")."""
+    return _OTHER_DAY.search(message) is not None
 
 
 def target_date(day: str, today: date) -> date:

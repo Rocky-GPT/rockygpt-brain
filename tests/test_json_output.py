@@ -279,7 +279,6 @@ def configured(monkeypatch: pytest.MonkeyPatch, output: str | None) -> ChatEngin
                         SimpleNamespace(from_env=lambda: SimpleNamespace(max_turn_nusd=1)))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
     monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/test")
-    monkeypatch.delenv("BRAIN_GRAPH_DIR", raising=False)
     monkeypatch.delenv("BRAIN_GRAPH_ONLY_DIR", raising=False)
     if output is None:
         monkeypatch.delenv("BRAIN_OUTPUT", raising=False)
@@ -314,3 +313,36 @@ def test_a_clarification_after_a_lookup_that_asked_which_office_is_not_asked_twi
     assert found["status"] == "ambiguous" and len(found["ambiguities"]) == 1
     # The ambiguity already carries the question; a second, generic one would be a second ask.
     assert found["notices"] == []
+
+
+def test_a_time_asked_is_answered_for_its_day_and_other_days_gaps_leave_it_whole() -> None:
+    from test_graph_store import NOW as GRAPH_NOW  # a Tuesday
+    from test_graph_store import week
+
+    def asked(question: str) -> ChatResult:
+        service = source([office("registrar", "Registrar", schedules=["Regular"])],
+                         [contact("r1")], schedules=week("Regular", "w1", "8am-5pm"))
+        lookup = completion("graph_lookup", {"requests": [
+            {"query": "Registrar", "fields": ["hours"], "day": None}]})
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+        engine = ChatEngine(ScriptedGateway(lookup, finish()), service, output="json")
+        return asyncio.run(engine.answer(intake(request, now=GRAPH_NOW), request))
+
+    # The model named no day: a clock time with no day named is today's (11-03, "food after
+    # 9pm" was said as each place's whole week in three of five tries).
+    late = asked("is the registrar open after 9pm?")
+    (day,) = packet(late)["derived_facts"]
+    assert day["date"] == "2026-10-06" and "open_now" not in day
+    assert day["open_at"] == {"relation": "after", "at": "9:00pm", "state": "closed",
+                              "last_closes": "5:00pm"}
+    # The schedule lists no weekend hours, but the day asked is answered whole.
+    assert packet(late)["status"] == "complete" and late.body["status"] == "answered"
+    # One weekday named is that day's; the registrar has no Saturday hours, so it is partial.
+    saturday = asked("is the registrar open after 9pm on saturday?")
+    (day,) = packet(saturday)["derived_facts"]
+    assert day["date"] == "2026-10-10" and "open_at" not in day
+    assert saturday.body["status"] == "partial"
+    # Days in general, or no time at all, keep the whole week, with its gap.
+    for question in ("is the registrar open after 9pm on weekends?", "registrar hours"):
+        whole = asked(question)
+        assert packet(whole)["derived_facts"] == [] and whole.body["status"] == "partial"

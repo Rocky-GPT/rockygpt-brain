@@ -94,6 +94,13 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
             r"\b(end|take) my (own )?life\b",
             rf"\bsuicid\w*\b{_NOT_A_HAZARD}",
             r"\b(want|wanna|going|plan|planning) to die\b",
+            # The slang the most common forms are typed in (11-03: "i want to kms" got 988 but no
+            # 911 or Public Safety). The read step (triage.py) catches other wordings; these hold
+            # when it can't run. "kms" after a number is kilometers.
+            r"(?<![0-9] )(?<![0-9])(?<!how many )\bkms\b(?! (away|per|an hour|long|wide)\b)",
+            r"\bunaliv(e|ing) (my ?self|me)\b",
+            r"\b(want|wanna|going|gonna|plan|planning) (to )?unalive\b",
+            r"\b(wanna|gonna) die\b",
             r"\b(dont|do not) (want to|wanna) (live|be alive|exist|be here|go on|keep going)",
             r"\b(end it all|better off dead|not worth living|no reason to live)\b",
             # "to just not wake up" is a wish, where "she wont wake up" is an unconscious person
@@ -199,6 +206,28 @@ _ASKS_A_PROCESS = re.compile(
     r"(?:my )?rooms?|room change|(?:report|file) (?:a |an |it|this|him|her|them))\b")
 
 
+# "My parents are gonna kill me" is most often a figure of speech, and a real threat is worded the
+# same way, so words alone can't tell them apart. The danger text still comes first, and the
+# message is also read and answered beside it (11-03 check set: a failed midterm got only the
+# emergency reply, with no help for the exam). Anything else that names a danger (a weapon, an
+# attack, being followed) keeps the floor's reply alone.
+_KILL_ME = re.compile(r"\b(gonna|going to|will|wants to|want to) kill (me|us)\b")
+
+
+# Overdoses asked about as a topic ("anything about narcan or overdoses", "overdose prevention
+# training") rather than one happening: the emergency text still comes first, and the question is
+# answered beside it (11-03 practice: the Narcan training on the calendar was never named).
+_ABOUT_OVERDOSES = re.compile(
+    r"\b(?:narcan|naloxone)\b|\boverdose (?:prevention|awareness|training|response)\b|"
+    r"\b(?:about|on|for) (?:an? |the )?(?:opioid )?overdoses?\b")
+
+
+def _only_a_threat_to_kill(text: str) -> bool:
+    """Whether "going to kill me" is the only danger a message names."""
+    rest = _KILL_ME.sub(" ", text)
+    return bool(_KILL_ME.search(text)) and not any(p.search(rest) for p in _DANGER["danger"])
+
+
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -227,5 +256,8 @@ def check(turn: Turn) -> BoundaryResult:
     if not kinds:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"
-    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text))
+    also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text)
+                                             or _ABOUT_OVERDOSES.search(text))
+    if situation == "danger" and _only_a_threat_to_kill(text):
+        also = True
     return BoundaryResult("safety", safety_text(situation), situation, also_answer=also)

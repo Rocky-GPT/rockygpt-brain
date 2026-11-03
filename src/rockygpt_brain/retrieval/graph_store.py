@@ -11,8 +11,8 @@ Every entity kind the release holds gets evidence (BUILT_KINDS is None: no hand-
 a kind the data adds is never left out). Asking the graph for the
 evidence of any other kind fails loudly instead of answering "none".
 
-The copy is built in the background. Until it is ready, and whenever it cannot be built or read,
-questions are answered straight from the source, so a graph problem never costs an answer.
+A publisher builds the file (scripts/build_graph.py, publish_release_graph) and a graph-only Brain
+serves it (GraphOnlyFacts). There is no fallback to the source: a graph problem is an error.
 """
 
 import glob
@@ -26,7 +26,7 @@ import secrets
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -48,12 +48,8 @@ GRAPH_FORMAT = "2"
 BUILT_KINDS: tuple[str, ...] | None = None
 CONTACTS = "contacts"
 SCHEDULES = "campus_hours"
-RETRY_SECONDS = 60.0  # After a failed build or read, answer from the source for this long.
-STALE_BUILD_SECONDS = 3600.0  # An unfinished build file this old belongs to a process that died.
-STRICT_WAIT_SECONDS = 20.0  # In strict mode a question waits this long for a build, then errors.
 POINTER = "active.json"  # Names the release file a graph-only Brain serves (written last).
 KEEP_RELEASES = 3  # Published release files kept in a directory, newest first.
-FINGERPRINT_SECONDS = 30.0  # How often the copy is checked against in-place edits of the rows.
 # The service has 512 MB: keep the engine's buffer pool, threads and file size small.
 BUFFER_POOL_BYTES = 64 * 1024 * 1024
 # Building writes every record once and checkpoints them together: with each office's own pages
@@ -345,217 +341,6 @@ class GraphEntityFacts(EntityFacts):
 
     def evidence_fingerprint(self) -> str:
         return self.fingerprint
-
-
-class ReleaseGraphFacts(EntityFacts):
-    """Serve the source's active release from a graph file built in the background.
-
-    The source stays the authority. Each read first asks the source which release is active.
-    If that release's graph is ready it answers the question; otherwise the question is answered
-    straight from the source while one background thread builds the graph, so no student waits
-    for a build. A failed build or read puts the graph aside for RETRY_SECONDS. With fallback=False
-    (strict mode) the source never answers a question: the graph serves it, or the question fails
-    with "The release graph is unavailable." (the source is still read to learn the active release
-    and to build the graph). The rows are
-    re-checked against the source every FINGERPRINT_SECONDS, so an in-place edit of the active
-    release shows up within that time. The directory belongs to one Brain process.
-    """
-
-    backend = "graph"
-
-    def __init__(
-        self, source: EntityFacts, directory: Path | str, *,
-        kinds: tuple[str, ...] | None = BUILT_KINDS, fallback: bool = True,
-        wait_seconds: float = STRICT_WAIT_SECONDS,
-        clock: Callable[[], float] = time.monotonic,
-        now: Callable[[], datetime] | None = None,
-    ) -> None:
-        super().__init__(now=now)
-        ladybug_module()  # Fail at startup, not on the first question, if it is not installed.
-        self.source = source
-        self.directory = Path(directory)
-        self.kinds = kinds
-        self.fallback = fallback  # False is strict mode: the graph answers or the question errors.
-        self.wait_seconds = wait_seconds
-        self._clock = clock
-        self._lock = threading.Lock()
-        self._current: tuple[tuple[str, str], GraphEntityFacts] | None = None
-        self._checked_at = float("-inf")
-        self._building: threading.Thread | None = None
-        self._build_running = False  # Set before the thread starts, so two never run at once.
-        self._retry_at = float("-inf")
-        self._served_graph = 0
-        self._served_source = 0
-        self._builds = 0
-        self._last_build_ms: int | None = None
-        self._last_error: str | None = None
-        self._last_served = "source"
-
-    @property
-    def serving(self) -> str:
-        if self._last_served == "graph":
-            return "graph"
-        return f"{self.source.backend} (graph not ready)"
-
-    def stats(self) -> dict[str, Any]:
-        with self._lock:
-            building = self._build_running
-            wait = self._retry_at - self._clock()
-            return {
-                "servedFromGraph": self._served_graph, "servedFromSource": self._served_source,
-                "builds": self._builds, "lastBuildMs": self._last_build_ms,
-                "lastError": self._last_error, "building": building,
-                "strict": not self.fallback,
-                "retryInSeconds": int(wait) if wait > 0 else 0,
-                "release": self._current[0][0] if self._current else None,
-            }
-
-    def wait_for_build(self, timeout: float = 60.0) -> bool:
-        """Block until a running build ends; True when a graph is ready. For tests and warm-up."""
-        thread = self._building
-        if thread is not None:
-            thread.join(timeout)
-        return self._current is not None
-
-    def active_release(self) -> tuple[str, str]:
-        return self.source.active_release()
-
-    def meaning_index(self) -> MeaningIndex | None:
-        """The source's index for the active release (Postgres stores it beside the release)."""
-        return self.source.meaning_index()
-
-    def warm_meaning_index(self) -> None:
-        self.source.warm_meaning_index()
-
-    def evidence_fingerprint(self) -> str:
-        return self.source.evidence_fingerprint()
-
-    def _ready(self, release: tuple[str, str]) -> GraphEntityFacts | None:
-        with self._lock:
-            current = self._current
-        if current is None or current[0] != release:
-            return None
-        if current[1].broken:  # A read from this file failed: stop serving from it.
-            self._drop(current[1], failed=True)
-            return None
-        now = self._clock()
-        if now - self._checked_at >= FINGERPRINT_SECONDS:
-            self._checked_at = now
-            if self.source.evidence_fingerprint() != current[1].fingerprint:
-                LOG.info("brain_graph_rows_changed")
-                self._drop(current[1])
-                return None
-        return current[1]
-
-    def _drop(self, graph: GraphEntityFacts, *, failed: bool = False) -> None:
-        with self._lock:
-            if self._current is not None and self._current[1] is graph:
-                self._current = None
-            if failed:
-                self._retry_at = self._clock() + RETRY_SECONDS
-
-    def _begin_build(self, release: tuple[str, str]) -> threading.Thread | None:
-        with self._lock:
-            if self._build_running or self._clock() < self._retry_at:
-                return None
-            self._build_running = True
-            thread = threading.Thread(target=self._build, args=(release,), daemon=True,
-                                      name="brain-graph-build")
-            self._building = thread
-        try:
-            thread.start()
-        except RuntimeError:  # No thread could be started: answer from the source and retry later.
-            with self._lock:
-                self._build_running = False
-                self._retry_at = self._clock() + RETRY_SECONDS
-                self._last_error = "RuntimeError"
-            return None
-        return thread
-
-    def _open_existing(self, release: tuple[str, str]) -> GraphEntityFacts | None:
-        path = graph_path(self.directory, *release)
-        if not path.exists():
-            return None
-        try:
-            graph = GraphEntityFacts(path)
-        except GraphUnavailable:
-            LOG.warning("brain_graph_unreadable_file_rebuilt")
-            return None
-        if ((graph.dataset_version, graph.identity_hash) != release
-                or (not graph.all_kinds if self.kinds is None
-                    else not set(self.kinds) <= set(graph.kinds))
-                or graph.fingerprint != self.source.evidence_fingerprint()):
-            return None
-        return graph
-
-    def _build(self, release: tuple[str, str]) -> None:
-        started = time.monotonic()
-        try:
-            graph = self._open_existing(release)
-            if graph is None:
-                graph = GraphEntityFacts(
-                    build_release_graph(self.source, self.directory, kinds=self.kinds))
-        except Exception as error:  # noqa: BLE001 - whatever went wrong, answers go on without it.
-            with self._lock:
-                self._retry_at = self._clock() + RETRY_SECONDS
-                self._last_error = type(error.__cause__ or error).__name__
-                self._build_running = False
-            LOG.warning("brain_graph_build_failed exception_type=%s",
-                        type(error.__cause__ or error).__name__)
-            return
-        with self._lock:
-            self._current = (release, graph)
-            self._checked_at = float("-inf")  # Check the rows against the source on first use.
-            self._builds += 1
-            self._last_build_ms = int((time.monotonic() - started) * 1_000)
-            self._last_error = None
-            self._build_running = False
-        self._prune(graph.path)
-
-    def _prune(self, keep: Path) -> None:
-        """Delete other releases' files, and unfinished builds only once their process is gone."""
-        try:
-            now = time.time()
-            for stale in self.directory.glob("release-*.lbug*"):
-                if stale.name.startswith(keep.name):
-                    continue
-                if ".building" in stale.name and now - stale.stat().st_mtime < STALE_BUILD_SECONDS:
-                    continue  # Another process may be building right now.
-                stale.unlink(missing_ok=True)
-        except OSError:
-            LOG.warning("brain_graph_prune_failed")
-
-    @contextmanager
-    def snapshot(self) -> Iterator[Snapshot]:
-        release = self.source.active_release()  # A source outage is an outage, not a graph issue.
-        graph = self._ready(release)
-        if graph is None:
-            thread = self._begin_build(release)
-            if not self.fallback:  # Strict: wait a bounded time, never answer from the source.
-                thread = thread or self._building
-                if thread is not None:
-                    thread.join(self.wait_seconds)
-                graph = self._ready(release)
-                if graph is None:
-                    raise EvidenceUnavailable("The release graph is unavailable.")
-        stack = ExitStack()
-        snapshot: Snapshot | None = None
-        if graph is not None:
-            try:
-                snapshot = stack.enter_context(graph.snapshot())
-                self._last_served = "graph"
-                self._served_graph += 1
-            except EvidenceUnavailable:
-                LOG.warning("brain_graph_read_failed")
-                self._drop(graph, failed=True)
-                if not self.fallback:
-                    raise
-        if snapshot is None:
-            snapshot = stack.enter_context(self.source.snapshot())
-            self._last_served = "source"
-            self._served_source += 1
-        with stack:
-            yield snapshot
 
 
 def publish_release_graph(

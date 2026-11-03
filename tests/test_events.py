@@ -90,18 +90,26 @@ def test_events_in_the_window_come_by_date_and_by_the_questions_topic() -> None:
     # A topic nothing in the window matches: the whole window, flagged as not matched.
     ranked, matched = rank_events(values, "any lacrosse", start, end)
     assert len(ranked) == 2 and matched is False
-    # A description's words count, and an event whose card's meaning is near the window's best
-    # above the floor matches a question that shares no word with it ("home game").
+    # A description's words count, and an event whose card's meaning stands out from every
+    # event card's matches a question that shares no word with it ("home game").
     fed = [{**event("Pizza Time", "24", 18, ["Social"]), "description": "Free pizza for all"},
            {**event("Women's Volleyball vs. Lehman", "24", 19, ["Athletics"]), "_id": "v"},
            {**event("Book Club", "24", 20, ["Social"]), "_id": "b"}]
     ranked, matched = rank_events(fed, "is there pizza this weekend", start, end)
     assert [v["title"] for v in ranked] == ["Pizza Time"] and matched is True
+    calendar = {f"e{n}": 0.28 + (n % 9) * 0.01 for n in range(40)}
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {**calendar, "v": 0.47, "b": 0.31})
+    assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"]
+    # The same score among a crowd of cards near it stands out from nothing (11-03 check set: a
+    # question about club fairs got a dozen unrelated events at 0.47-0.52).
+    crowd = {f"e{n}": 0.38 + (n % 12) * 0.01 for n in range(40)}
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {**crowd, "v": 0.47, "b": 0.31})
+    assert matched is False
+    # Too few cards to tell a crowd from a match: none is found by meaning.
     ranked, matched = rank_events(fed, "when is the next home game", start, end,
                                   {"v": 0.47, "b": 0.31})
-    assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"]
-    ranked, matched = rank_events(fed, "when is the next home game", start, end,
-                                  {"v": 0.40, "b": 0.31})
     assert matched is False
 
 
@@ -173,12 +181,18 @@ def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
 
 
-def test_clubs_found_by_meaning_are_the_near_best_above_the_floor() -> None:
-    names = {f"c{n}": f"Club {n}" for n in range(12)}
-    scores = [(f"c{n}", 0.67 - n * 0.02) for n in range(12)]
-    # Within 0.08 of the best: five clubs.
+def test_clubs_found_by_meaning_stand_out_from_every_club_and_are_near_the_best() -> None:
+    names = {f"c{n}": f"Club {n}" for n in range(60)}
+    rest = [(f"c{n}", 0.30 + (n % 10) * 0.01) for n in range(5, 60)]
+    scores = [("c0", 0.62), ("c1", 0.58), ("c2", 0.55), ("c3", 0.52), ("c4", 0.44), *rest]
+    # Above the question's own bar (0.48 here) and within 0.08 of the best: three clubs.
     assert [c["name"] for c in clubs_by_meaning(scores, names)] == [
-        "Club 0", "Club 1", "Club 2", "Club 3", "Club 4"]
+        "Club 0", "Club 1", "Club 2"]
+    # A photography club the directory lacks: its nearest card (0.48) is only the top of a crowd
+    # of cards near it, and no club is given (11-03 check set: eight unrelated clubs).
+    crowd = sorted([(f"c{n}", 0.33 + (n % 16) * 0.01) for n in range(60)],
+                   key=lambda pair: -pair[1])
+    assert crowd[0][1] >= 0.48 and clubs_by_meaning(crowd, names) == []
     assert clubs_by_meaning([("c0", 0.31)], names) == []
 
 
@@ -249,11 +263,11 @@ def test_alternatives_match_alone_and_page_groups_are_checked_against_the_direct
 
 
 def test_a_named_weekday_wins_over_weekend_and_a_versus_listing_is_a_game() -> None:
-    from rockygpt_brain.events import _about, window
+    from rockygpt_brain.events import _about, _stem, window
     sunday = datetime(2026, 10, 25, 10, 0, tzinfo=WEDNESDAY.tzinfo)
     assert window("family weekend, what's open to parents this saturday", sunday)[2] == \
         "Saturday, October 31"
-    assert "game" in _about({"title": "Women's Soccer vs. New Paltz", "tags": []})
+    assert _stem("games") in _about({"title": "Women's Soccer vs. New Paltz", "tags": []})
 
 
 def test_a_clubs_own_listing_text_is_read_with_its_heading_dropped() -> None:
@@ -274,21 +288,25 @@ def test_a_later_part_of_the_term_reads_the_rest_of_the_semester() -> None:
 
 
 def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
-    from rockygpt_brain.events import asked_topic, computed_answers
+    from rockygpt_brain.events import _stems, asked_topic, computed_answers
     # "is any of it free" asks about the whole weekend; "it" was once read as its topic.
     assert asked_topic("what's happening this weekend and is any of it free") == set()
     # "finals week" and "before thanksgiving" say when (the later-term window), not what.
-    assert asked_topic("finals week destress events like therapy dogs") == {
-        "destress", "therapy", "dog"}
+    assert asked_topic("finals week destress events like therapy dogs") == _stems(
+        "destress therapy dog")
     assert "thanksgiving" not in asked_topic("anything the week before thanksgiving")
+    # How good it is says nothing of what it is about: "cool" once matched "Clay it Cool".
+    assert asked_topic("any cool events happening on campus this week?") == set()
+    assert asked_topic("what are the best events this weekend") == set()
+    assert asked_topic("any cool art events") == _stems("art")
     at = datetime(2026, 10, 30, 0, 0, tzinfo=WEDNESDAY.tzinfo)
     facts = [f["fact"] for f in computed_answers("this weekend", at, at, 4, [], False, {"xy"},
                                                  False, (), 1)]
     assert "mentions food" not in facts[1]
     from rockygpt_brain.events import alternatives
     words = asked_topic("finals week destress events like therapy dogs or pancakes")
-    assert {"therapy", "dog"} in alternatives("finals week destress events like therapy dogs or "
-                                              "pancakes", words)
+    assert _stems("therapy dog") in alternatives("finals week destress events like therapy dogs or "
+                                                 "pancakes", words)
 
 
 def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
@@ -427,3 +445,134 @@ def test_whether_a_club_exists_is_codes_only_once_the_release_marks_inactive_clu
     # A release with no inactive marks cannot tell an active club from one ramapo.edu says is not.
     plain = ChatEngine(ScriptedGateway(), calendar(), output="written")
     assert plain._club_listing("Is there a chess club?", WEDNESDAY) is None
+
+
+def test_a_hosts_name_matches_only_when_the_question_names_the_host() -> None:
+    # 11-03 practice: "a board game club" matched every College Programming Board event, whose
+    # tags and description name the host ("Join the College Programming Board for ...").
+    def hosted(title: str, organizer: str, description: str) -> dict[str, Any]:
+        return {**event(title, "24", 20, ["Social/Entertainment", organizer],
+                        organizer=organizer),
+                "description": f"Join the {organizer} for {title}: {description}."}
+
+    values = [hosted("Tuesday Night Live", "College Programming Board", "live music"),
+              hosted("Snack and Solve", "Data Science Club", "puzzles"),
+              hosted("Card Night", "Bischoff Hall", "cards and board games")]
+    start, end, _ = window("upcoming", WEDNESDAY)
+    # On the calendar, games are common and "board" rare, so a host's "board" weighs the most.
+    games = [event(f"Game {n}", "30", 19, ["Athletics"]) for n in range(10)]
+
+    def titles(message: str) -> list[str]:
+        ranked, matched = rank_events(values, message, start, end, corpus=[*values, *games])
+        return [v["title"] for v in ranked] if matched else []
+
+    assert titles("any board game nights coming up") == ["Card Night"]
+    assert titles("what is the college programming board doing") == ["Tuesday Night Live"]
+    assert titles("any data science club events") == ["Snack and Solve"]
+
+
+def test_whether_a_club_exists_is_not_a_question_about_events() -> None:
+    # 11-03 practice: "is there a chess club or a board game club" led with three events.
+    assert not asks_events("is there a chess club or a board game club")
+    assert not asks_events("are there any clubs that play board games")
+    # Asked when, or for its events, it is.
+    assert asks_events("is there a club for board games tonight")
+    assert asks_events("are there any game nights this week")
+
+
+def test_a_word_matches_however_each_side_writes_it() -> None:
+    from rockygpt_brain.events import _stem, said_words, topic_words
+    # Plurals, -ing, a final e and a final y, on both sides (11-03 practice: "fraternities"
+    # became "fraternitie", which no club name holds, and "religious" lost its s).
+    for one, other in (("fraternities", "fraternity"), ("studying", "study"), ("games", "gaming"),
+                       ("dance", "dancing"), ("parties", "party"), ("cookies", "cookie"),
+                       ("swimming", "swim"), ("classes", "class"), ("meetings", "meet")):
+        assert _stem(one) == _stem(other), (one, other)
+    for kept in ("religious", "campus", "tennis", "class", "spring", "money"):
+        assert _stem(kept) == kept
+    assert _stem("cultural") != _stem("culture") and _stem("formal") != _stem("form")
+    # A reply says the question's own words, never the plain forms.
+    asked = "what fraternities and sororities are there"
+    assert said_words(asked, topic_words(asked)) == "fraternities, sororities"
+
+
+def test_a_club_named_with_the_word_asked_is_never_said_to_be_missing() -> None:
+    from rockygpt_brain.events import club_answers
+    clubs = [{"n": 2, "name": "Zeta Phi Beta Sorority, Inc.", "category": "Greek Life",
+              "url": "https://archway.ramapo.edu/zpb/"},
+             {"n": 3, "name": "Alpha Sigma Phi", "category": "Greek Life",
+              "url": "https://archway.ramapo.edu/asp/"}]
+    facts = [f["fact"] for f in club_answers(clubs, "what fraternities and sororities are there",
+                                             False, 248)]
+    assert not any("No club in the directory has" in fact for fact in facts)
+    facts = [f["fact"] for f in club_answers(clubs[1:], "are there any religious clubs", False,
+                                             248)]
+    assert facts[0].startswith("No club in the directory has religious in its name")
+
+
+def test_an_entry_named_for_its_kind_stands_for_every_club_of_it() -> None:
+    from rockygpt_brain.events import kind_members, names_its_kind
+    directory = [{"id": "u", "name": "Honor Societies", "category": "Honor Society - Academic"},
+                 {"id": "a", "name": "Alpha Kappa Delta", "category": "Honor Society"},
+                 {"id": "b", "name": "Tau Sigma", "category": "Honor Society - Academic"},
+                 {"id": "s", "name": "Sports Club", "category": "Student Organization"}]
+    assert [names_its_kind(e) for e in directory] == [True, False, False, False]
+    found = kind_members([{"id": "u", "name": "Honor Societies"}], directory)
+    assert [c["name"] for c in found] == ["Honor Societies", "Alpha Kappa Delta", "Tau Sigma"]
+    assert kind_members([{"id": "s", "name": "Sports Club"}], directory) == [
+        {"id": "s", "name": "Sports Club"}]
+
+
+def test_a_listing_holding_part_of_the_topic_needs_its_meaning_to_agree() -> None:
+    start, end, _ = window("upcoming", WEDNESDAY)
+    fed = [{**event("Women's Basketball vs. Baruch", "24", 18, ["Sports/Recreation"]),
+            "_id": "g"},
+           {**event("Birdwatching", "24", 19, ["Sports/Recreation"]), "_id": "w"},
+           {**event("Card Game Night", "24", 20, ["Social"]), "_id": "c"},
+           {**event("You Can Narcan!", "24", 21, ["Health"]), "_id": "n",
+            "description": "Learn to use naloxone, a life saving drug."},
+           {**event("Budget Basics", "25", 18, ["Workshop"]), "_id": "b",
+            "description": "Money tips."}]
+    calendar = {f"e{n}": 0.28 + (n % 9) * 0.01 for n in range(40)}
+    # The games hold both words asked: a listing holding one of them is not a sports game
+    # (11-03 practice: a birdwatching outing and a card game meeting were listed).
+    ranked, matched = rank_events(fed, "any sports games coming up", start, end,
+                                  {**calendar, "g": 0.50, "w": 0.33, "c": 0.36, "n": 0.30,
+                                   "b": 0.31})
+    assert [v["title"] for v in ranked] == ["Women's Basketball vs. Baruch"] and matched is True
+    # No listing holds both "saving" and "money": one word counts only where the meaning agrees
+    # (11-03 practice: "a life saving drug" was listed for saving money).
+    ranked, matched = rank_events(fed, "any events about saving money", start, end,
+                                  {**calendar, "g": 0.30, "w": 0.30, "c": 0.31, "n": 0.33,
+                                   "b": 0.52})
+    assert [v["title"] for v in ranked] == ["Budget Basics"]
+    assert ranked[0]["_matched_by"] == "words"
+
+
+def test_events_near_in_meaning_are_about_as_near_as_the_one_the_words_found() -> None:
+    start, end, _ = window("upcoming", WEDNESDAY)
+    fed = [{**event("HIV Awareness", "24", 18, ["Health"]), "_id": "h",
+            "description": "Sexual health trivia and free condoms."},
+           {**event("Spa Night", "24", 19, ["Wellness"]), "_id": "s"},
+           {**event("Community Circle", "24", 20, ["LGBTQ"]), "_id": "q"}]
+    calendar = {f"e{n}": 0.28 + (n % 9) * 0.01 for n in range(40)}
+    # 11-03 practice: the band was measured from the best event the words had not found, so
+    # four events far below the one asked for came after it.
+    ranked, _ = rank_events(fed, "any events about sexual health", start, end,
+                            {**calendar, "h": 0.62, "s": 0.45, "q": 0.47})
+    assert [(v["title"], v["_matched_by"]) for v in ranked] == [("HIV Awareness", "words")]
+    ranked, _ = rank_events(fed, "any events about sexual health", start, end,
+                            {**calendar, "h": 0.62, "s": 0.45, "q": 0.57})
+    assert [(v["title"], v["_matched_by"]) for v in ranked] == [
+        ("HIV Awareness", "words"), ("Community Circle", "meaning")]
+
+
+def test_a_place_named_for_its_host_office_says_where_not_what() -> None:
+    from rockygpt_brain.events import _about, _stem
+    circle = {"title": "QT+ Community Circle", "tags": ["LGBTQ"],
+              "organizer": "Women's Center & LGBTQ+ Services",
+              "location": "Women’s Center & LGBTQ+ Services (C-220)"}
+    assert _stem("service") not in _about(circle, {_stem("service")})
+    cleanup = {"title": "Service Opportunity: Campus Cleanup", "tags": ["Volunteering"],
+               "organizer": "Ramapo Green", "location": "The Arch"}
+    assert _stem("service") in _about(cleanup, {_stem("service")})

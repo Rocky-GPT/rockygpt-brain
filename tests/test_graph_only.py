@@ -196,7 +196,6 @@ def configured(monkeypatch: pytest.MonkeyPatch, folder: Path) -> ChatEngine:
                             lambda: type("P", (), {"max_turn_nusd": 1})())}))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
     monkeypatch.delenv("DATABASE_URL", raising=False)  # The campus database is not even named.
-    monkeypatch.delenv("BRAIN_GRAPH_DIR", raising=False)
     monkeypatch.setenv("BRAIN_GRAPH_ONLY_DIR", str(folder))
     return app_module._configured_engine()  # noqa: SLF001 - the wiring under test.
 

@@ -60,13 +60,39 @@ def asked_levels(message: str) -> set[str]:
     return {level for level, words in _LEVEL_WORDS.items() if words.search(text)}
 
 
+# A program's published short name, all capitals ("CS": Dan approved it 09-28, as students type
+# "who is the cs convener"). Its words are no core name's, so it is read as a name of its own, in
+# any case, except one that is a word of its own in lower case: "IT" would name Information
+# Technology only in capitals, never in "is it hard".
+_SHORT_NAME = re.compile(r"[A-Z]{2,6}")
+_WORDS_OF_THEIR_OWN = frozenset("""
+a am an as at be by do go he hi if in is it me my no of oh ok on or so to up us we ad ah aw ax eh
+ha id la lo ma mm pa re ta uh um ya ye yo hr ms mr dr st pm rn bc tv pc ur
+""".split())
+
+
+def _short_names(program: dict[str, Any], tokens: list[str], message: str) -> list[int]:
+    """Where a message says one of a program's short names (_SHORT_NAME), by token position."""
+    at: set[int] = set()
+    for alias in program.get("aliases") or []:
+        alias = str(alias).strip()
+        if not _SHORT_NAME.fullmatch(alias):
+            continue
+        folded = alias.casefold()
+        if folded in _WORDS_OF_THEIR_OWN and not re.search(rf"\b{alias}\b", message):
+            continue
+        at.update(k for k, word in enumerate(tokens) if word == folded)
+    return sorted(at)
+
+
 def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
     """The programs (identities: {"id", "name", …}) a message names, best first, at most
     MAX_PROGRAMS. A program is named when every word of its core name is a word of the message
-    or a short form of it ("math" for Mathematics, "chem" for Chemistry); one whose words all
-    belong to a longer program also named is dropped ("Data Science", not "Science"). Each
-    subject's level comes from the words beside it ("a biology major and a chem minor"), else
-    from the whole message, else the undergraduate major."""
+    or a short form of it ("math" for Mathematics, "chem" for Chemistry), or by a published short
+    name of its own ("CS" for the Computer Science programs); one whose words all belong to a
+    longer program also named is dropped ("Data Science", not "Science"). Each subject's level
+    comes from the words beside it ("a biology major and a chem minor"), else from the whole
+    message, else the undergraduate major."""
     tokens = re.findall(r"[a-z0-9+]+", message.casefold())
     named: list[tuple[dict[str, Any], frozenset[str], list[int], set[int]]] = []
     # Each short form's matches: the length of the word it stood for, by program.
@@ -90,6 +116,9 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
             for k, length in stood:
                 short.setdefault(k, []).append((length, len(named)))
             named.append((program, core, places, every))
+            continue
+        if by_short := _short_names(program, tokens, message):
+            named.append((program, core, by_short, set(by_short)))
     if not named:
         return []
     # A short form several programs share stands for the shortest word it starts ("bio" is
@@ -644,6 +673,10 @@ def course_evidence(facts: dict[str, Any], n: int,
 _ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4"}
 _TITLE_FILLER = {"of", "and", "to", "the", "in", "for", "a", "an", "with", "on", "&", "lecture",
                  "lab", "laboratory"}
+# A question's "is" is never a title's: there it is Independent Study's code ("IS-HONORS", "IS-DATA
+# SCIENCE": 52 catalog titles), and "is there an honor society" named IS-HONORS as a course
+# (11-03), which sent it down the catalog's path.
+_NEVER_TITLE = {"is"}
 # Question words never read as the start of a title word ("for" is not Forensic).
 _ASKING = {"for", "the", "and", "can", "how", "what", "when", "who", "why", "does", "did",
            "take", "taking", "need", "before", "after", "with", "without", "about", "class",
@@ -705,9 +738,9 @@ def courses_by_title(titles: dict[str, str], message: str,
                     and parts[0] in words and _COURSE_TALK.search(message.casefold())):
                 scored.append((1.0, entity_id))
             continue
-        at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and (
-            w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
-                                           and words[k + 1] not in ("ed", "eds")))]
+        at = {p: [k for k, w in enumerate(words) if _abbreviates(w, p) and w not in _NEVER_TITLE
+                  and (w not in _ASKING or w == p or (w == "gen" and k + 1 < len(words)
+                                                      and words[k + 1] not in ("ed", "eds")))]
               for p in parts}
         hit = [p for p in parts if at[p]]
         if not any(not p.isdigit() for p in hit):

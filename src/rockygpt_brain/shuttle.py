@@ -30,6 +30,10 @@ from typing import Any
 SERVICE_DAYS = ("weekday", "saturday", "sunday")
 WHICH = ("next", "first", "last", "all")
 MAX_LISTED = 2  # How many upcoming departures "next" shows: the one asked for and the one after.
+# How many of today's departures a whole-day answer lists from now: the rest are counted, with the
+# last of them, and the posted timetable has the full day (11-03: "shuttle to the train station
+# what time", asked at 12:25 AM, got every trip of the day in one run-on line).
+MAX_TODAY = 5
 _CLOCK = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?\s*$")
 _PREFIX = re.compile(r"^(?:arrive|depart)\s+", re.IGNORECASE)
 
@@ -273,6 +277,27 @@ def departures(
             picked = []
             # Every trip is timed on the timetable; only this answer leaves the times out.
             result["times_not_asked"] = True
+            if now_minute is not None:
+                # "Is there a shuttle to the mall?" asked today: whether one is still to come,
+                # and when the next leaves (11-03: the reply named the day and no time at all).
+                if not upcoming:
+                    result.update(trips=[], none_left=True,
+                                  last_left_at=clock(when(day_calling[-1])))
+                    result.update(_next_service(routes, day, key, back))
+                    return result
+                result["still_to_come_today"] = len(upcoming)
+                result["next_at"] = clock(when(upcoming[0]))
+        elif now_minute is not None:
+            # Today's times start from now: the next few, then how many more and the last.
+            if not upcoming:
+                result.update(trips=[], none_left=True, last_left_at=clock(when(day_calling[-1])))
+                result.update(_next_service(routes, day, key, back))
+                return result
+            picked = upcoming[:MAX_TODAY]
+            result["from_now"] = True
+            if len(upcoming) > len(picked):
+                result["more_later_today"] = len(upcoming) - len(picked)
+                result["last_later_today"] = clock(when(upcoming[-1]))
     elif which == "first":
         picked = [t for t in calling if when(t) == when(calling[0])]
     elif which == "last":
@@ -428,7 +453,39 @@ def describe(answer: dict[str, Any]) -> str:
         if answer.get("stops_served") and not trips:
             return (f"On {when} the shuttle calls at {', '.join(answer['stops_served'])}."
                     + where)
-        return f"Shuttles{to} on {when}: " + "; ".join(one(t) for t in trips) + "." + where
+        if answer.get("times_not_asked"):
+            # Whether there is one, not every time: the day's count, its first and last trip
+            # from campus, and today the next still to come.
+            count = answer.get("trip_count") or 0
+            if back:
+                counted = (f"The posted timetable lists {count} ride{'s' if count != 1 else ''} "
+                           f"back to campus from {stop} on {when}.")
+            elif count > 1:
+                counted = (f"The posted timetable lists {count} shuttles{to} on {when}, the "
+                           f"first leaving campus at {answer.get('first_leaves_campus')} and the "
+                           f"last at {answer.get('last_leaves_campus')}.")
+            else:
+                counted = (f"The posted timetable lists 1 shuttle{to} on {when}, leaving campus "
+                           f"at {answer.get('first_leaves_campus')}.")
+            if answer.get("next_at"):
+                later = answer.get("still_to_come_today") or 0
+                counted += (f" The next {'picks up there' if back else 'leaves'} at "
+                            f"{answer['next_at']}"
+                            + (f" ({later} still to come today)." if later > 1 else "."))
+            return counted + ("" if back else where)
+        # One trip a line: a day's list in one sentence is a run-on (11-03).
+        listed = "\n".join(f"- {one(t)}" for t in trips)
+        if answer.get("from_now"):
+            what = f"rides back to campus from {stop}" if back else f"shuttles{to}"
+            said = [f"The next {what} today ({when}):\n{listed}"]
+            if answer.get("more_later_today"):
+                said.append(f"{answer['more_later_today']} more later today, the last "
+                            f"{'picking up there' if back else 'leaving campus'} at "
+                            f"{answer['last_later_today']}. The posted timetable has the full "
+                            "day.")
+            return "\n\n".join([*said, *([where.strip()] if where and not back else [])])
+        return "\n\n".join([f"Shuttles{to} on {when}:\n{listed}",
+                             *([where.strip()] if where else [])])
     since = f" after {answer['after']}" if answer.get("after") else ""
     what = f"ride back to campus from {stop}" if back else f"shuttle{to}"
     lead = f"{label} {what}{since} on {when}: " + "; ".join(one(t) for t in trips) + "."

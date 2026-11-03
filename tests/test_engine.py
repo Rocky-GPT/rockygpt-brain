@@ -274,10 +274,10 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
 
 
 @pytest.mark.parametrize(("kind", "phrase"), [
-    ("greeting", "shuttle timetable, and dining hours and menus"),
+    ("greeting", "dining menus, the shuttle, events and clubs"),
     ("thanks", "You're welcome"),
     ("okay", "call 911, or call or text 988"),
-    ("about", "I can't see your personal student records"),
+    ("about", "your personal student records"),
 ])
 def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
     # "okay" answers an earlier emergency, so the conversation holds the Brain's own safety reply.
@@ -1303,7 +1303,7 @@ def test_a_retired_topic_says_it_is_gone_in_its_pages_words() -> None:
     assert result.body["answer"].startswith(
         "Small Business Development Center is no longer at Ramapo College. Its page says: "
         "\"The Bergen County SBDC is no longer headquartered at Ramapo\" It points to "
-        "https://njsbdc.com/.")
+        "[https://njsbdc.com/](https://njsbdc.com/).")
 
 
 def test_an_office_named_exactly_wins_over_a_topic_and_a_topic_needs_its_exact_name() -> None:
@@ -1446,6 +1446,16 @@ def test_a_question_naming_a_purpose_its_contact_note_covers_reads_the_note() ->
     plain = answer(ScriptedGateway(ask, finish()), service=marketing_office(),
                    messages=[{"role": "user", "content": "marketing email please"}])
     assert "news@example.edu" not in plain.body["answer"]
+
+
+def test_the_words_that_ask_for_hours_are_no_purpose_a_contact_note_covers() -> None:
+    # 11-03 practice: "library closing time today?" read the Library's contact note for its
+    # "closing procedures", and the reply said its doors line twice.
+    from rockygpt_brain.retrieval.campus_graph import purpose_words
+
+    assert purpose_words("thanks a bunch, library closing time today?") == {"bunch", "library"}
+    assert purpose_words("when does it close") == set()
+    assert purpose_words("who handles media inquiries") == {"media", "inquirie"}
 
 
 def id_card_room(note: str) -> MemoryEntityFacts:

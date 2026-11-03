@@ -953,3 +953,105 @@ def linked_records_of(snapshot: Any) -> list[dict[str, Any]]:
     from rockygpt_brain.retrieval.entity_facts import linked_records
     held = linked_records(snapshot, snapshot.entities)
     return [e for e in snapshot.entities if e["id"] in held]
+
+
+MAP = "https://map.example.edu/?id=1#!m/1218428"
+
+
+def located(*evidence: dict[str, Any], building: str = "b-sc") -> list[dict[str, Any]]:
+    return [{"type": "located_at", "target_entity_id": building, "evidence": list(evidence)}]
+
+
+def campus_building() -> MemoryEntityFacts:
+    """A building on the campus map, and places the graph locates in it by each kind of
+    evidence: the map's own entry for the place, an official page a person reviewed, the
+    place's published room, and a link with nothing citable."""
+    on_map = {"collection": "map_places", "source_key": "campus-map", "field": "building",
+              "source_record_key": "office_csi", "source_url": MAP}
+    reviewed = {"collection": "buildings", "source_key": "campus-map", "field":
+                "reviewed_locations", "source_record_key": "1218428",
+                "source_url": "https://example.edu/campus-hours"}
+    by_room = {"collection": "contacts", "source_key": "campus-directory", "field": "office",
+               "source_record_key": "office:registrar"}
+    uncited = {"collection": "clubs", "source_key": "archway", "field": "location",
+               "source_record_key": "chess"}
+    entities = [
+        {"id": "b-sc", "kind": "building", "name": "Student Center (SC)",
+         "aliases": ["SC", "Student Center"],
+         "links": [{"collection": "buildings", "source_key": "campus-map",
+                    "source_record_keys": ["1218428"]}]},
+        {"id": "b-d", "kind": "building", "name": "Academic Building D", "aliases": [],
+         "links": [{"collection": "buildings", "source_key": "campus-map",
+                    "source_record_keys": ["1133371"]}]},
+        {**office(), "relationships": located(by_room)},
+        {"id": "csi", "kind": "office", "name": "Center for Student Involvement", "aliases": [],
+         "links": [{"collection": "map_places", "source_key": "campus-map",
+                    "source_record_keys": ["office_csi"]}],
+         "relationships": located(on_map)},
+        {"id": "atrium", "kind": "venue", "name": "The Atrium", "aliases": [], "links": [],
+         "relationships": located(reviewed)},
+        {"id": "lounge", "kind": "facility", "name": "Game Room", "aliases": [], "links": [],
+         "relationships": located(reviewed)},
+        {"id": "chess", "kind": "club", "name": "Chess Club", "aliases": [], "links": [],
+         "relationships": located(uncited)},
+        # Named like the building: it is the building, not a place in it.
+        {"id": "sc-office", "kind": "office", "name": "The Student Center", "aliases": [],
+         "links": [], "relationships": located(reviewed)},
+        {"id": "edic", "kind": "organization", "name": "EDIC", "aliases": [], "links": [],
+         "relationships": located(reviewed, building="b-d")},
+    ]
+    building = {"source_key": "campus-map", "category": "Academic Buildings",
+                "collected_at": NOW, "content_hash": "map"}
+    records = {
+        "buildings": [
+            {**building, "id": "buildings:1218428", "source_record_key": "1218428",
+             "name": "Student Center (SC)", "source_url": MAP, "room_prefixes": ["SC"]},
+            {**building, "id": "buildings:1133371", "source_record_key": "1133371",
+             "name": "Academic Building D", "source_url": "https://map.example.edu/d",
+             "room_prefixes": ["D"]}],
+        "map_places": [{"id": "map_places:office_csi", "source_key": "campus-map",
+                        "source_record_key": "office_csi", "name": "CSI", "source_url": MAP,
+                        "building": "Student Center (SC)", "collected_at": NOW,
+                        "content_hash": "map"}]}
+    return MemoryEntityFacts(dataset_version="test-release", identity_hash="identity-hash",
+                             entities=entities, contacts=[contact()], records=records,
+                             now=lambda: NOW)
+
+
+def test_a_building_says_its_map_its_room_numbers_and_each_place_by_what_placed_it_there(
+) -> None:
+    facts = campus_building().get_building_facts("b-sc", "test-release")
+    assert facts["entity"] == {"id": "b-sc", "kind": "building", "name": "Student Center (SC)"}
+    assert prop(facts, "map")["values"][0]["value"] == MAP
+    assert prop(facts, "room_prefixes")["values"][0]["value"] == ["SC"]
+    places = prop(facts, "places_in")["values"][0]
+    # A place an official page puts there first, then food, then offices; a link with nothing
+    # citable, a place of the building's own name and a place in another building are not said.
+    assert [p["name"] for p in places["value"]] == [
+        "Game Room", "The Atrium", "Center for Student Involvement", "Registrar"]
+    sources = {s["id"]: s for s in facts["sources"]}
+    # Cited in the order the places are said.
+    assert places["source_ids"] == ["buildings:1218428:reviewed:https://example.edu/campus-hours",
+                                    "map_places:office_csi", "r1"]
+    assert sources["map_places:office_csi"]["collection"] == "map_places"
+    assert sources["map_places:office_csi"]["citation_urls"] == [MAP]
+    reviewed = sources["buildings:1218428:reviewed:https://example.edu/campus-hours"]
+    assert reviewed["citation_urls"] == ["https://example.edu/campus-hours"]
+    assert sources["r1"]["citation_urls"] == ["https://example.edu/directory"]
+    # The map publishes no freshness promise; its seed's (180 days) keeps it current.
+    assert {s["freshness"] for s in facts["sources"]} == {"fresh"}
+    # Each value's sources are its assertions' sources, as every fact reader's are.
+    for item in facts["properties"]:
+        value = item["values"][0]
+        assert value["source_ids"] == [a["source_id"] for a in item["assertions"]]
+
+
+def test_only_a_building_with_one_map_record_is_read_as_a_building() -> None:
+    service = campus_building()
+    with pytest.raises(UnknownEntity):
+        service.get_building_facts("registrar", "test-release")
+    with pytest.raises(DatasetChanged):
+        service.get_building_facts("b-sc", "older-release")
+    service.records["buildings"] = []
+    with pytest.raises(EvidenceUnavailable):
+        service.get_building_facts("b-sc", "test-release")
