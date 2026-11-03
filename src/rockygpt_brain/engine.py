@@ -91,6 +91,8 @@ LOG = logging.getLogger(__name__)
 TURN_SECONDS = 52.0
 CATALOG_URL = "https://catalog.ramapo.edu/programs"
 MAX_TOOL_ATTEMPTS = 8
+# A building's hours are its places' own: at most this many of its offices and venues are read.
+MAX_BUILDING_HOURS = 4
 MAX_RESULTS = 8
 MAX_ANSWER_CHARS = 12_000
 
@@ -764,6 +766,13 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)*", text.casefold().replace("\u2019", "'"))
 
 
+def _said_name(name: str) -> str:
+    """A place's name as said, a leading "the" dropped: "the Learning Commons" names the
+    Learning Commons."""
+    words = _words(name)
+    return " ".join(words[1:] if len(words) > 1 and words[0] == "the" else words)
+
+
 _FILLER = frozenset("please order that this with from your there these they have will into "
                     "also when what which them their about".split())
 
@@ -1295,6 +1304,8 @@ class ChatEngine:
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
         self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
+        # The buildings and every office's and venue's names, read once per release (_names).
+        self._names_cache: tuple[tuple[str, str], dict[str, Any]] | None = None
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1512,6 +1523,149 @@ class ChatEngine:
         return [{"entity_id": ids[name], "name": name, "match": "building"}
                 for name in names if name in ids]
 
+    def _names(self) -> dict[str, Any]:
+        """Read once per release: the buildings by name and other names (as the router reads
+        names), every office's and venue's name and other names as said plainly, and each
+        office's and venue's id by its name."""
+        key = self.facts.active_release()
+        if self._names_cache is not None and self._names_cache[0] == key:
+            return self._names_cache[1]
+        buildings = [{"name": b["name"], "also_called": list(b["aliases"]), "entity_id": b["id"]}
+                     for b in self.facts.identities(("building",))]
+        places = self.facts.identities(("office", "venue"))
+        names = {"buildings": buildings,
+                 "places": {_said_name(str(name)) for place in places
+                            for name in [place["name"], *place["aliases"]]},
+                 "ids": {str(place["name"]): place["id"] for place in places}}
+        self._names_cache = (key, names)
+        return names
+
+    def _buildings(self) -> list[dict[str, Any]]:
+        """The campus buildings by name and other names, as the router reads names."""
+        try:
+            return list(self._names()["buildings"])
+        except EvidenceUnavailable:
+            return []
+
+    def _building_called(self, name: str) -> dict[str, Any] | None:
+        """The one building a name is the whole name or other name of, as said."""
+        asked = _said_name(name)
+        if not asked:
+            return None
+        try:
+            buildings = self._names()["buildings"]
+        except EvidenceUnavailable:
+            return None
+        named = [b for b in buildings
+                 if any(_said_name(str(n)) == asked for n in [b["name"], *b["also_called"]])]
+        return named[0] if len(named) == 1 else None
+
+    def _building_named(self, query: str) -> dict[str, Any] | None:
+        """The one building a lookup's query is the whole name of ("Student Center", "the
+        Learning Commons"), when no office or venue is called that: an office named like its
+        building is the office (and where-questions get the building too, _same_name)."""
+        try:
+            if _said_name(query) in self._names()["places"]:
+                return None
+        except EvidenceUnavailable:
+            return None
+        return self._building_called(query)
+
+    def _same_name(self, result: OfficeResult, request: OfficeRequest) -> dict[str, Any] | None:
+        """The building an office or venue found for a where-question is named like ("Where is
+        Pine Hall?": the residence hall's office is Pine Hall, and so is its building), so
+        where the campus map shows it is said with the office's own room."""
+        part = result.part or {}
+        office = part.get("office") if part.get("kind") == "office_facts" else None
+        if ("offices" not in request.fields or not isinstance(office, dict)
+                or office.get("kind") == "building"):
+            return None
+        return self._building_called(str(office.get("name", "")))
+
+    def _building(self, request: OfficeRequest, building: dict[str, Any], graph: CampusGraph,
+                  as_of: datetime) -> OfficeResult:
+        """A building named (11-03: "where da student center at"): where the campus map shows
+        it, its room numbers and the places in it, as the graph publishes them. A building has no
+        hours of its own: hours asked of it are its offices' and venues' own (hours_places), read
+        after it in the same round."""
+        with measure("Open root · Ramapo"):
+            graph.open("ramapo", [], as_of)
+        with measure("Open Offices · read published directory"):
+            graph.open("offices", [], as_of)
+        if graph.version is None:
+            raise EvidenceUnavailable("No published release to read a building from.")
+        with measure("Read the building's map record and the places in it"):
+            facts = self.facts.get_building_facts(building["entity_id"], graph.version,
+                                                  identity_hash=graph.identity_hash, as_of=as_of)
+        with measure("Render verified evidence"):
+            rendered = render_facts(facts)
+        detail: dict[str, Any] = {
+            "path": graph.path(graph.current_node), "result_count": 1,
+            "dataset_version": graph.version, "identity_hash": graph.identity_hash,
+            "as_of": as_of.isoformat(), "office": facts["entity"]["name"],
+            "resolvedBy": "building"}
+        part: dict[str, Any] = {
+            "kind": "office_facts", "query": request.query, "fields": list(request.fields),
+            "office": {"id": building["entity_id"], "name": facts["entity"]["name"],
+                       "kind": "building"},
+            "facts": facts}
+        if "hours" in request.fields:
+            part["hours_places"] = detail["hours_places"] = self._hours_places(
+                facts, graph, as_of)
+        detail["answer"] = {"text": rendered.text, "citations": rendered.citations,
+                            "complete": rendered.complete}
+        return OfficeResult(rendered, detail=detail, part=part)
+
+    def _namesake(self, request: OfficeRequest, building: dict[str, Any], graph: CampusGraph,
+                  as_of: datetime) -> OfficeResult | None:
+        """The building of an office's own name (_same_name), or None when its map record cannot
+        be read: the office's own room still answers."""
+        try:
+            return self._building(request, building, graph, as_of)
+        except DatasetChanged:
+            raise
+        except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+            return None
+
+    def _place_hours(self, request: OfficeRequest, graph: CampusGraph,
+                     as_of: datetime) -> OfficeResult | None:
+        """The hours of one place in a building, by its exact name; None when they cannot be
+        read, and the building's other places are said without it."""
+        try:
+            return self._lookup(request, graph, as_of, exact_name_only=True)
+        except DatasetChanged:
+            raise
+        except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+            return None
+
+    def _hours_places(self, facts: dict[str, Any], graph: CampusGraph,
+                      as_of: datetime) -> list[str]:
+        """The offices and venues in a building that publish hours, in the order the building's
+        facts list them (a place an official page says it is first, then food), at most
+        MAX_BUILDING_HOURS."""
+        inside = [place for prop in facts["properties"] if prop["key"] == "places_in"
+                  for value in prop["values"] for place in value["value"]
+                  if place.get("kind") in ("office", "venue")]
+        ids = self._names()["ids"]
+        found: list[str] = []
+        for place in inside:
+            entity_id = ids.get(str(place["name"]))
+            if entity_id is None or graph.version is None:
+                continue
+            try:
+                read = self.facts.get_office_facts(entity_id, ["hours"], graph.version,
+                                                   identity_hash=graph.identity_hash,
+                                                   as_of=as_of)
+            except DatasetChanged:
+                raise  # The turn answers from one release.
+            except (EvidenceUnavailable, UnknownEntity, InvalidFactRequest):
+                continue  # A place whose hours cannot be read is not said to have any.
+            if any(prop["key"] == "hours" and prop["values"] for prop in read["properties"]):
+                found.append(str(place["name"]))
+            if len(found) == MAX_BUILDING_HOURS:
+                break
+        return found
+
     def _lookup(self, request: OfficeRequest, graph: CampusGraph, as_of: datetime, *,
                 exact_name_only: bool = False, conversation: str = "",
                 latest: str = "",
@@ -1534,6 +1688,15 @@ class ChatEngine:
             ("diet", request.diet), ("contains", said(request.items)),
             ("with_allergens", said(request.with_allergens)),
             ("without_allergens", said(request.without_allergens))) if value}
+        building = None if exact_name_only or menu else self._building_named(request.query)
+        if building is not None:
+            try:
+                return self._building(request, building, graph, as_of)
+            except DatasetChanged:
+                raise
+            except (EvidenceUnavailable, UnknownEntity) as error:
+                # A building whose map record cannot be read is looked up like any name.
+                LOG.warning("brain_building_unreadable reason=%s", str(error)[:120])
         opened = graph.lookup(request.query, list(request.fields), as_of,
                               exact_name_only=exact_name_only, conversation=conversation,
                               latest=latest, on=on,
@@ -3320,8 +3483,11 @@ class ChatEngine:
             return await self._read_emergency(turn, request, reading, trace, question, started)
         if (done := await self._read_reply(turn, context, reading, trace)) is not None:
             return done
+        # Code's lead says the hello or thanks, so the answer after it does not say it again
+        # (11-03 practice: "Hi!" then the whole greeting after the answer).
         result = await self._campus_answer(turn, request, trace, question=question,
-                                           started=started)
+                                           started=started,
+                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)))
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result
@@ -3343,7 +3509,9 @@ class ChatEngine:
         if academic_calendar.kind_asked(latest) is not None:
             return True
         _, offices, _, venues, _, _ = await self._lists()
-        return code_route(latest, offices, venues) is not None or shuttle_route(latest) is not None
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(latest, offices, venues, buildings) is not None
+                or shuttle_route(latest) is not None)
 
     async def _read_checked(self, context: Context, reading: triage.Reading,
                             trace: dict[str, Any]) -> triage.Reading:
@@ -3356,18 +3524,41 @@ class ChatEngine:
         corrected: triage.Reading | None = None
         if reading.social == "nonsense" and not reading.question and reading.danger == "none":
             _, offices, _, venues, _, _ = await self._lists()
-            if places_named(context.latest_message, offices, venues):
+            buildings = await asyncio.to_thread(self._buildings)
+            if places_named(context.latest_message, offices, venues, buildings):
                 corrected = replace(reading, social="none",
                                     question=context.latest_message.strip())
                 why = "names_a_place"
         elif not reading.question and reading.limit in triage.LIMIT_QUESTIONS:
             corrected = replace(reading, question=triage.LIMIT_QUESTIONS[reading.limit])
             why = "limit_question"
+        elif reading.limit == "clock" and triage.asks_only_the_clock(reading.question):
+            # "whats todays date": the clock line answers it whole; asked again as a campus
+            # question, the date was said twice (11-03 practice).
+            corrected = replace(reading, question="")
+            why = "clock_only"
+        elif (reading.limit == "live_status" and reading.question
+              and not triage.LIVE_WORDS.search(reading.question)
+              and await self._published(reading.question)):
+            # "wats for lunch at the atrium today": today's menu, hours, events and shuttle
+            # times are published, so nothing live is asked (11-03 practice).
+            corrected = replace(reading, limit="none")
+            why = "published_lookup"
         if corrected is None:
             return reading
         if isinstance(read, dict):
             read["corrected"] = {"why": why, **corrected.as_trace()}
         return corrected
+
+    async def _published(self, question: str) -> bool:
+        """Whether a question asks what the college publishes for a day, which code looks up: a
+        place's hours or menu, the shuttle times, the calendar's events or dates."""
+        if events.asks_events(question) or academic_calendar.kind_asked(question) is not None:
+            return True
+        _, offices, _, venues, _, _ = await self._lists()
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(question, offices, venues, buildings) is not None
+                or shuttle_route(question) is not None)
 
     async def _read(self, turn: Turn, context: Context,
                     trace: dict[str, Any]) -> triage.Reading | None:
@@ -3547,10 +3738,11 @@ class ChatEngine:
 
     async def _campus_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
                              floor_situation: str | None = None, *, question: str | None = None,
-                             started: float | None = None) -> ChatResult:
+                             started: float | None = None, greeted: bool = False) -> ChatResult:
         """The campus answer: code's routes, then the model's. `question` is the read's clean
         question, which every route and search reads in place of the student's words; `started`
-        is when the turn began, so the read's time comes out of the turn's own."""
+        is when the turn began, so the read's time comes out of the turn's own; `greeted` is
+        whether code's lead already says hello or thanks."""
         with measure("Prepare conversation and root"):
             context = build_context(request)
             if question:
@@ -3606,7 +3798,9 @@ class ChatEngine:
             # its listed service label and asks only how to reach it: the lookup code is sure of
             # comes before the pages (11-03, the live answer gave the IT Help Desk's number).
             listed = await self._lists()
-            if not (plain and code_route(context.latest_message, listed[1], listed[3])):
+            buildings = await asyncio.to_thread(self._buildings)
+            if not (plain and code_route(context.latest_message, listed[1], listed[3],
+                                         buildings)):
                 done = await self._one_call(turn, context, budget, trace)
                 if done is not None:
                     return done
@@ -3619,7 +3813,8 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
-        plan, plan_tool = (code_route(context.latest_message, offices, venues) if plain
+        plan, plan_tool = (code_route(context.latest_message, offices, venues,
+                                      await asyncio.to_thread(self._buildings)) if plain
                            else None), "graph_lookup"
         if plan is None and plain:
             plan, plan_tool = shuttle_route(context.latest_message), "shuttle_lookup"
@@ -3806,6 +4001,58 @@ class ChatEngine:
                                            "clarification": each.clarification,
                                            "error": each.error_code})
                             looked_up.append((rid, len(output) - 1, sibling))
+                        # "Where is Pine Hall": the hall's office has the room, and its building
+                        # of the same name is where the campus map shows it (11-03).
+                        if (building := self._same_name(result, item)) is not None:
+                            namesake = item.model_copy(update={
+                                "query": building["name"], "fields": ["offices"], "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {building['name']}"):
+                                found = await asyncio.to_thread(
+                                    self._namesake, namesake, building,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now)
+                            if found is not None:
+                                rid = f"r{len(results) + 1}"
+                                results[rid] = found
+                                trace["lookups"].append({
+                                    "tool": "graph_lookup", "traversedBy": "code",
+                                    "status": _lookup_status(found),
+                                    "foundBy": "same_name_building",
+                                    "arguments": namesake.model_dump(), **found.detail})
+                                output.append({"query": building["name"],
+                                               "rendered": found.rendered.text,
+                                               "supported": found.rendered.supported,
+                                               "complete": found.rendered.complete,
+                                               "clarification": found.clarification,
+                                               "error": found.error_code})
+                                looked_up.append((rid, len(output) - 1, namesake))
+                        # "Is the Learning Commons open Sunday": a building's hours are its own
+                        # places' hours, each read as its own lookup (11-03). Code named each
+                        # place, so the building the message names asks nothing about which.
+                        for name in (result.part or {}).get("hours_places") or []:
+                            inside = item.model_copy(update={"query": name, "fields": ["hours"],
+                                                             "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {name}"):
+                                hours = await asyncio.to_thread(
+                                    self._place_hours, inside,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now)
+                            if hours is None:
+                                continue
+                            rid = f"r{len(results) + 1}"
+                            results[rid] = hours
+                            trace["lookups"].append({
+                                "tool": "graph_lookup", "traversedBy": "code",
+                                "status": _lookup_status(hours), "foundBy": "building_place",
+                                "arguments": inside.model_dump(), **hours.detail})
+                            output.append({"query": name, "rendered": hours.rendered.text,
+                                           "supported": hours.rendered.supported,
+                                           "complete": hours.rendered.complete,
+                                           "clarification": hours.clarification,
+                                           "error": hours.error_code})
+                            looked_up.append((rid, len(output) - 1, inside))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
                                                 turn.campus_now, meaning,
                                                 {id(requests[n]) for n in situational})
@@ -3817,7 +4064,8 @@ class ChatEngine:
             with measure("Compose final response"):
                 try:
                     return await self._finish(turn, context, finish, results, version,
-                                              identity_hash, trace, known, budget, floor_situation)
+                                              identity_hash, trace, known, budget, floor_situation,
+                                              greeted=greeted)
                 except GatewayError:
                     named: list[str] = [part.situation or "other" for part in finish.parts
                                         if part.kind == "safety"]
@@ -3960,7 +4208,8 @@ class ChatEngine:
                       identity_hash: str | None, trace: dict[str, Any],
                       known: dict[str, str] | None = None,
                       budget: TurnBudget | None = None,
-                      floor_situation: str | None = None) -> ChatResult:
+                      floor_situation: str | None = None, *,
+                      greeted: bool = False) -> ChatResult:
         chunks: list[str] = []
         citations: dict[str, dict[str, Any]] = {}
         supported = False
@@ -4105,6 +4354,8 @@ class ChatEngine:
                 elif part.kind == "okay" and not (
                         earlier_emergency(context) or says_it_is_over(context.latest_message)):
                     continue  # "okay" answers a worry that is over; with none in view it misfired
+                elif part.kind in ("greeting", "thanks") and greeted:
+                    continue  # Code's lead before the answer already said it.
                 elif part.kind in FIXED_REPLIES:
                     parts.append({"kind": part.kind, "approved_text": FIXED_REPLIES[part.kind]})
                     chunks.append(FIXED_REPLIES[part.kind])

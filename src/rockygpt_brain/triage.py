@@ -77,19 +77,22 @@ Fill every field:
   them), do_it_for_me (send a message, register, drop a class, pay or change something for them),
   opinion (which is best or better, what they should choose), prediction (will they get in, will
   something happen), live_status (weather, closings or cancellations today, how busy a place is,
-  whether someone is in right now), else none. Whether a place is open on a day or at a time
-  asks its published hours, which is no limit.
+  whether someone is in right now), else none. Whether a place is open on a day or at a time,
+  what it serves, what events are on and when the shuttle runs ask what the college publishes,
+  today and tonight too, which is no limit.
 - question: the campus question in the message, in plain English with spelling and slang fixed,
-  nothing added and nothing left out: "wen r finals" is "When are finals?". Keep the student's
-  own names, places, days and numbers, and never add one. Keep "it", "that" and "they" as they
+  nothing added and nothing left out: "wen r finals" is "When are finals?". A hello or thanks
+  around it is small talk, not part of the question. Keep the student's own names, places, days
+  and numbers, and never add one. Keep "it", "that" and "they" as they
   are. When a limit has a campus side, write that instead: homework is where to get tutoring in
   that subject; writing is where to get help writing it; my_records is how to check it;
   do_it_for_me is how to do it themselves; opinion is what the college publishes about the
   choices named; prediction is what the requirement is; live_status is how Ramapo announces
   closings, when closings are asked. Homework and writing always have a campus side. Leave it
   empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
-  weather, an opinion with no campus side, a feeling the student only shares, and a medical
-  question (what to take, whether something is safe), which is no campus question.
+  current time or date, the weather, an opinion with no campus side, a feeling the student only
+  shares, and a medical question (what to take, whether something is safe), which is no campus
+  question.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
@@ -237,6 +240,24 @@ LIMIT_QUESTIONS = {
     "writing": "Where can I get help with my writing?",
 }
 OFF_TOPIC_BESIDE = "I can't help with that part directly, but here's what Ramapo offers:"
+# A question made only of these words asks the current time or date, which code's clock line
+# answers: it is not asked again as a campus question (11-03 practice: the date was said twice).
+CLOCK_WORDS = frozenset("""
+what whats is it its the a today todays date time day days current currently right now of week
+month year which tell me please can you could do know tonight this
+""".split())
+# Words that ask what is happening right now, which no published page can say: a question with
+# one stays a live_status limit even when its place or event is published.
+LIVE_WORDS = re.compile(
+    r"\b(?:cancel\w*|postpon\w*|delay\w*|busy|crowded|packed|lines?|wait\w*|weather|snow\w*|"
+    r"storm\w*|rain\w*|outage|power)\b", re.IGNORECASE)
+
+
+def asks_only_the_clock(question: str) -> bool:
+    """Whether a question asks the current time or date and nothing else ("What is today's
+    date?"), so the clock line is the whole answer."""
+    words = re.findall(r"[a-z]+", question.casefold().replace("'", "").replace("\u2019", ""))
+    return bool(words) and set(words) <= CLOCK_WORDS and bool({"date", "time", "day"} & set(words))
 
 # What a feeling or a problem gets: one kind sentence, then the offices whose job it is, whose
 # contacts are read from the graph. The offices are reviewed published names, like the emergency

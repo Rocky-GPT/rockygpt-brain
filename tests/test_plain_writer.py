@@ -387,3 +387,58 @@ def test_a_meal_asked_of_a_venue_says_its_hours_whether_or_not_it_names_its_meal
         "Saturday, November 7: 10:00am to 2:00pm. Dinner at Birch Tree Inn on Saturday, "
         "November 7: 5:00pm to 8:00pm. [1]")
     assert unsupported_by(said, other) == []
+
+
+def building(names: list[str]) -> list[dict[str, Any]]:
+    subject = "Student Center (SC)"
+    return [{"subject": subject, "predicate": "map", "value": "https://map.example.edu/sc",
+             "sources": [1]},
+            {"subject": subject, "predicate": "room_prefixes", "value": ["SC", "SCA"],
+             "sources": [1]},
+            {"subject": subject, "predicate": "places_in", "sources": [1, 2],
+             "value": [{"name": name, "kind": "office"} for name in names]}]
+
+
+def test_a_building_is_where_the_map_shows_it_its_room_numbers_and_the_places_in_it() -> None:
+    names = [f"Office {letter}" for letter in "ABCDEFGHIJ"]
+    v = view(asked={"intent": "location", "offices": [], "fields": ["offices"]},
+             facts=building(names))
+    said = plain_text(v)
+    assert said == (
+        "Student Center (SC) is on the campus map: https://map.example.edu/sc. [1] Room numbers "
+        "in Student Center (SC) start with SC or SCA. [1] Places in Student Center (SC) include "
+        "Office A, Office B, Office C, Office D, Office E, Office F, Office G, Office H and two "
+        "more. [1][2]")
+    assert said is not None and unsupported_by(said, v) == []
+
+
+def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
+    hours = {"subject": "Office A", "predicate": "hours_on", "day": "Sunday",
+             "date": "2026-11-08",
+             "value": {"schedule": "Office A", "hours": "12:00pm-12:00am"}, "sources": [3]}
+    v = view(asked={"intent": "hours", "offices": [], "fields": ["hours"]},
+             facts=building(["Office A", "Office B"]), derived_facts=[hours])
+    v["sources"].append({"n": 3, "title": "x", "urls": ["https://example.edu/c/"]})
+    # Asked its hours, a building says it has none of its own; the map is not what was asked.
+    assert plain_text(v) == (
+        "I don't have hours for Student Center (SC) as a whole, but places in it list their "
+        "own. [1][2]\n\nOffice A on Sunday, November 8: 12:00pm-12:00am. [3]")
+    alone = view(asked={"intent": "hours", "offices": [], "fields": ["hours"]},
+                 facts=building(["Office A"]))
+    assert plain_text(alone) == "I don't have hours for Student Center (SC). [1][2]"
+
+
+def test_a_room_that_is_a_floor_is_on_it_and_a_halls_office_is_the_halls() -> None:
+    hall = view(asked={"intent": "location", "offices": [], "fields": ["offices"]}, facts=[
+        {"subject": "Pine Hall", "predicate": "map", "value": "https://map.example.edu/ph",
+         "sources": [1]},
+        {"subject": "Pine Hall", "predicate": "offices", "value": ["First floor"],
+         "sources": [2]}])
+    said = plain_text(hall)
+    # The residence hall's office is named like its building, so the floor is its office's.
+    assert said == ("Pine Hall is on the campus map: https://map.example.edu/ph. [1] Pine Hall's "
+                    "office is on the first floor. [2]")
+    assert said is not None and unsupported_by(said, hall) == []
+    office = view(facts=[{"subject": "Bursar", "predicate": "offices", "value": ["2nd Floor"],
+                          "sources": [1]}])
+    assert plain_text(office) == "Bursar is on the 2nd Floor. [1]"

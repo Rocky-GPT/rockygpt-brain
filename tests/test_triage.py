@@ -313,3 +313,49 @@ def test_a_message_that_names_a_campus_office_is_never_nonsense() -> None:
     mashed = ask(MeteredGateway(read(social="nonsense")), "jdjdjsjskskaka")
     assert mashed.body["answer"] == triage.SOCIAL_TEXTS["nonsense"]
     assert mashed.trace is not None and "corrected" not in mashed.trace["read"]
+
+
+def test_a_question_that_only_asks_the_date_is_answered_by_the_clock_line_alone() -> None:
+    # 11-03 practice: the date was said twice, once as the clock line and once as the answer to
+    # the read's question "What is today's date?".
+    gateway = MeteredGateway(read(limit="clock", question="What's the date today?"))
+    result = ask(gateway, "date pls")
+    assert result.body["answer"].startswith("The campus date and time is ")
+    assert result.body["answer"].count("2026") == 1
+    assert result.trace is not None and result.trace["modelCalls"] == 1
+    assert result.trace["read"]["corrected"]["why"] == "clock_only"
+    # The date with a campus question beside it still answers the question.
+    both = MeteredGateway(read(limit="clock", question="What is the Registrar email?"))
+    answer = ask(both, "date pls and registrar email").body["answer"]
+    assert answer.startswith("The campus date and time is ")
+    assert "published@example.edu" in answer
+    assert [triage.asks_only_the_clock(q) for q in (
+        "What time is it right now?", "what day is it", "What day are finals?",
+        "What time does the library close?", "What is the date of the career fair?")] == [
+        True, True, False, False, False]
+
+
+def test_todays_published_hours_menus_and_events_are_no_live_update() -> None:
+    # 11-03 practice: "today" and "tonight" were read as live updates, and a published menu and
+    # tonight's events came after "I can't see live updates".
+    gateway = MeteredGateway(read(limit="live_status",
+                                  question="What are the Registrar's hours today?"))
+    result = ask(gateway, "registrar hrs 2day")
+    assert not result.body["answer"].startswith(triage.LIMIT_TEXTS["live_status"])
+    assert result.trace is not None and result.trace["read"]["corrected"]["why"] == (
+        "published_lookup")
+    # How busy a place is right now is live, whatever place is named.
+    busy = MeteredGateway(read(limit="live_status", question="Is the Registrar busy today?"),
+                          LOOKUP, finish())
+    live = ask(busy, "is the registrar busy rn")
+    assert live.body["answer"].startswith(triage.LIMIT_TEXTS["live_status"])
+    assert live.trace is not None and "corrected" not in live.trace["read"]
+
+
+def test_a_hello_before_a_question_is_said_once() -> None:
+    # 11-03 practice: "Hi!" came first, then the whole greeting again after the answer.
+    gateway = MeteredGateway(read(social="greeting", question="Who handles transcripts?"),
+                             LOOKUP, finish("greeting"))
+    answer = ask(gateway, "hello! who handles transcripts").body["answer"]
+    assert answer.startswith("Hi!\n\n") and "published@example.edu" in answer
+    assert triage.SOCIAL_TEXTS["greeting"] not in answer

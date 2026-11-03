@@ -7,6 +7,10 @@ A name a few offices share ("Public Safety", emergency and non-emergency) looks 
 else is left to the model: no name or two, a name an office and a venue share, a word left over
 that this does not understand, an earlier message the question could refer back to. Code routes
 only what it is sure of.
+
+A campus building named the same way (11-03: "where is the Student Center?", "is the Learning
+Commons open Sunday?") is looked up as a building: where the campus map shows it and the places
+in it, or the hours of the places in it. A building and an office of one name are the office.
 """
 
 import re
@@ -53,18 +57,22 @@ def _asked_words(message: str) -> list[str]:
 
 
 def places_named(message: str, offices: Sequence[dict[str, Any]] | None,
-                 venues: Sequence[dict[str, Any]] | None) -> list[set[tuple[str, str]]]:
-    """The listed offices and venues a message names, one set per name said (a name a few
-    offices share is one set of them), the longest name first wherever two overlap."""
-    return _named(_asked_words(message), message, offices, venues)[0]
+                 venues: Sequence[dict[str, Any]] | None,
+                 buildings: Sequence[dict[str, Any]] | None = None,
+                 ) -> list[set[tuple[str, str]]]:
+    """The listed offices, venues and buildings a message names, one set per name said (a name
+    a few offices share is one set of them), the longest name first wherever two overlap."""
+    return _named(_asked_words(message), message, offices, venues, buildings)[0]
 
 
 def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | None,
            venues: Sequence[dict[str, Any]] | None,
+           buildings: Sequence[dict[str, Any]] | None = None,
            ) -> tuple[list[set[tuple[str, str]]], set[int]]:
     """Each name said (as a set of the places that share it) and the word positions said."""
     names: dict[tuple[str, ...], set[tuple[str, str]]] = {}
-    for kind, listed in (("office", offices or []), ("venue", venues or [])):
+    for kind, listed in (("office", offices or []), ("venue", venues or []),
+                         ("building", buildings or [])):
         for entry in listed:
             if entry.get("topic"):
                 continue  # A subject with no office of its own: the model reads its page.
@@ -74,10 +82,13 @@ def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | N
                         rf"\b{re.escape(str(name).strip())}\b", message):
                     continue
                 if key := tuple(_words(str(name))):
-                    names.setdefault(key, set()).add((kind, str(entry["name"])))
-                    if key[0] == "the" and len(key) > 1:
+                    for spoken in ([key, key[1:]] if key[0] == "the" and len(key) > 1
+                                   else [key]):
                         # "Atrium menu" names The Atrium: "the" is no part of what it is called.
-                        names.setdefault(key[1:], set()).add((kind, str(entry["name"])))
+                        owners = names.setdefault(spoken, set())
+                        if kind == "building" and any(k != "building" for k, _ in owners):
+                            continue  # An office or venue of that name is what it names.
+                        owners.add((kind, str(entry["name"])))
     # Every place a name is said, the longest first; a name inside a longer one is not a name.
     spans: list[tuple[int, int, set[tuple[str, str]]]] = []
     for key, owners in names.items():
@@ -96,12 +107,14 @@ def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | N
 
 
 def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
-               venues: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
-    """The graph_lookup arguments for a plain lookup of one listed office or venue, or None."""
+               venues: Sequence[dict[str, Any]] | None,
+               buildings: Sequence[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """The graph_lookup arguments for a plain lookup of one listed office, venue or building, or
+    None."""
     words = _asked_words(message)
     if not words or len(words) > 16:
         return None
-    said, covered = _named(words, message, offices, venues)
+    said, covered = _named(words, message, offices, venues, buildings)
     # A menu asked of no place ("what's for lunch today?") is every venue's that publishes one,
     # as the lookups read it for the model too.
     menus = {("venue", str(v["name"])) for v in venues or []
@@ -128,6 +141,9 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
     if not fields or ("menu" in fields and kind != "venue") or (
             not covered and fields != ["menu"]):
         return None
+    if kind == "building" and (len(places) != 1 or not set(fields) <= {"offices", "hours"}
+                               or "contact" in asked):
+        return None  # A building is asked where it is or what is open in it, and nothing else.
     days = [w for w in rest if w in _WEEKDAYS]
     day = (days[0] if len(days) == 1 else None if days else
            "tomorrow" if "tomorrow" in rest else "today" if _TODAY & set(rest) else None)

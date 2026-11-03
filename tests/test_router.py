@@ -111,3 +111,35 @@ def test_the_places_a_message_names_are_found_however_it_is_typed() -> None:
     assert places_named("jdjdjsjskskaka", OFFICES, VENUES) == []
     assert places_named("scholarships", OFFICES, VENUES) == []
     assert places_named("its fine", OFFICES, VENUES) == []
+
+
+BUILDINGS: list[dict[str, Any]] = [
+    {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"]},
+    {"name": "Peter P. Mercer Learning Commons", "also_called": ["Learning Commons"]},
+    {"name": "Laurel Hall North Building", "also_called": ["Laurel Hall"]},
+    {"name": "Laurel Hall South Building", "also_called": ["Laurel Hall"]},
+    # The map's building of the same name as an office: the office is what it names.
+    {"name": "Library"}]
+
+
+def test_a_building_is_routed_by_code_when_asked_where_it_is_or_what_is_open_in_it() -> None:
+    # 11-03 practice: "where da student center at" found nothing, as no office is called that.
+    def building(message: str) -> dict[str, Any] | None:
+        return code_route(message, OFFICES, VENUES, BUILDINGS)
+
+    assert building("Where is the Student Center?") == {
+        "requests": [{"query": "Student Center (SC)", "fields": ["offices"]}]}
+    assert building("Is the Learning Commons open on Sunday?") == {"requests": [
+        {"query": "Peter P. Mercer Learning Commons", "fields": ["hours"], "day": "sunday"}]}
+    # A building has no menu, phone or email of its own, and two buildings of one name are
+    # for the model to ask about.
+    assert building("What's for lunch in the student center?") is None
+    assert building("How do I contact the Student Center?") is None
+    assert building("What is the phone number for the Student Center?") is None
+    assert building("Where is Laurel Hall?") is None
+    # A building named like an office is the office.
+    assert building("Where is the library?") == {
+        "requests": [{"query": "Library", "fields": ["offices"]}]}
+    assert places_named("student center rn", OFFICES, VENUES, BUILDINGS) == [
+        {("building", "Student Center (SC)")}]
+    assert places_named("the library", OFFICES, VENUES, BUILDINGS) == [{("office", "Library")}]
