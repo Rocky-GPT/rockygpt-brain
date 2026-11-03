@@ -1542,8 +1542,11 @@ def menu_board_property(
                 for asked in [*filter_.get("with_allergens", []),
                               *filter_.get("without_allergens", [])]}
         if not picked:
+            # Each station, or the section itself where the board names no station (its
+            # entrées and sides), so no part of the board is left out of "it has these".
             value["stations_listed"] = list(dict.fromkeys(
-                str(clean(r.get("station"))) for r in ordered if clean(r.get("station"))))
+                str(clean(r.get("station")) or clean(r.get("section"))) for r in ordered
+                if clean(r.get("station")) or clean(r.get("section"))))
     full = bool(filter_) and len(picked) <= MAX_BOARD_DETAILED or bool(value.get("meal_asked"))
     sections: list[dict[str, Any]] = []
     for row in picked:

@@ -189,10 +189,10 @@ def test_a_food_that_is_an_option_names_the_item_it_is_part_of() -> None:
 def test_nothing_matching_names_the_boards_stations() -> None:
     value = board(contains=["sushi"])
     assert value["matched"] == 0 and value["sections"] == []
-    assert value["stations_listed"] == ["The Grill", "Sandwiches", "Taqueria"]
+    assert value["stations_listed"] == ["The Grill", "Sandwiches", "Taqueria", "Sides"]
     result, _ = ask("sushi at the atrium?", menu_lookup(items=["sushi"]), finish())
     assert ("Nothing on The Atrium's menu board matches sushi; its stations are The Grill, "
-            "Sandwiches, Taqueria.") in result.body["answer"]
+            "Sandwiches, Taqueria, Sides.") in result.body["answer"]
 
 
 def test_vegan_items_are_the_ones_the_board_marks() -> None:
@@ -272,3 +272,12 @@ def test_a_plain_spelling_finds_an_accented_name() -> None:
     assert found is not None
     value = found[0]["values"][0]["value"]
     assert [i["name"] for s in value["sections"] for i in s["items"]] == ["Açaí Bowl"]
+
+
+def test_the_evidence_text_names_a_matched_option_and_how_many_items_list_allergens() -> None:
+    from rockygpt_brain.answers import _value_text
+    assert "Build Your Own Entree (Burrito)" in _value_text("menu", board(contains=["burrito"]))
+    gluten = _value_text("menu", board(without_allergens=["gluten"]))
+    assert gluten.startswith("Menu board: Atrium Menu Boards 2026. 4 of its 14 items list "
+                             "allergens; the others cannot be checked. No item on the board "
+                             "matches")
