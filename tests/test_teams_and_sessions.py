@@ -18,6 +18,7 @@ from rockygpt_brain.events import (
     asks_events,
     asks_sessions,
     asks_team,
+    club_answers,
     club_named,
     names_events,
 )
@@ -157,13 +158,33 @@ def test_only_the_nearest_clubs_are_said_by_code_as_the_nearest() -> None:
     clubs = [{"n": 2, "name": "Geek and Nerd Culture", "category": "Special Interest"},
              {"n": 3, "name": "The Fantasy Film and Novel Society"}]
     assert nearest_clubs_text(clubs, "is there a club for comic books") == (
-        "The club directory lists no club named for comic books. The nearest, by what their "
-        "entries describe: Geek and Nerd Culture (Special Interest) [2]; The Fantasy Film and "
-        "Novel Society [3].")
+        "The club directory lists no club for comic books by its name or entry. The nearest, by "
+        "what their entries describe: Geek and Nerd Culture (Special Interest) [2]; The Fantasy "
+        "Film and Novel Society [3].")
     assert nearest_clubs_text(clubs[:1], "Is there a club for anime and manga?") == (
-        "The club directory lists no club named for anime and manga. The nearest, by what its "
-        "entry describes: Geek and Nerd Culture (Special Interest) [2].")
-    # A club named for a word asked is the model's to describe; with none, nothing is cited.
+        "The club directory lists no club for anime and manga by its name or entry. The nearest, "
+        "by what its entry describes: Geek and Nerd Culture (Special Interest) [2].")
+    # A club named for a word asked, or whose entry says what was asked, is the model's to
+    # describe (Geek and Nerd Culture says it was the Sci Fi and Comic Book Club); with none,
+    # nothing is cited.
     assert nearest_clubs_text([{"n": 2, "name": "Comic Book Club"}],
                               "is there a club for comic books") is None
+    was = {**clubs[0], "mission": "[PREVIOUSLY SCI FI AND COMIC BOOK CLUB] Looking to join?"}
+    assert nearest_clubs_text([was], "is there a club for comic books") is None
     assert nearest_clubs_text([], "is there a club for comic books") is None
+    assert [f["fact"] for f in club_answers([was], "is there a club for comic books", False, 9)
+            if "nearest" in f["fact"]] == []
+
+
+def test_a_team_question_finds_no_event_by_meaning_alone() -> None:
+    # 11-03 practice: an NFL watch party was the "closest event" to "is there a hockey team".
+    from rockygpt_brain.events import rank_events
+    from test_kinds import END, START, event
+    calendar = [event(1, "Bills VS Vikings", 5, "Watch the game on the big screen."),
+                event(2, "Men's Basketball vs. Kean", 6)]
+    scores = {f"x{n}": 0.20 + n / 1000 for n in range(30)} | {"e1": 0.6, "e2": 0.5}
+    ranked, matched = rank_events(calendar, "is there a hockey team", START, END, scores,
+                                  calendar)
+    assert matched is False
+    near, _ = rank_events(calendar, "anything like hockey", START, END, scores, calendar)
+    assert [v["title"] for v in near] == ["Bills VS Vikings"]  # Not a team question.
