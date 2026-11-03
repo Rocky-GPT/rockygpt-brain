@@ -87,6 +87,18 @@ def test_who_to_go_to_gets_the_cited_offices_contacts_after_the_reply() -> None:
     assert '"contacts_written_by_code": true' in gateway.inputs[-1][1]["content"]
 
 
+def test_every_reply_gets_the_cited_offices_contacts_from_code() -> None:
+    # 11-03 repeat test: the writer chose which contacts to give, so the same how-to question
+    # got different phone numbers, emails and rooms, or none, from try to try.
+    gateway = PartsGateway(one_reply("Academic Advising runs the tutor program. [2]", [2]))
+    result = ask(gateway, "how do i become a peer tutor")
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    body = result.body["answer"].split("\n\nSources:")[0]
+    assert body.startswith("Academic Advising runs the tutor program. [2]\n\n"
+                           "**Academic Advising**: Email: advising@example.edu. [")
+    assert '"contacts_written_by_code": true' in gateway.inputs[-1][1]["content"]
+
+
 def test_a_link_with_or_without_its_trailing_slash_is_the_same_page() -> None:
     from rockygpt_brain.writer import unsupported_by
     view = {"facts": [{"text": "Report An Incident Here (https://x.edu/report-form)"}]}

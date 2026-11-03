@@ -220,14 +220,33 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     picked = Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
                         [{"type": "function_call", "call_id": "p", "name": "pick_units",
                           "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
-    gateway = PartsGateway(picked, one_reply("Apply with the online form by March 1. [1]", [1]))
+    gateway = PartsGateway(picked, picked, picked,
+                           one_reply("Apply with the online form by March 1. [1]", [1]))
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how do i become a peer tutor"}]})
     engine = ChatEngine(gateway, service, output="written",
                         howto_one_call=True)
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs[0][1]["content"].startswith("Question: how do i become a peer tutor")
+    # The pick is made three times at once, from the same headings (one_call.PICKS).
+    assert gateway.inputs[0] == gateway.inputs[1] == gateway.inputs[2]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    assert result.trace["oneCallPicks"] == [[1], [1], [1]]
+
+
+def test_the_sections_most_picks_choose_are_read_first() -> None:
+    from rockygpt_brain.one_call import agreed_pick
+    # 11-03 repeat test: one pick a try read different pages for the same 60 sections.
+    assert agreed_pick([{"n": [4, 2, 9]}, {"n": [2, 4, 7]}, {"n": [2, 5]}], 60) == {"n": [2, 4]}
+    # Chosen by as many picks, the one placed earlier in them leads; a pick that left it out
+    # counts it last.
+    assert agreed_pick([{"n": [5, 3]}, {"n": [3, 5]}, {"n": [3]}], 60) == {"n": [3, 5]}
+    # A failed or malformed pick is no vote: two that came back decide, both agreeing.
+    assert agreed_pick([None, {"n": [1, 2]}, {"n": [2, 61, True]}], 60) == {"n": [2]}
+    # Picks that agree on nothing leave the usual choice (with_picked reads it), and no pick
+    # back at all is no pick.
+    assert agreed_pick([{"n": [1]}, {"n": [2]}, {"n": [3]}], 60) == {"n": []}
+    assert agreed_pick([None, None], 60) is None
 
 
 def test_a_dated_change_on_a_page_is_judged_against_today() -> None:

@@ -144,6 +144,46 @@ class Reading:
                 "limit": self.limit, "question": self.question}
 
 
+# Each message is read this many times at once, and what most reads say is the reading (11-03
+# repeat test: the same message read once a try was "upset" or "food_or_housing" in 2 of 5 tries
+# of "where the halal food at", and each label changed the whole reply). A vote of three steadied
+# the club kinds the same way (kinds.LABEL_READS).
+READS = 3
+
+
+def majority(readings: Sequence[Reading]) -> Reading | None:
+    """What most reads say, the same whichever read came back first.
+
+    Each label is the one most reads give, a tie going to the label listed first (none). A danger
+    any read finds is kept: the read only adds an emergency, never takes one away, and the
+    danger most reads name leads, a tie going to the one listed first. A need counts when most
+    reads give it. The question is the one most reads give; when they word it differently, the
+    wording nearest the others in its words, then the shortest."""
+    if not readings:
+        return None
+    half = len(readings) // 2
+
+    def most(values: Sequence[str], order: Sequence[str]) -> str:
+        return min(dict.fromkeys(values), key=lambda v: (-values.count(v), order.index(v)))
+
+    dangers = [r.danger for r in readings if r.danger != "none"]
+    needs = tuple(n for n in NEED_ORDER if sum(n in r.needs for r in readings) > half)
+    asked = [r.question for r in readings if r.question]
+    question = ""
+    if len(asked) > half:
+        words = [set(_plain(q).split()) for q in asked]
+
+        def near(k: int) -> float:
+            return sum(len(words[k] & other) / (len(words[k] | other) or 1)
+                       for j, other in enumerate(words) if j != k)
+        question = asked[min(range(len(asked)),
+                             key=lambda k: (-asked.count(asked[k]), -near(k), len(asked[k]),
+                                            asked[k]))]
+    return Reading(most([r.social for r in readings], SOCIAL),
+                   most(dangers, DANGER) if dangers else "none", needs,
+                   most([r.limit for r in readings], LIMITS), question)
+
+
 def read_messages(latest: str, previous_user: str | None,
                   previous_reply: str | None) -> list[dict[str, Any]]:
     """The read's whole input: the prompt, then the latest message and the exchange before it."""

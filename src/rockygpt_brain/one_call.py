@@ -13,7 +13,7 @@ lookups: a question about them is not routed here.
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
 
@@ -350,6 +350,35 @@ def pick_messages(question: str, index: MeaningIndex,
              for n, key in enumerate(pool, start=1)]
     return [{"role": "system", "content": PICK_PROMPT},
             {"role": "user", "content": f"Question: {question}\n\n" + "\n".join(lines)}]
+
+
+# The sections are picked this many times at once, and those most picks choose are read first
+# (11-03 repeat test: the same question, the same 60 sections by meaning every time, and one pick
+# a try read different pages, so the replies named different offices and contacts).
+PICKS = 3
+
+
+def agreed_pick(picks: Sequence[Mapping[str, Any] | None], pool_size: int,
+                ) -> dict[str, Any] | None:
+    """The sections most picks choose, as one pick's arguments: by how many picks chose each,
+    then by its places in them (a pick that left it out counts it last), then by its place in
+    the pool. None when no pick came back; the usual choice is then read (with_picked)."""
+    valid: list[list[int]] = []
+    for pick in picks:
+        if not isinstance(pick, Mapping):
+            continue
+        numbers = pick.get("n")
+        valid.append(list(dict.fromkeys(
+            n for n in (numbers if isinstance(numbers, list) else [])
+            if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= pool_size))[:PICKED])
+    if not valid:
+        return None
+    votes = {n: sum(n in chosen for chosen in valid) for chosen in valid for n in chosen}
+
+    def place(n: int) -> int:
+        return sum(chosen.index(n) if n in chosen else PICKED for chosen in valid)
+    kept = [n for n, count in votes.items() if count > len(valid) // 2]
+    return {"n": sorted(kept, key=lambda n: (-votes[n], place(n), n))}
 
 
 def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],

@@ -164,7 +164,9 @@ def test_a_deadline_named_beside_another_ask_is_said_by_code_first() -> None:
                  "what's the deadline to withdraw from a course and how do i become a peer tutor")
     answer = result.body["answer"]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
-    assert result.trace["codeParts"] == 1
+    # The calendar's dates before the model's words, and the cited office's contacts after.
+    assert result.trace["codeParts"] == 2
+    assert "\n\n**Center for Reading and Writing**: Email: tutoring@example.edu. [" in answer
     (n,) = {int(m) for m in re.findall(r"academic calendar lists \[(\d+)\]", answer)}
     assert answer.startswith(
         f"The Fall 2026 academic calendar lists [{n}]:\n"
