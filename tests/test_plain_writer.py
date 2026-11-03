@@ -600,3 +600,38 @@ def test_open_at_a_time_says_open_or_closed_then_and_now_first_when_asked_too() 
     odd = view(derived_facts=[asked_time("Registrar", 1, {"relation": "before", "at": "8:30pm",
                                                           "state": "closed"}, "8:30am-4:30pm")])
     assert plain_text(odd) is None
+
+
+def test_a_page_not_read_again_since_its_freshness_ran_out_is_said_with_the_day_it_was_read(
+        ) -> None:
+    # 11-03 repeat test, "where do I find all the student orgs?": the clubs pages were last read
+    # September 26, and the reply fell back to the evidence text with its internal notes.
+    def stale(text: str, source: int = 2) -> dict[str, Any]:
+        return {"subject": "Center for Student Involvement", "predicate": "procedures",
+                "current": False, "sources": [source],
+                "value": {"heading": "Overview", "page": "https://example.edu/b/", "text": text}}
+
+    def dated(**parts: Any) -> dict[str, Any]:
+        v = view(asked={"intent": "procedure", "offices": [], "fields": [],
+                        "asOf": "2026-11-03T15:00:00-05:00"}, **parts)
+        v["sources"][1] = {**v["sources"][1], "captured_at": "2026-09-26T10:32:16-04:00",
+                           "freshness": "stale"}
+        return v
+
+    v = dated(facts=[stale("Students who do not see their interests should ask about starting "
+                           "a new club.")])
+    said = plain_text(v)
+    assert said == ('Center for Student Involvement\'s page "Overview", as read on September 26, '
+                    'says: "Students who do not see their interests should ask about starting a '
+                    'new club." [2]')
+    assert unsupported_by(said, v) == []
+    # Read in another year, the year is said; named only, the page says when it was read.
+    old = dated(facts=[stale("Ask about starting a new club.")])
+    old["sources"][1]["captured_at"] = "2025-09-26T10:32:16-04:00"
+    assert "as read on September 26, 2025, says:" in (plain_text(old) or "")
+    named = plain_text(dated(facts=[stale(" ".join(["Ask about starting a new club."] * 40))]),
+                       limit=120)
+    assert named == ('See Center for Student Involvement\'s page "Overview" (read on '
+                     'September 26). [2]')
+    # With no date to say, it is left to the code's evidence text.
+    assert plain_text(view(facts=[stale("Ask about starting a new club.")])) is None
