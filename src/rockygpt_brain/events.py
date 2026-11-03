@@ -17,6 +17,7 @@ from typing import Any
 
 from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
+from rockygpt_brain.retrieval.meaning import standout_bar
 
 CALENDAR_URL = "https://archway.ramapo.edu/home/events/"
 MAX_EVENTS = 15
@@ -295,11 +296,37 @@ def topic_share(values: Sequence[dict[str, Any]], words: set[str],
     return {id(v): sum(weight[w] for w in words & _about(v, words)) / total for v in values}
 
 
-# An event found by its card's meaning (title, tags, host, place, admission, description). On
-# 13 sample questions (10-22) a topic's best event scored 0.47-0.58 ("free food", "volleyball
-# games", "halloween", "arts performances"), questions about no event at most 0.43; events
-# within EVENT_NEAR of the window's best count as matching.
-EVENT_FLOOR, EVENT_NEAR = 0.44, 0.06
+# An event found by its card's meaning (title, tags, host, place, admission, description) when
+# its listing names nothing asked: it stands out from every event card for the question
+# (meaning.standout_bar), is within EVENT_NEAR of the best that does, and is one of at most
+# MAX_NEAR_EVENTS listings (a weekly event's dates count once). A fixed floor of 0.44 (10-22)
+# listed a dozen unrelated events for a question about club fairs (11-03 check set) and none
+# for "is there a play i can go see", whose play scored 0.43.
+EVENT_NEAR, MAX_NEAR_EVENTS = 0.08, 5
+
+
+def near_in_meaning(candidates: Sequence[dict[str, Any]], meaning: Mapping[int, float],
+                    scores: Mapping[str, float] | None) -> set[int]:
+    """The candidate events (by id of their value) found by meaning: their card's score
+    (`meaning`) stands out from every event card's (`scores`), within EVENT_NEAR of the best that
+    does, at most MAX_NEAR_EVENTS titles."""
+    bar = standout_bar((scores or {}).values())
+    if bar is None:
+        return set()
+    above = sorted((v for v in candidates if meaning[id(v)] >= bar), key=lambda v: -meaning[id(v)])
+    if not above:
+        return set()
+    best = meaning[id(above[0])]
+    titles: set[str] = set()
+    chosen: set[int] = set()
+    for value in above:
+        title = str(value.get("title") or "").casefold()
+        if meaning[id(value)] < best - EVENT_NEAR or (
+                title not in titles and len(titles) == MAX_NEAR_EVENTS):
+            continue
+        titles.add(title)
+        chosen.add(id(value))
+    return chosen
 
 
 def _starts(value: dict[str, Any]) -> datetime | None:
@@ -340,10 +367,10 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                 ) -> tuple[list[dict[str, Any]], bool | None]:
     """The events in the window that have not ended, in time order, at most MAX_EVENTS: those
     sharing the question's topic words with their title, tags, organizer, location or
-    description, and those whose card's meaning (scores, by each value's "_id") is near the
-    window's best above EVENT_FLOOR, when any are. Also whether the topic matched: None with no
-    topic words, False when none matched (the whole window is then given, and the reply says
-    the calendar lists nothing for the topic)."""
+    description, and those whose card's meaning (scores, every event card's by its "_id") stands
+    out for the question (near_in_meaning), when any are. Also whether the topic matched: None
+    with no topic words, False when none matched (the whole window is then given, and the reply
+    says the calendar lists nothing for the topic)."""
     timed = in_window(values, start, end)
     food = asks_food(message)
     words = asked_topic(message)
@@ -354,14 +381,16 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
             for key, part in topic_share(timed, alternative, corpus or values).items():
                 share[key] = max(share.get(key, 0.0), part)
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
-        best = max(meaning.values(), default=0.0)
+        near = near_in_meaning(
+            [v for v in timed if share.get(id(v), 0.0) < TOPIC_SHARE
+             and not (food and food_mention(v))], meaning, scores)
         matching = []
         for value in timed:
             # How each event matched, for the reply to say: its listing names the topic, it
             # mentions food, or it is only near the topic in meaning.
             by = ("words" if share.get(id(value), 0.0) >= TOPIC_SHARE
                   else "food" if food and food_mention(value)
-                  else "meaning" if meaning[id(value)] >= max(EVENT_FLOOR, best - EVENT_NEAR)
+                  else "meaning" if id(value) in near
                   else None)
             if by:
                 matching.append({**value, "_matched_by": by})
@@ -434,19 +463,23 @@ def find_clubs(clubs: Sequence[dict[str, Any]], message: str) -> list[dict[str, 
     return [club for club, _ in named][:6]
 
 
-# A club found by its card's meaning (name and category). On 10 sample questions (10-22) club
-# questions scored 0.45-0.67 against their best club and others at most 0.31.
-CLUB_FLOOR, CLUB_NEAR, MAX_CLUBS = 0.44, 0.08, 8
+# A club found by its card's meaning (name, category and mission): it stands out from every club
+# card for the question (meaning.standout_bar) and is within CLUB_NEAR of the best. A fixed floor
+# of 0.44 (10-22) listed eight unrelated clubs for a photography club the directory lacks (11-03
+# check set): its nearest card scored 0.48, and the median club card 0.38.
+CLUB_NEAR, MAX_CLUBS = 0.08, 8
 
 
 def clubs_by_meaning(scores: Sequence[tuple[str, float]],
                      names: dict[str, str]) -> list[dict[str, Any]]:
-    """The clubs whose cards best match a question: above the floor and near the best, at most
-    MAX_CLUBS ("cultural clubs" lists several, "is there an anime club" the nearest few)."""
-    if not scores or scores[0][1] < CLUB_FLOOR:
+    """The clubs whose cards stand out for a question (`scores`: every club card's, best
+    first), near the best, at most MAX_CLUBS ("cultural clubs" lists several, "is there a
+    cooking club" the one that bakes); none when no card stands out."""
+    bar = standout_bar(score for _, score in scores)
+    if bar is None or not scores or scores[0][1] < bar:
         return []
     return [{"id": entity_id, "name": names[entity_id]} for entity_id, score in scores
-            if score >= max(CLUB_FLOOR, scores[0][1] - CLUB_NEAR) and entity_id in names
+            if score >= max(bar, scores[0][1] - CLUB_NEAR) and entity_id in names
             ][:MAX_CLUBS]
 
 
