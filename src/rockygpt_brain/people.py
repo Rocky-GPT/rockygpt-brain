@@ -673,3 +673,80 @@ def _profile_text(entry: dict[str, Any], fields: tuple[str, ...]) -> str:
     items = [str(x) for key in fields
              for x in (entry.get(key) or [] if key != "title" else [entry.get("title") or ""])]
     return " " + " | ".join(" ".join(_plain_words(item)) for item in items) + " "
+
+
+# A question asking for a program's or a field's faculty as a list ("list the bio faculty", "all
+# the professors in computer science", "who teaches biology"): code lists everyone the catalog
+# links to the program, from the graph (11-03: the reply listed the 4 search happened to find
+# of Biology's 12, and none of Computer Science's 9).
+_FACULTY_LIST = re.compile(
+    r"\b(?:list|all|every|everyone|who are the|whos are the|faculty|professors|profs|"
+    r"teachers|instructors|who teach(?:es)?)\b")
+# One person asked ("the best professor for", "is professor x"): not a list.
+_ONE_PERSON = re.compile(r"\b(?:best|easiest|hardest|worst|favou?rite|a good)\s+"
+                         r"(?:professor|prof|teacher|instructor)\b")
+
+
+def asks_faculty_list(message: str) -> bool:
+    text = fold(message).casefold()
+    return asks_people(text) and bool(_FACULTY_LIST.search(text)) \
+        and not _ONE_PERSON.search(text)
+
+
+def faculty_text(subject: str, programs: Sequence[dict[str, Any]],
+                 people: dict[str, dict[str, Any]], conveners_only: bool = False) -> str | None:
+    """Code's list of a subject's faculty, from the catalog's links (EntityFacts.program_people):
+    how many the catalog lists [its page], then each person once, conveners first, with their
+    directory title and email [their profile, else the catalog page]. `programs` are the
+    subject's levels as read, each with its "n"; `people` each listed person's directory entry
+    by id, with its "n"; `conveners_only` lists only the conveners (who leads the program). None
+    when the catalog links no one."""
+    order: list[str] = []
+    convener_of: dict[str, list[str]] = {}
+    retired: set[str] = set()
+    for program in programs:
+        for pid in program.get("conveners") or []:
+            convener_of.setdefault(pid, []).append(str(program["name"]))
+        retired.update(program.get("retired") or [])
+    for program in programs:
+        for pid in [*(program.get("conveners") or []),
+                    *([] if conveners_only else program.get("faculty") or [])]:
+            if pid in people and pid not in order:
+                order.append(pid)
+    order.sort(key=lambda pid: pid not in convener_of)
+    if not order:
+        return None
+    marks = "".join(f"[{n}]" for n in dict.fromkeys(p["n"] for p in programs if p.get("n")))
+    names = ", ".join(literal(str(p["name"])) for p in programs)
+    head = (f"The college catalog names the program convener{'s' if len(order) != 1 else ''}"
+            f" of {literal(subject)} ({names}) {marks}:" if conveners_only else
+            f"The college catalog lists {len(order)} "
+            f"{'person' if len(order) == 1 else 'people'} as faculty of {literal(subject)}"
+            f" ({names}) {marks}:")
+    lines = []
+    for pid in order:
+        entry = people[pid]
+        bits = [literal(str(entry.get("name") or ""))]
+        if pid in convener_of:
+            of = convener_of[pid]
+            bits.append("program convener" if len(of) == len(programs) else
+                        "convener of " + ", ".join(literal(n) for n in of))
+        if entry.get("title"):
+            bits.append(literal(str(entry["title"])))
+        if pid in retired:
+            bits.append("listed as retired in the directory")
+        if entry.get("email"):
+            bits.append(str(entry["email"]))
+        lines.append("- " + ", ".join(b for b in bits if b) + f" [{entry['n']}]")
+    return "\n".join([head, *lines])
+
+
+# Who leads a program, not a school: its chair, head or convener (the catalog's word). A dean
+# leads a school, and is the directory's (leaders).
+_PROGRAM_LEAD = re.compile(r"\b(?:chair(?:s|person|man|woman)?|conveners?|heads?|in charge|"
+                           r"who runs|runs the|coordinators?|program directors?)\b")
+
+
+def asks_program_lead(message: str) -> bool:
+    text = fold(message).casefold()
+    return bool(_PROGRAM_LEAD.search(text)) and not re.search(r"\bdeans?\b", text)

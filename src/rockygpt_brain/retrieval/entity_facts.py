@@ -2240,6 +2240,7 @@ def club_property(row: dict[str, Any], now: datetime) -> tuple[dict[str, Any], d
 
 
 MAX_PEOPLE_READ = 6
+MAX_PROGRAM_PEOPLE_READ = 12
 _OFFICE_HOURS = re.compile(r"(?im)^\s*office hours?\s*:?.*$")
 # A profile's own "Office: AC-210B" line, for a person whose directory row lists no room.
 _OFFICE_ROOM = re.compile(r"(?im)^\s*office\s*:\s*([A-Z]{1,4}[- ]?\d{2,4}[A-Z]?)\s*$")
@@ -3032,6 +3033,49 @@ class EntityFacts:
                     {**rows[0], "_id": entity["id"]})
             if len(found["dates"]) > MAX_CALENDAR_DATES:
                 raise EvidenceUnavailable("The academic calendar exceeds the bounded read.")
+            return found
+
+    def program_people(self, entity_ids: Sequence[str], dataset_version: str, *,
+                       identity_hash: str | None = None) -> list[dict[str, Any]]:
+        """Each named program's people by its graph links, in the catalog's order: its
+        conveners and its listed faculty (person ids), those of them the directory marks retired,
+        and the catalog page the links come from. A link to an identity that is not a person in
+        the release is left out."""
+        if (not entity_ids or len(entity_ids) > MAX_PROGRAM_PEOPLE_READ
+                or not all(isinstance(e, str) and e and len(e) <= 100 for e in entity_ids)
+                or not isinstance(dataset_version, str) or not dataset_version):
+            raise InvalidFactRequest("A bounded list of canonical programs and a dataset pin "
+                                     "are required.")
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            people = {e["id"] for e in snapshot.entities if e["kind"] == "person"}
+            retired = {e["id"] for e in snapshot.entities if e["kind"] == "person"
+                       and isinstance(e.get("status"), dict)
+                       and e["status"].get("state") == "retired"}
+            by_id = {e["id"]: e for e in snapshot.entities if e["kind"] == "program"}
+            found = []
+            for entity_id in entity_ids:
+                entity = by_id.get(entity_id)
+                if entity is None:
+                    raise UnknownEntity("No program has that canonical identity.")
+                linked: dict[str, list[str]] = {"convener": [], "listed_faculty": []}
+                url = None
+                for relationship in entity.get("relationships") or []:
+                    if not isinstance(relationship, dict):
+                        continue
+                    kind, target = relationship.get("type"), relationship.get("target_entity_id")
+                    if kind not in linked or target not in people or target in linked[kind]:
+                        continue
+                    linked[kind].append(str(target))
+                    for evidence in relationship.get("evidence") or []:
+                        if isinstance(evidence, dict) and url is None:
+                            url = _url(evidence.get("source_url"))
+                found.append({"id": entity["id"], "name": entity["name"], "url": url,
+                              "conveners": linked["convener"],
+                              "faculty": linked["listed_faculty"],
+                              "retired": [p for p in [*linked["convener"],
+                                                      *linked["listed_faculty"]]
+                                          if p in retired]})
             return found
 
     def get_event_facts(self, entity_ids: Sequence[str], dataset_version: str, *,
