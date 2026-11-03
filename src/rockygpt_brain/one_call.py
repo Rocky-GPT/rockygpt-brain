@@ -46,9 +46,13 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   page words in quotes are the page's own). Never add, compute or guess anything the JSON does not
   say.
 - When sections disagree about the same date, amount or rule for the same people, place and term,
-  give each with its mark, naming its page by office or title, and say the pages differ; never
+  the newer page wins: when their page_updated dates differ, give the value of the section whose
+  page_updated is later, with its mark, then say in one short sentence that an older page (named by
+  office or title, with its page_updated month and year) says otherwise. When page_updated is
+  missing or the same, give each with its mark, naming its page, and say the pages differ; never
   pick one silently. Different values for different groups, places or terms are not a
-  disagreement: say which applies to whom.
+  disagreement: say which applies to whom. page_updated is the day a section's page was last
+  changed.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
@@ -411,7 +415,8 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
                 "text": value.get("text"),
                 **({"section_words": value["section_words"][:SECTION_WORDS_CHARS]}
                    if value.get("section_words") else {}),
-                **{k: value[k] for k in ("applies_to", "handled_by", "term", "past_term")
+                **{k: value[k] for k in ("applies_to", "handled_by", "term", "past_term",
+                                          "page_updated")
                    if value.get(k)}})
         offices.append({"office": (found.get("entity") or {}).get("name") or entity_id,
                         "email": values("email"), "phones": values("phones"),

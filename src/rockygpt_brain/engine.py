@@ -614,7 +614,9 @@ heading, the page and the start of the text). Pick the sections that directly an
 student wants, best first, at most six. Prefer a section that gives the steps or the rule asked
 over one that only mentions the topic or lists resources. A page about a past term or a previous
 deadline is not today's rule when a current one is offered; a section with past_term is for that
-term: pick it only when the student asks about that term or no current section answers. term
+term: pick it only when the student asks about that term or no current section answers. When
+two sections say the same thing differently, prefer the one whose page_updated (the day its page
+last changed) is later. term
 names the term or year a section is for: "this semester" or "next semester" is the one around
 today or the next one after it. When the student asks two things (how to do it and what happens
 if not), pick a section for each. A section about a different task that
@@ -691,7 +693,8 @@ def pick_messages(asked: list[tuple[str, str, dict[str, Any]]],
                 **({"other_office": True} if k >= first_other else {}), "sections": [
         {"n": n, "heading": v["value"].get("heading"), "page": v["value"].get("page"),
          "start": str(v["value"].get("match") or v["value"].get("text", ""))[:280],
-         **{key: v["value"][key] for key in ("applies_to", "handled_by", "term", "past_term")
+         **{key: v["value"][key] for key in ("applies_to", "handled_by", "term", "past_term",
+                                             "page_updated")
             if v["value"].get(key)}}
         for n, v in enumerate(prop["values"][:OTHER_SECTIONS if k >= first_other else None])]}
         for k, (about, office, prop) in enumerate(asked)]
