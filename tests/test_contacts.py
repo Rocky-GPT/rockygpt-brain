@@ -85,3 +85,26 @@ def test_who_to_go_to_gets_the_cited_offices_contacts_after_the_reply() -> None:
                            "**Academic Advising**: Email: advising@example.edu. [")
     # The model was told code adds the contacts.
     assert '"contacts_written_by_code": true' in gateway.inputs[-1][1]["content"]
+
+
+def test_a_link_with_or_without_its_trailing_slash_is_the_same_page() -> None:
+    from rockygpt_brain.writer import unsupported_by
+    view = {"facts": [{"text": "Report An Incident Here (https://x.edu/report-form)"}]}
+    assert unsupported_by("Use the [form](https://x.edu/report-form/). ", view) == []
+    assert unsupported_by("Use https://x.edu/report-form.", view) == []
+    assert unsupported_by("Use https://x.edu/other-form/.", view) != []
+
+
+def test_only_offices_the_reply_sends_the_student_to_get_their_contacts() -> None:
+    from rockygpt_brain.engine import ChatEngine
+    from test_meaning import meaning_service
+    engine = ChatEngine(PartsGateway(), meaning_service(), output="written", howto_one_call=True)
+    offices = [{"office": "Academic Advising", "sections": [{"n": 1}]},
+               {"office": "Center for Reading and Writing", "sections": [{"n": 2}]},
+               {"office": "Library", "sections": [{"n": 3}]}]
+    def ids(written: str) -> list[str]:
+        return [o["id"] for o in engine._cited_offices(written, offices)]
+    # The first cited; another only when the reply also names it.
+    assert ids("Ask your advisor. [1] See the handbook. [3]") == ["advising"]
+    assert ids("Ask your advisor [1], or the Library [3].") == ["advising", "library"]
+    assert ids("Tutors help. [2][1]") == ["tutoring"]

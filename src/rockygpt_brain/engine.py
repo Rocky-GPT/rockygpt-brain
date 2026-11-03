@@ -1967,15 +1967,19 @@ class ChatEngine:
 
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
-        """The offices whose sections a reply cites, in the order it first cites them, at most
-        two."""
+        """The offices a reply sends the student to: the first whose sections it cites, and a
+        second it cites and also names in its words, at most two. An office cited only for a
+        page (an employee handbook beside Public Safety's "how to report") is not one (11-03)."""
         office_of = {section.get("n"): office.get("office") for office in offices
                      for section in office.get("sections") or []}
         marks = [int(n) for group in re.findall(r"\[([\d,\s–-]+)\]", written)
                  for n in re.findall(r"\d+", group)]
         names = list(dict.fromkeys(office_of[n] for n in marks if office_of.get(n)))
         by_name = {str(o["name"]): o for o in self.facts.identities(("office",))}
-        return [dict(by_name[str(name)]) for name in names if str(name) in by_name][:2]
+        cited = [dict(by_name[str(name)]) for name in names if str(name) in by_name]
+        prose = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", written)
+        named = {str(o["id"]) for o in contacts.offices_named(cited, prose)[0]}
+        return [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
 
     def _office_contacts(self, offices: Sequence[Mapping[str, Any]], numbered_from: int,
                          ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
