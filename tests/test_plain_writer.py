@@ -419,13 +419,15 @@ def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
     v = view(asked={"intent": "hours", "offices": [], "fields": ["hours"]},
              facts=building(["Office A", "Office B"]), derived_facts=[hours])
     v["sources"].append({"n": 3, "title": "x", "urls": ["https://example.edu/c/"]})
-    # Asked its hours, a building says it has none of its own; the map is not what was asked.
+    # Asked its hours, a building says it has none of its own, marked by nothing: each place's
+    # hours carry their own marks (11-03 practice: the line carried every place's five marks).
+    # The map is not what was asked.
     assert plain_text(v) == (
         "I don't have hours for Student Center (SC) as a whole, but places in it list their "
-        "own. [1][2]\n\nOffice A on Sunday, November 8: 12:00pm-12:00am. [3]")
+        "own.\n\nOffice A on Sunday, November 8: 12:00pm-12:00am. [3]")
     alone = view(asked={"intent": "hours", "offices": [], "fields": ["hours"]},
                  facts=building(["Office A"]))
-    assert plain_text(alone) == "I don't have hours for Student Center (SC). [1][2]"
+    assert plain_text(alone) == "I don't have hours for Student Center (SC)."
 
 
 def test_a_room_that_is_a_floor_is_on_it_and_a_halls_office_is_the_halls() -> None:
@@ -442,3 +444,54 @@ def test_a_room_that_is_a_floor_is_on_it_and_a_halls_office_is_the_halls() -> No
     office = view(facts=[{"subject": "Bursar", "predicate": "offices", "value": ["2nd Floor"],
                           "sources": [1]}])
     assert plain_text(office) == "Bursar is on the 2nd Floor. [1]"
+
+
+def section(subject: str, heading: str, sentences: int, source: int) -> dict[str, Any]:
+    text = " ".join(f"{subject} {heading} rule {n} keeps the shared space respectful for "
+                    f"everyone living there." for n in range(1, sentences + 1))
+    return {"subject": subject, "predicate": "procedures", "sources": [source],
+            "value": {"heading": heading, "page": "https://example.edu/a/", "text": text}}
+
+
+def test_a_long_reply_quotes_its_pages_shorter_and_then_names_them_never_cut() -> None:
+    # 11-03 practice: a suitemate question's six sections came to 4,400 characters, past the
+    # writer's limit, and the reply fell back to the evidence text with internal review notes.
+    v = view(facts=[section(office, heading, 12, n) for office, n in (("Housing", 1),
+                                                                      ("Ombuds", 2))
+                    for heading in ("Contracts", "Rights", "Mediation")])
+    full = plain_text(v)
+    assert full is not None and len(full) > 3000 and full.count("says:") == 6
+    shorter = plain_text(v, limit=3000)
+    assert shorter is not None and len(shorter) < 3000 and shorter.count("says:") == 6
+    assert shorter.count("(more on its page)") == 6
+    # Tighter still: each subject quotes its first section, and names its others' pages.
+    first = plain_text(v, limit=1600)
+    assert first is not None and first.count("says:") == 2 and len(first) < 1600
+    assert 'See Housing\'s page "Rights". See Housing\'s page "Mediation". [1]' in first
+    # Only page names fit: each is named, and the reply is never cut or left to the evidence.
+    names = plain_text(v, limit=200)
+    assert names is not None and "says:" not in names
+    assert names.startswith('See Housing\'s page "Contracts". See Housing\'s page "Rights". '
+                            'See Housing\'s page "Mediation". [1]')
+    assert unsupported_by(names, v) == []
+
+
+def test_a_note_beside_the_hours_says_only_what_the_reply_has_not_said() -> None:
+    hours = {"subject": "Library", "predicate": "hours_on", "day": "Tuesday",
+             "date": "2026-11-03",
+             "value": {"schedule": "Library (Main Building)", "hours": "7:45am-12:00am",
+                       "notes": ["Please note that the front doors will be locked fifteen "
+                                 "minutes before closing time."]},
+             "sources": [2]}
+    note = {"subject": "Library", "predicate": "contact_note", "purpose": "also_published",
+            "sources": [1], "value": "If chat is not online, email refdesk@example.edu. Please "
+                                     "note that the front doors will be locked fifteen minutes "
+                                     "before closing time."}
+    said = plain_text(view(derived_facts=[hours], facts=[note]))
+    # 11-03 practice: the doors line was said twice, once from each page.
+    assert said is not None and said.count("front doors") == 1
+    assert said.endswith("Library: If chat is not online, email refdesk@example.edu. [1]")
+    only_repeats = {**note, "value": "Please note that the front doors will be locked fifteen "
+                                     "minutes before closing time."}
+    assert "Library:" not in (plain_text(view(derived_facts=[hours], facts=[only_repeats]))
+                              or "")

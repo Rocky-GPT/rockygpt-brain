@@ -95,6 +95,8 @@ def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
                              "in it list their own.")
     assert "Registrar on Friday, October 2: 8:30am-4:30pm" in answer
     assert "campus map" not in answer and "Commuter Lounge" not in answer
+    # Only the sources the reply cites are listed: not the map, the lounge or the directory.
+    assert answer.endswith("[4]\n\nSources: [4](https://example.edu/registrar)")
 
 
 def test_a_lookup_the_model_names_a_building_by_finds_the_building() -> None:

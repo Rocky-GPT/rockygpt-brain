@@ -11,6 +11,7 @@ window is answered in code's own words (listing_text); otherwise the model only 
 import math
 import re
 from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -69,6 +70,12 @@ _NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b")
 
 def asks_events(message: str) -> bool:
     text = _NOT_EVENT.sub(" ", message.casefold())
+    # "Is there a chess club or a board game club?" asks whether clubs exist: its "game" is the
+    # club's, and no event is asked of, unless it asks when or for events (11-03 practice: the
+    # reply led with three unrelated events).
+    if asks_club_exists(message) and not asks_club_events(message) \
+            and not _WHEN_WORDS.search(text):
+        return False
     return bool(_EVENT_WORDS.search(text)
                 or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
@@ -237,11 +244,27 @@ def asked_topic(message: str) -> set[str]:
 _VERSUS = re.compile(r"\bvs\b\.?", re.I)
 
 
-def _about(value: dict[str, Any]) -> set[str]:
+def names_host(organizer: str, words: AbstractSet[str]) -> bool:
+    """Whether a question's topic words name an event's host: two of the words its name says what
+    it is by, or its one such word ("data science" names the Data Science Club, "board" alone
+    not the College Programming Board)."""
+    own = _stems(organizer) - _HOST_FILLER
+    return bool(own) and len(own & words) >= min(2, len(own))
+
+
+def _about(value: dict[str, Any], words: AbstractSet[str] = frozenset()) -> set[str]:
+    """An event's words: its title, tags, place and description, and its host's name only when
+    the question names the host. A host's name says who runs an event, not what it is about
+    (11-03 practice: "a board game club" matched every College Programming Board event, whose
+    listings say "Join the College Programming Board")."""
     title = str(value.get("title") or "")
-    return _stems(" ".join([title, " ".join(value.get("tags") or []),
-                            str(value.get("organizer") or ""), str(value.get("location") or ""),
-                            str(value.get("description") or ""),
+    organizer = str(value.get("organizer") or "").strip()
+    said = [title, " ".join(value.get("tags") or []), str(value.get("description") or "")]
+    if organizer and not names_host(organizer, words):
+        # Its listing names its host in its tags and description too.
+        host = re.compile(re.escape(organizer), re.I)
+        said, organizer = [host.sub(" ", text) for text in said], ""
+    return _stems(" ".join([*said, organizer, str(value.get("location") or ""),
                             "game match" if _VERSUS.search(title) else ""]))
 
 
@@ -265,11 +288,11 @@ def topic_share(values: Sequence[dict[str, Any]], words: set[str],
                 corpus: Sequence[dict[str, Any]]) -> dict[int, float]:
     """Each event's share of the topic words (by id of its value), weighted by rarity across
     the corpus (the calendar's upcoming events)."""
-    abouts = [_about(v) for v in corpus]
+    abouts = [_about(v, words) for v in corpus]
     weight = {w: math.log((len(abouts) + 1) / (sum(w in a for a in abouts) + 0.5))
               for w in words}
     total = sum(weight.values()) or 1.0
-    return {id(v): sum(weight[w] for w in words & _about(v)) / total for v in values}
+    return {id(v): sum(weight[w] for w in words & _about(v, words)) / total for v in values}
 
 
 # An event found by its card's meaning (title, tags, host, place, admission, description). On
@@ -396,6 +419,8 @@ DESCRIPTION_CHARS = 240
 
 _GENERIC_CLUB = discovery_tokens("club clubs society association organization union team group "
                                  "student students council chapter")
+# Words of a host's name that do not say which host it is ("Club", "Ramapo", "Center for").
+_HOST_FILLER = _stems(" ".join(_NOT_TOPIC | _GENERIC_CLUB))
 
 
 def find_clubs(clubs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:

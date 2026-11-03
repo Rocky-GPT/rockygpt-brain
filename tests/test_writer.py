@@ -11,7 +11,7 @@ from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, Usage
 from rockygpt_brain.turn import intake
 from rockygpt_brain.writer import says_something, unsupported_by
-from test_engine import LOOKUP, NOW, ScriptedGateway, facts, finish
+from test_engine import LOOKUP, NOW, ScriptedGateway, completion, facts, finish
 
 VIEW: dict[str, Any] = {
     "asked": {"intent": "contact_and_hours", "offices": ["Library"], "fields": ["hours", "email"]},
@@ -274,3 +274,36 @@ def test_a_number_the_pages_spell_out_and_a_phone_with_unicode_dashes_are_held()
                           view) == []
     assert unsupported_by("Appeal within 21 days. [1]", view) == [
         "a number the facts do not hold: 21"]
+
+
+def test_a_long_reply_in_codes_words_is_never_cut_or_left_to_the_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 11-03 practice: code's long reply was taken for a cut-off model reply, and the student read
+    # the evidence text instead, internal review notes and all. Code's sentences end where they
+    # end; plain_text fits a long reply by quoting its pages shorter.
+    import rockygpt_brain.engine as engine_module
+
+    said = "Registrar email: published@example.edu. [1] " * 120
+    monkeypatch.setattr(engine_module, "plain_text", lambda view, limit=None: said)
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
+    engine = ChatEngine(ScriptedGateway(), facts(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.trace is not None and result.trace["writer"] == {"used": True, "by": "code"}
+    assert len(said) > 4000 and result.body["answer"].startswith(said.strip())
+
+
+def test_a_lookup_that_said_what_it_lacks_is_not_followed_by_saying_it_again() -> None:
+    # 11-03 practice: "where is the bradley center" said "I don't have verified information"
+    # twice in a row, the lookup's own line and then the refusal's.
+    from rockygpt_brain.engine import UNSUPPORTED_GAP_SAID_MESSAGE
+
+    room = completion("graph_lookup", {"requests": [{"query": "Registrar",
+                                                     "fields": ["offices"]}]})
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "where does the registrar sit"}]})
+    engine = ChatEngine(ScriptedGateway(room, finish("unsupported")), facts(), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.body["answer"] == ("I don't have verified information about Registrar's "
+                                     f"location.\n\n{UNSUPPORTED_GAP_SAID_MESSAGE}")

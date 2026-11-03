@@ -1448,6 +1448,16 @@ def test_a_question_naming_a_purpose_its_contact_note_covers_reads_the_note() ->
     assert "news@example.edu" not in plain.body["answer"]
 
 
+def test_the_words_that_ask_for_hours_are_no_purpose_a_contact_note_covers() -> None:
+    # 11-03 practice: "library closing time today?" read the Library's contact note for its
+    # "closing procedures", and the reply said its doors line twice.
+    from rockygpt_brain.retrieval.campus_graph import purpose_words
+
+    assert purpose_words("thanks a bunch, library closing time today?") == {"bunch", "library"}
+    assert purpose_words("when does it close") == set()
+    assert purpose_words("who handles media inquiries") == {"media", "inquirie"}
+
+
 def id_card_room(note: str) -> MemoryEntityFacts:
     return MemoryEntityFacts(
         dataset_version="release-1", identity_hash="identities-1",

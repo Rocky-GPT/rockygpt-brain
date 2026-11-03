@@ -143,3 +143,19 @@ def test_a_building_is_routed_by_code_when_asked_where_it_is_or_what_is_open_in_
     assert places_named("student center rn", OFFICES, VENUES, BUILDINGS) == [
         {("building", "Student Center (SC)")}]
     assert places_named("the library", OFFICES, VENUES, BUILDINGS) == [{("office", "Library")}]
+
+
+def test_what_is_in_a_building_is_its_places() -> None:
+    # 11-03 practice: "what offices are in academic building d" went to the model, which listed
+    # three of D's offices from pages; the building's where-answer names its places.
+    def building(message: str) -> dict[str, Any] | None:
+        return code_route(message, OFFICES, VENUES, BUILDINGS)
+
+    where = {"requests": [{"query": "Student Center (SC)", "fields": ["offices"]}]}
+    assert building("what offices are in the student center") == where
+    assert building("What's in the Student Center?") == where
+    assert building("which offices are inside the student center") == where
+    # Hours asked of it are still its places' hours, and an office has no places in it.
+    assert building("what is open in the student center") == {
+        "requests": [{"query": "Student Center (SC)", "fields": ["hours"]}]}
+    assert route("what is in the registrar") is None

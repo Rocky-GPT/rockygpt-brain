@@ -41,8 +41,12 @@ there please ramapo college office offices right now today tonight tomorrow s ti
 phone phones telephone email e mail address hours open opens close closes closing closed contact
 reach located location room building menu menus serving serve serves breakfast brunch lunch dinner
 late night fax call get find and its their food foods eat price prices cost costs sell sells
-who help with
+who help with which inside places
 """.split())
+# "What offices are in D wing?", "what's inside the Student Center?": the places in a building,
+# which its where-answer names (11-03 practice: the question went to the model, which listed
+# three of D's offices from pages).
+_INSIDE = re.compile(r"\b(?:what|whats|which)\b(?: \w+){0,2} (?:in|inside)(?: the)?$")
 
 
 def _words(text: str) -> list[str]:
@@ -138,6 +142,8 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
         fields += (["email", "phones", "offices"] if field == "contact" else
                    ["phones"] if field == "fax" else [field])
     fields = list(dict.fromkeys(fields))
+    if not fields and kind == "building" and _INSIDE.search(text):
+        fields = ["offices"]
     if not fields or ("menu" in fields and kind != "venue") or (
             not covered and fields != ["menu"]):
         return None
