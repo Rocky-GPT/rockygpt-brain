@@ -24,8 +24,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+# Two labels of one field never start with the same four letters. The read writes its label a
+# piece at a time, so two labels that start alike are told apart only by their ends, and one slip
+# there says the opposite (11-03 practice: an insult was once read as "compliment" instead of
+# "complaint", and was thanked).
 SOCIAL = ("none", "greeting", "how_are_you", "thanks", "goodbye", "okay", "about_bot",
-          "compliment", "complaint", "joke", "laugh", "nonsense", "upset")
+          "praise", "complaint", "joke", "laugh", "nonsense", "upset")
 DANGER = ("none", "self_harm", "medical", "danger", "fire", "other")
 NEEDS = ("stress_or_sadness", "lonely", "school_trouble", "professor_trouble",
          "roommate_trouble", "health", "alcohol_or_drugs", "money", "thinking_of_leaving",
@@ -55,13 +59,13 @@ tell what the latest message is doing (a "thanks" after an answer); read the lat
 Fill every field:
 - social: what the message does when it is small talk: greeting (hi, hello, good morning, "anyone
   there?"), how_are_you, thanks, goodbye, okay (ok, got it, cool), about_bot (are you a bot or a
-  person, who made you, what can you do, do you know my name), compliment, complaint (an insult,
-  or "that's wrong" about RockyGPT's last reply), joke (asks for a joke), laugh (lol, haha, a
-  laughing emoji), nonsense (keyboard mashing, a word or emoji repeated with no meaning, a lone
-  "?"), upset (sounds upset or stressed in passing about a practical problem it asks how to fix:
-  something lost, missed, broken or locked), else none. A hello before a question is still
-  greeting. A message that names a campus office, place or service is never nonsense, however
-  short or oddly typed.
+  person, who made you, what can you do, do you know my name), praise (kind words about
+  RockyGPT), complaint (an insult, or "that's wrong" about RockyGPT's last reply), joke (asks for
+  a joke), laugh (lol, haha, a laughing emoji), nonsense (keyboard mashing, a word or emoji
+  repeated with no meaning, a lone "?"), upset (sounds upset or stressed in passing about a
+  practical problem it asks how to fix: something lost, missed, broken or locked), else none. A
+  hello before a question is still greeting. A message that names a campus office, place or
+  service is never nonsense, however short or oddly typed.
 - danger: someone may be in danger right now: self_harm (wanting to die, to hurt or kill
   themselves, in any wording or slang, such as kms or unalive), medical (someone unconscious,
   not breathing, overdosed, having a seizure, badly hurt), danger (a weapon, an attack, being
@@ -217,8 +221,8 @@ SOCIAL_TEXTS = {
                   "Ramapo College from the college's own published information, and I can make "
                   "mistakes, so check anything important with the office. I can't see who you "
                   "are or your personal student records."),
-    "compliment": "Aw, thank you! I'm just an AI, but I'm glad I can help. What else can I do "
-                  "for you?",
+    "praise": "Aw, thank you! I'm just an AI, but I'm glad I can help. What else can I do for "
+              "you?",
     "complaint": ("Sorry about that! I'm an AI and I can get things wrong. Could you tell me what "
                   "you're looking for in a different way? I'll try again."),
     "laugh": "Ha! Glad something made you laugh. What can I help you with?",
