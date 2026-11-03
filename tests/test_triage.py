@@ -89,6 +89,7 @@ def test_a_read_is_checked_field_by_field_and_its_question_adds_no_number() -> N
     ({"social": "about_bot"}, triage.SOCIAL_TEXTS["about_bot"]),
     ({"social": "nonsense"}, triage.SOCIAL_TEXTS["nonsense"]),
     ({"social": "complaint"}, triage.SOCIAL_TEXTS["complaint"]),
+    ({"social": "praise"}, triage.SOCIAL_TEXTS["praise"]),
     ({"limit": "off_topic"}, triage.LIMIT_TEXTS["off_topic"]),
     ({"limit": "my_records"}, triage.LIMIT_TEXTS["my_records"] + triage.LIMIT_ALONE["my_records"]),
     ({"social": "greeting", "limit": "off_topic"}, "Hi! " + triage.LIMIT_TEXTS["off_topic"]),
@@ -108,6 +109,14 @@ def test_a_message_with_no_campus_question_gets_codes_reply_from_the_read_alone(
     # The read, and nothing searched or written: its call and spend are the turn's.
     assert (result.trace["modelCalls"], result.trace["committedNusd"]) == (1, 7)
     assert gateway.inputs[0][0]["content"] == triage.READ_PROMPT
+
+
+@pytest.mark.parametrize("labels", [triage.SOCIAL, triage.DANGER, triage.NEEDS, triage.LIMITS])
+def test_no_two_labels_of_a_field_start_alike(labels: tuple[str, ...]) -> None:
+    # Labels told apart only by their ends let one slip say the opposite: an insult was once read
+    # as "compliment", not "complaint".
+    starts = [label[:4] for label in labels]
+    assert len(set(starts)) == len(starts), sorted(s for s in starts if starts.count(s) > 1)
 
 
 def test_a_joke_and_the_clock_are_codes_own_words() -> None:
