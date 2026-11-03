@@ -15,7 +15,7 @@ from rockygpt_brain.one_call import (
     search_text,
     with_picked,
 )
-from rockygpt_brain.provider import Completion, ToolCall, TurnBudget, Usage
+from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget, Usage
 from rockygpt_brain.turn import intake
 from test_engine import NOW, ScriptedGateway, completion, finish
 from test_meaning import index_of, meaning_service
@@ -99,6 +99,42 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
         "fallback": "not_in_the_evidence"}
     assert result.trace["decidedBy"] != "one_call"
     assert "tutors@example.com" not in result.body["answer"]
+
+
+def test_a_page_answer_that_falls_back_leaves_the_four_call_loop_its_own_calls() -> None:
+    class Counting(PartsGateway):
+        """Counts calls against the turn's limit, as the real gateway does."""
+
+        async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                           budget: TurnBudget) -> Completion:
+            if budget.calls >= budget.max_calls:
+                raise GatewayError("turn_limit")
+            budget.calls += 1
+            return await super().complete(input=input, tools=tools, budget=budget)
+
+    service = meaning_service()
+    service.index = index_of([("page-advising", "0", ["advising"], [[0, 1, 0]]),
+                              ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+                             service.index.names, labels=True)
+    picked = Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
+                        [{"type": "function_call", "call_id": "p", "name": "pick_units",
+                          "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Center for Reading and Writing", "fields": ["procedures"],
+         "about": "become a peer tutor"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": [0]}]})
+    # 11-03 repeat test (q38): the three picks and the writer used four of the turn's five
+    # calls, the writer wrote nothing, and the four-call loop stopped on its second call with
+    # "reached RockyGPT's work limit".
+    gateway = Counting(picked, picked, picked, one_reply("", [1]), lookup, pick, finish())
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.trace is not None and result.trace["oneCall"] == {"fallback": "no_text"}
+    assert result.status_code == 200 and result.body["status"] == "answered"
+    assert "limitation" not in result.body and "March 1" in result.body["answer"]
+    assert result.trace["modelCalls"] == len(gateway.inputs) == 7
 
 
 def test_one_statement_the_evidence_does_not_hold_is_dropped_and_the_rest_kept() -> None:
