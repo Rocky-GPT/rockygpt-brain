@@ -2518,6 +2518,9 @@ class ChatEngine:
         if named:
             people = people_module.narrow(people, message, schools)
             computed = people_module.computed_answers(people, message, directory)
+        elif stand_ins := people_module.stand_ins(message):
+            # "Professor A or Professor B": no one was named, and no one is said for them.
+            computed.append({"fact": people_module.stand_in_fact(stand_ins)})
         if people_module.asks_leadership(people_module.about_named(message, people)
                                          if named else message):
             given = {p.get("profile_url") or p.get("name") for p in people}
@@ -2930,11 +2933,15 @@ class ChatEngine:
                     # an anime club") are found by their cards' meaning.
                     # People the question asks about but names by no directory name ("who
                     # researches machine learning") are found by their cards' meaning.
-                    if people_asked and not people and people_module.asks_people_list(latest):
+                    # A letter standing in for a name ("professor A or professor B") names no
+                    # one: no one is found by meaning in its place (11-03 repeat test).
+                    stand_ins = people_module.stand_ins(latest)
+                    if people_asked and not people and people_module.asks_people_list(latest) \
+                            and not stand_ins:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and index.academic
+                    if (people_asked and index.academic and not stand_ins
                             and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
                         # Code first: the profiles whose own courses, interests or title hold
