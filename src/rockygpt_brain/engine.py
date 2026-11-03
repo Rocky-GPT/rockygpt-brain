@@ -1965,11 +1965,33 @@ class ChatEngine:
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed, said
 
+    def _sibling_lines(self, result: OfficeResult, request: OfficeRequest,
+                       results: Mapping[str, OfficeResult]) -> list[str]:
+        """The offices sharing a found office's name but for a part in parentheses ("Public
+        Safety (Emergency)" beside "Public Safety (Non-Emergency)") whose phones are not read
+        yet, when the student asked for this office's phones: each line's name says what it is
+        for. Empty for a fax or an office with no such sibling."""
+        if ("phones" not in request.fields or request.phone_kind
+                or not result.rendered.supported or not result.part
+                or result.part.get("kind") != "office_facts"):
+            return []
+        name = str(result.part["office"].get("name") or "")
+        plain = contacts.plain_name(name)
+        if not plain or plain == name.casefold():
+            return []
+        read = {str(r.part["office"].get("name")) for r in results.values()
+                if r.part and r.part.get("kind") == "office_facts"}
+        return [str(o["name"]) for o in self.facts.identities(("office",))
+                if contacts.plain_name(str(o["name"])) == plain
+                and str(o["name"]) != name and str(o["name"]) not in read][:2]
+
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
         """The offices a reply sends the student to: the first whose sections it cites, and a
         second it cites and also names in its words, at most two. An office cited only for a
-        page (an employee handbook beside Public Safety's "how to report") is not one (11-03)."""
+        page (an employee handbook beside Public Safety's "how to report") is not one (11-03).
+        Each comes with the offices that share its name but for a part in parentheses
+        (Emergency, Non-Emergency), whose names say which line is for what."""
         office_of = {section.get("n"): office.get("office") for office in offices
                      for section in office.get("sections") or []}
         marks = [int(n) for group in re.findall(r"\[([\d,\s–-]+)\]", written)
@@ -1979,7 +2001,8 @@ class ChatEngine:
         cited = [dict(by_name[str(name)]) for name in names if str(name) in by_name]
         prose = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", written)
         named = {str(o["id"]) for o in contacts.offices_named(cited, prose)[0]}
-        return [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
+        chosen = [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
+        return contacts.with_siblings(chosen, list(by_name.values()))[:contacts.MAX_OFFICES]
 
     def _office_contacts(self, offices: Sequence[Mapping[str, Any]], numbered_from: int,
                          ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2790,13 +2813,15 @@ class ChatEngine:
         after: list[str] = []
         if contacts.asks_who(latest) and offices and written:
             try:
+                to_reach = self._cited_offices(written, offices)
                 said, found_sources, contact_facts = await asyncio.to_thread(
-                    self._office_contacts, self._cited_offices(written, offices), len(sources))
+                    self._office_contacts, to_reach, len(sources))
             except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest,
                     UnknownEntity) as error:
                 LOG.warning("brain_office_contacts_failed error=%s", type(error).__name__)
                 said = None
             if said:
+                written = contacts.without_variant_names(written, to_reach)
                 sources = [*sources, *found_sources]
                 after.append(said)
                 code_view["contacts"] = contact_facts
@@ -3503,6 +3528,33 @@ class ChatEngine:
                                        "clarification": result.clarification,
                                        "error": result.error_code})
                         looked_up.append((rid, len(output) - 1, item))
+                        # "Who do I call if my car gets hit": the lookup found Public Safety
+                        # (Non-Emergency); its Emergency line is read too, so the answer names
+                        # which number is which (11-03 Mac run).
+                        for name in self._sibling_lines(result, item, results):
+                            sibling = item.model_copy(update={"query": name, "fields": ["phones"],
+                                                              "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {name}"):
+                                each = await asyncio.to_thread(
+                                    self._lookup, sibling,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now, exact_name_only=True,
+                                    latest=context.latest_message)
+                            if not each.rendered.supported:
+                                continue
+                            rid = f"r{len(results) + 1}"
+                            results[rid] = each
+                            trace["lookups"].append({
+                                "tool": "graph_lookup", "traversedBy": "code",
+                                "status": _lookup_status(each), "foundBy": "office_sibling",
+                                "arguments": sibling.model_dump(), **each.detail})
+                            output.append({"query": name, "rendered": each.rendered.text,
+                                           "supported": each.rendered.supported,
+                                           "complete": each.rendered.complete,
+                                           "clarification": each.clarification,
+                                           "error": each.error_code})
+                            looked_up.append((rid, len(output) - 1, sibling))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
                                                 turn.campus_now, meaning,
                                                 {id(requests[n]) for n in situational})

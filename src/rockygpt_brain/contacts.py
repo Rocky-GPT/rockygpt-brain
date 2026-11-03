@@ -83,6 +83,42 @@ def offices_named(offices: Sequence[Mapping[str, Any]], message: str,
     return list(found.values()), words
 
 
+def plain_name(name: str) -> str:
+    """An office's name without its parenthesised part: "Public Safety (Emergency)" is
+    "public safety"."""
+    return re.sub(r"\s*\([^)]*\)", "", name).strip().casefold()
+
+
+def with_siblings(chosen: Sequence[Mapping[str, Any]], offices: Sequence[Mapping[str, Any]],
+                  ) -> list[dict[str, Any]]:
+    """The chosen offices, each followed by the offices that share its name but for a part in
+    parentheses ("Public Safety (Emergency)" beside "Public Safety (Non-Emergency)"): their
+    names say which line is for what, so a reply that sends the student to one shows both
+    (11-03: the steps said 684-6666 and the card 684-7432, with nothing to tell them apart)."""
+    out: dict[str, dict[str, Any]] = {}
+    for office in chosen:
+        out.setdefault(str(office["id"]), dict(office))
+        plain = plain_name(str(office.get("name") or ""))
+        for other in offices:
+            if plain and plain_name(str(other.get("name") or "")) == plain:
+                out.setdefault(str(other["id"]), dict(other))
+    return list(out.values())
+
+
+def without_variant_names(written: str, offices: Sequence[Mapping[str, Any]]) -> str:
+    """The reply with each office that has a sibling among `offices` called by the name they
+    share: the contact lines after it say which line is Emergency and which Non-Emergency, so
+    the words must not pin one number on the other's name (11-03: "Report it to Public Safety
+    (Non-Emergency)... Call (201) 684-6666", the emergency line)."""
+    plains = [plain_name(str(o.get("name") or "")) for o in offices]
+    for office, plain in zip(offices, plains, strict=True):
+        name = str(office.get("name") or "")
+        if plain and plains.count(plain) > 1 and name.casefold() != plain:
+            shared = re.sub(r"\s*\([^)]*\)", "", name).strip()
+            written = re.sub(re.escape(name), shared, written, flags=re.IGNORECASE)
+    return written
+
+
 def asks_contact_only(message: str, named_words: Iterable[str]) -> bool:
     """Whether a message asks only how to reach (or where to find) the offices it names."""
     rest = message
