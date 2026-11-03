@@ -479,6 +479,11 @@ UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about tha
                                     "way to ask.")
 # After a shuttle or dining answer there is no office above to ask.
 UNSUPPORTED_PART_MESSAGE = "I don't have verified information about that part."
+# After a lookup that already said what it has no verified information about (11-03 practice:
+# "where is the bradley center" said "I don't have verified information" twice in a row).
+UNSUPPORTED_GAP_SAID_MESSAGE = ("I can look up published contact details and hours for Ramapo "
+                                "offices, the posted shuttle timetable, and dining hours and "
+                                "menus.")
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
     "greeting": triage.SOCIAL_TEXTS["greeting"],
@@ -1218,6 +1223,10 @@ def fixed_texts() -> list[dict[str, Any]]:
         entry("unsupported_part", model,
               "A finish part unsupported, when only shuttle or dining facts are shown above it.",
               UNSUPPORTED_PART_MESSAGE),
+        entry("unsupported_gap_said", model,
+              "A finish part unsupported, when a lookup above found the office but none of what "
+              "was asked, and already says it has no verified information about it.",
+              UNSUPPORTED_GAP_SAID_MESSAGE),
         entry("clarification", model + ["the code"],
               "A finish part clarification (not added when a lookup already asked which office), "
               "or a finish with nothing in it, no lookup result and no safety reply just before.",
@@ -4240,6 +4249,10 @@ class ChatEngine:
             r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
             and r.part["office"].get("kind", "office") == "office" and shows_contact(r.part)
             for r in results.values())
+        # An office found with none of what was asked: its reply says it has no verified
+        # information about each thing asked.
+        gap_said = any(not r.rendered.supported and r.part and r.part.get("kind") == "office_facts"
+                       for r in results.values())
         for part in finish.parts:
             if part.kind == "recall":
                 if (part.message_index is None
@@ -4319,7 +4332,9 @@ class ChatEngine:
                     if about:  # For the inspector: what the model said it could not answer.
                         trace.setdefault("unsupported_about", []).append(about)
                     said = (UNSUPPORTED_AFTER_LOOKUP_MESSAGE if shown_office
-                            else UNSUPPORTED_PART_MESSAGE if shown else UNSUPPORTED_MESSAGE)
+                            else UNSUPPORTED_PART_MESSAGE if shown
+                            else UNSUPPORTED_GAP_SAID_MESSAGE if gap_said
+                            else UNSUPPORTED_MESSAGE)
                     parts.append({"kind": "unsupported", "afterLookup": shown,
                                   "approved_text": said})
                     chunks.append(said)
@@ -4433,7 +4448,7 @@ class ChatEngine:
             return keep("nothing_to_write")
         if not self.lookup_writer:
             with measure("Write the answer from the facts in code's words"):
-                said = plain_text(view)
+                said = plain_text(view, limit=WRITER_TEXT_LIMIT)
             if said is None:
                 return keep("plain_writer_cannot_say")
         else:
@@ -4452,8 +4467,10 @@ class ChatEngine:
                     return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
-        if len(said) >= WRITER_TEXT_LIMIT:
-            return keep("cut_off")  # Stopped at the length limit, mid-sentence.
+        if self.lookup_writer and len(said) >= WRITER_TEXT_LIMIT:
+            # A model stopped at the length limit, mid-sentence. Code's sentences are never cut:
+            # a long reply quotes its pages shorter (plain_text), and is never the evidence text.
+            return keep("cut_off")
         problems = unsupported_by(said, view)
         if problems:
             return keep("not_in_the_facts", problems)
@@ -4465,7 +4482,11 @@ class ChatEngine:
                      n["approved_text"] for n in view.get("notices", [])
                      if isinstance(n.get("approved_text"), str))
                  if not already_said(text, said) and not (emergency and text in lead)]
-        sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", []) if s.get("urls")]
+        # The sources the reply cites, or all of them when it cites none (11-03 practice: "is
+        # dunkin open rn" listed four, one cited, as each day's hours record is its own source).
+        marks = set(re.findall(r"\[(\d+)\]", "\n".join([said, *fixed])))
+        sources = [f"[{s['n']}]({s['urls'][0]})" for s in view.get("sources", [])
+                   if s.get("urls") and (not marks or str(s.get("n")) in marks)]
         text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
         trace["writer"] = {"used": True, **({} if self.lookup_writer else {"by": "code"})}

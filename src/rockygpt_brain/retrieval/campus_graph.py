@@ -94,10 +94,13 @@ BRANCH = {"office": "offices", "venue": "dining"}
 
 
 # Words that say what a question is about rather than which field it wants or how it is asked.
+# "Closing time" asks the hours (11-03 practice: "library closing time today?" read the Library's
+# contact note beside its hours, for its "closing procedures", and said its doors line twice).
 _NOT_PURPOSE = frozenset(
     "what whats when where which whom whose does have need want with about their there this that "
     "from your into them they help office offices contact contacts reach email emails phone "
-    "phones number numbers call hours open opens room rooms located location ramapo college "
+    "phones number numbers call hours open opens close closes closing closed time times room "
+    "rooms located location ramapo college "
     "campus student students please thanks know tell find here just like also some would could "
     "should handles handle talk speak someone anyone person people right today tomorrow tonight "
     "address website page whos".split())

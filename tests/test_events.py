@@ -427,3 +427,36 @@ def test_whether_a_club_exists_is_codes_only_once_the_release_marks_inactive_clu
     # A release with no inactive marks cannot tell an active club from one ramapo.edu says is not.
     plain = ChatEngine(ScriptedGateway(), calendar(), output="written")
     assert plain._club_listing("Is there a chess club?", WEDNESDAY) is None
+
+
+def test_a_hosts_name_matches_only_when_the_question_names_the_host() -> None:
+    # 11-03 practice: "a board game club" matched every College Programming Board event, whose
+    # tags and description name the host ("Join the College Programming Board for ...").
+    def hosted(title: str, organizer: str, description: str) -> dict[str, Any]:
+        return {**event(title, "24", 20, ["Social/Entertainment", organizer],
+                        organizer=organizer),
+                "description": f"Join the {organizer} for {title}: {description}."}
+
+    values = [hosted("Tuesday Night Live", "College Programming Board", "live music"),
+              hosted("Snack and Solve", "Data Science Club", "puzzles"),
+              hosted("Card Night", "Bischoff Hall", "cards and board games")]
+    start, end, _ = window("upcoming", WEDNESDAY)
+    # On the calendar, games are common and "board" rare, so a host's "board" weighs the most.
+    games = [event(f"Game {n}", "30", 19, ["Athletics"]) for n in range(10)]
+
+    def titles(message: str) -> list[str]:
+        ranked, matched = rank_events(values, message, start, end, corpus=[*values, *games])
+        return [v["title"] for v in ranked] if matched else []
+
+    assert titles("any board game nights coming up") == ["Card Night"]
+    assert titles("what is the college programming board doing") == ["Tuesday Night Live"]
+    assert titles("any data science club events") == ["Snack and Solve"]
+
+
+def test_whether_a_club_exists_is_not_a_question_about_events() -> None:
+    # 11-03 practice: "is there a chess club or a board game club" led with three events.
+    assert not asks_events("is there a chess club or a board game club")
+    assert not asks_events("are there any clubs that play board games")
+    # Asked when, or for its events, it is.
+    assert asks_events("is there a club for board games tonight")
+    assert asks_events("are there any game nights this week")

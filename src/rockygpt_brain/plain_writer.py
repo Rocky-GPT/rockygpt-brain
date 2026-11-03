@@ -53,6 +53,14 @@ MENU_ITEMS = 4
 PHONE_LINES = 4
 # A building's places are named up to this many, then "and N more" (the Student Center has 15).
 PLACES_SAID = 8
+# A page section is said in its own words, up to the end of the sentence that passes this many
+# characters, and the rest is left on its page.
+SECTION_CHARS = 500
+# How long the page sections a reply quotes may be, each step shorter (a subject's first section,
+# then its others; 0 names the page only), when the reply would be longer than a reply can be
+# (11-03 practice: a suitemate question's six sections came to 4,400 characters, past the writer's
+# limit, and the reply fell back to the code's evidence text with its internal review notes).
+QUOTE_STEPS = ((SECTION_CHARS, SECTION_CHARS), (250, 250), (250, 0), (0, 0))
 # A building's own facts (11-03): where the campus map shows it, its room numbers, its places.
 _BUILDING_KEYS = ("map", "room_prefixes", "places_in")
 # The menu marks no item a topping or a condiment, so an item under this many calories (onions,
@@ -134,8 +142,12 @@ _QUOTED_SECTION = re.compile(r"^.{1,120}?'s page (?:\"[^\"]*\" )?says: \"")
 class _Reply:
     """Sentences by subject in the order first said, each with its source marks merged."""
 
-    def __init__(self, view: dict[str, Any] | None = None) -> None:
+    def __init__(self, view: dict[str, Any] | None = None,
+                 quotes: tuple[int, int] = QUOTE_STEPS[0]) -> None:
         self.subjects: dict[str, dict[str, list[int]]] = {}
+        # How much of a subject's first page section is quoted, and of its others.
+        self.quotes = quotes
+        self.quoted: set[str] = set()
         self.days_said: set[tuple[str, str]] = set()
         self.dates_note: str | None = None
         self.dates_sources: list[int] = []
@@ -739,6 +751,8 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
     elif key in ("contact_note", "department", "name", "preferred_contact"):
         if not isinstance(value, str):
             raise CannotSay
+        if key == "contact_note" and not (value := _unsaid(reply, value)):
+            return
         reply.say(subject, {"contact_note": f"{subject}: {literal(value)}",
                             "department": f"{subject} is part of {literal(value)}.",
                             "name": f"{subject}'s published name is {literal(value)}.",
@@ -756,7 +770,13 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         if said in reply.sections_said or not said[1]:
             return
         reply.sections_said.add(said)
-        excerpt, cut = _excerpt(said[1])
+        chars = reply.quotes[subject in reply.quoted]
+        reply.quoted.add(subject)
+        if not chars:  # A long reply names the page; its words are on it.
+            reply.say(subject, (f'See {subject}\'s page "{literal(heading)}"' if heading
+                                else f"See {subject}'s page") + _old_page(value) + ".", sources)
+            return
+        excerpt, cut = _excerpt(said[1], chars)
         reply.say(subject, (f'{subject}\'s page "{literal(heading)}" says: ' if heading
                             else f"{subject}'s page says: ")
                   + f'"{literal(excerpt)}"' + (" (more on its page)" if cut
@@ -768,6 +788,19 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
             reply.say(subject, sentence, sources)
     else:
         raise CannotSay
+
+
+def _words_of(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
+
+
+def _unsaid(reply: _Reply, note: str) -> str:
+    """A note's sentences the reply has not said yet (11-03 practice: the Library's contact note
+    repeats its hours page's "the front doors will be locked fifteen minutes before closing time",
+    and the reply said it twice)."""
+    said = _words_of(reply.text())
+    return " ".join(sentence for sentence in re.split(r"(?<=[.!?])\s+", note.strip())
+                    if not (words := _words_of(sentence)) or words not in said)
 
 
 def _located(where: str) -> str:
@@ -804,9 +837,10 @@ def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[i
             raise CannotSay
         names = [str(p["name"]) for p in value]
         if "hours" in reply.fields:
+            # Marked by nothing: the places' hours that follow carry their own pages' marks.
             reply.say(subject, (f"I don't have hours for {subject} as a whole, but places in it "
                                 "list their own." if reply.with_hours & set(names)
-                                else f"I don't have hours for {subject}."), sources)
+                                else f"I don't have hours for {subject}."), [])
         if where:
             shown = [literal(n) for n in names[:PLACES_SAID]]
             if len(names) > PLACES_SAID:
@@ -826,21 +860,16 @@ def _old_page(value: dict[str, Any]) -> str:
     return f" (its page was last updated {updated:%B} {updated.year})"
 
 
-# A page section is said in its own words, up to the end of the sentence that passes this many
-# characters, and the rest is left on its page.
-SECTION_CHARS = 500
-
-
-def _excerpt(text: str) -> tuple[str, bool]:
-    """The section's words up to the end of a sentence past SECTION_CHARS, and whether any were
-    left out."""
-    if len(text) <= SECTION_CHARS:
+def _excerpt(text: str, chars: int = SECTION_CHARS) -> tuple[str, bool]:
+    """The section's words up to the end of a sentence past `chars`, and whether any were left
+    out."""
+    if len(text) <= chars:
         return text, False
-    end = re.search(r"[.!?](?=\s+[A-Z(\"“])", text[SECTION_CHARS:])
-    if end is None or end.end() > SECTION_CHARS:
-        cut = text[:SECTION_CHARS * 2].rsplit(" ", 1)[0]
+    end = re.search(r"[.!?](?=\s+[A-Z(\"“])", text[chars:])
+    if end is None or end.end() > chars:
+        cut = text[:chars * 2].rsplit(" ", 1)[0]
         return (cut + "…", True) if len(cut) < len(text) else (text, False)
-    stop = SECTION_CHARS + end.end()
+    stop = chars + end.end()
     return text[:stop], stop < len(text)
 
 
@@ -998,13 +1027,24 @@ def _unknown_days(reply: _Reply, subject: str, gap: dict[str, Any]) -> None:
         reply.say(subject, f'Its listing adds: "{literal(details.strip())}"', sources)
 
 
-def plain_text(view: dict[str, Any]) -> str | None:
+def plain_text(view: dict[str, Any], limit: int | None = None) -> str | None:
     """The reply in plain sentences with source marks, or None when the view holds a shape this
-    writer does not know (an ambiguity, a conflict, a shuttle timetable, a menu filter...)."""
+    writer does not know (an ambiguity, a conflict, a shuttle timetable, a menu filter...). A
+    reply longer than `limit` quotes its page sections shorter, step by step, then names their
+    pages only; it is never cut."""
+    text = None
+    for quotes in QUOTE_STEPS:
+        text = _plain_text(view, quotes)
+        if text is None or limit is None or len(text) < limit:
+            return text
+    return text
+
+
+def _plain_text(view: dict[str, Any], quotes: tuple[int, int]) -> str | None:
     try:
         if not isinstance(view, dict) or set(view) - _VIEW_KEYS:
             raise CannotSay
-        reply = _Reply(view)
+        reply = _Reply(view, quotes)
         facts = view.get("facts") or []
         menus = {f.get("subject") for f in facts if isinstance(f, dict)
                  and f.get("predicate") == "menu"}
