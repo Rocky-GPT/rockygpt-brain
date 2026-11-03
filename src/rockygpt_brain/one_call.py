@@ -100,6 +100,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   and placed before your text exactly as given. Never repeat, restate, shorten or contradict it:
   it is the answer to what it covers, and a page that disagrees with it is out of date. Write only
   what else the question asks. When it already answers everything asked, write an empty text.
+- When contacts_written_by_code is true, code adds the phone numbers, email and room of each
+  office whose sections you cite after your text: name the office and give its steps, but do not
+  list its phone numbers, email or room yourself, except a number a step's own words give.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Numbers are only marks: never write
   "section 4" in the text. Short plain sentences; numbered steps are fine. Under 1,600
@@ -477,9 +480,11 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              clubs: Sequence[dict[str, Any]] = (),
              people: Sequence[dict[str, Any]] = (),
              computed: Sequence[dict[str, Any]] = (),
-             already_written: Sequence[str] = ()) -> list[dict[str, Any]]:
+             already_written: Sequence[str] = (),
+             contacts_by_code: bool = False) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
+             **({"contacts_written_by_code": True} if contacts_by_code else {}),
              **({"already_written": "\n\n".join(already_written)} if already_written else {}),
              **({"computed": list(computed)} if computed else {}),
              **({"programs": [{k: v for k, v in p.items() if not k.startswith("_")}
