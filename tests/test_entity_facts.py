@@ -872,6 +872,10 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
     room = {"id": "york", "kind": "facility", "name": "York Room", "aliases": [], "links": [
         {"collection": "map_places", "source_key": "campus-map",
          "source_record_keys": ["office_york-room"]}]}
+    tag = {"id": "writ", "kind": "course_attribute", "name": "WRITING INTENSIVE (WRIT)",
+           "aliases": [], "links": [{"collection": "course_attributes",
+                                     "source_key": "academic-programs",
+                                     "source_record_keys": ["WRIT"]}]}
     records = {"schema_version": 1, "collections": {
         "terms": {"source_key": "academic-calendar", "collected_at": "2026-11-02T10:00:00Z",
                   "rows": [{"source_record_key": "fall-2026", "name": "Fall 2026",
@@ -884,6 +888,10 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
                        "rows": [{"source_record_key": "office_york-room", "name": "York Room",
                                  "building": "Birch Mansion",
                                  "source_url": "https://map.ramapo.edu/?id=2292#!m/1133345"}]},
+        "course_attributes": {"source_key": "academic-programs", "collected_at": "",
+                              "rows": [{"source_record_key": "WRIT",
+                                        "name": "WRITING INTENSIVE (WRIT)", "course_count": 235,
+                                        "source_url": "https://catalog.ramapo.edu/"}]},
     }}
     reads: list[str] = []
 
@@ -906,7 +914,7 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
         def execute(self, query: str, params: Any = None) -> Cursor:
             if "AS registry_text" in query:
                 return Cursor([{"registry_text": json.dumps(
-                    {"schema_version": 1, "entities": [office(), term, day, room]})}])
+                    {"schema_version": 1, "entities": [office(), term, day, room, tag]})}])
             if "AS payload_text" in query:
                 reads.append(params[1])
                 return Cursor([{"payload_text": json.dumps(records), "content_hash": "g-1"}])
@@ -932,9 +940,13 @@ def test_every_new_kind_reads_its_records_from_the_one_graph_records_artifact(
         assert snapshot.record_reader(found["fall"], "calendar_dates") == []
         assert [r["building"] for r in snapshot.record_reader(found["york"], "map_places")] \
             == ["Birch Mansion"]
+        # A catalog course attribute reads its record: its printed name and course count.
+        assert [(r["name"], r["course_count"])
+                for r in snapshot.record_reader(found["writ"], "course_attributes")] \
+            == [("WRITING INTENSIVE (WRIT)", 235)]
     assert reads == ["graph-records"]  # One read of the artifact serves every collection.
     with service.snapshot() as snapshot:
-        assert {e["id"] for e in linked_records_of(snapshot)} == {"fall", "drop", "york"}
+        assert {e["id"] for e in linked_records_of(snapshot)} == {"fall", "drop", "york", "writ"}
 
 
 def linked_records_of(snapshot: Any) -> list[dict[str, Any]]:
