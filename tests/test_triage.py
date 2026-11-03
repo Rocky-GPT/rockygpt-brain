@@ -44,10 +44,13 @@ def campus() -> MemoryEntityFacts:
 
 def ask(gateway: Any, message: str, *, service: MemoryEntityFacts | None = None,
         history: tuple[dict[str, str], ...] = (), floor: str | None = None,
-        now: Any = NOW) -> ChatResult:
+        now: Any = NOW, reads: int = 1) -> ChatResult:
+    """One turn. The message is read once, as each test scripts one read, unless `reads` says
+    how many reads are scripted (the vote of three is tested on its own)."""
     request = ChatRequest.model_validate(
         {"messages": [*history, {"role": "user", "content": message}]})
-    engine = ChatEngine(gateway, service or campus(), output="written", read_first=True)
+    engine = ChatEngine(gateway, service or campus(), output="written", read_first=True,
+                        reads=reads)
     return asyncio.run(engine.answer(intake(request, now=now), request, floor_situation=floor))
 
 
@@ -506,3 +509,63 @@ def test_a_problem_told_back_as_the_question_gets_codes_kind_reply() -> None:
     result = ask(gateway, "i have no one to sit with at lunch")
     assert result.body["answer"].startswith(triage.SUPPORT_TEXTS["lonely"])
     assert result.trace is not None and result.trace["decidedBy"] == "read"
+
+
+def test_what_most_reads_say_is_the_reading() -> None:
+    # 11-03 repeat test: one read a try made "where the halal food at" a feeling in 2 of 5
+    # tries; three reads at once and a vote give the same reading every time.
+    halal = triage.Reading("none", "none", (), "none", "Where can I find halal food?")
+    upset = triage.Reading("upset", "none", ("food_or_housing",), "none",
+                           "Where is the halal food?")
+    assert triage.majority([halal, upset, halal]) == halal
+    assert triage.majority([upset, halal, halal]) == halal  # Whichever came back first.
+    # Labels no two reads share fall back to the first listed (none); a danger any read finds
+    # is kept, as the read only ever adds an emergency.
+    split = [triage.Reading("greeting", "none", (), "none", ""),
+             triage.Reading("thanks", "medical", (), "clock", ""),
+             triage.Reading("none", "none", (), "opinion", "")]
+    assert triage.majority(split) == triage.Reading("none", "medical", (), "none", "")
+    # A need counts when most reads give it; the question is asked when most reads ask one,
+    # in the wording nearest the others', then the shortest.
+    worded = [triage.Reading("none", "none", ("money",), "none", "How do I pay my bill?"),
+              triage.Reading("none", "none", ("money",), "none", "How can I pay my bill?"),
+              triage.Reading("none", "none", (), "none", "Where do I pay my tuition bill online?")]
+    assert triage.majority(worded) == triage.Reading("none", "none", ("money",), "none",
+                                                     "How do I pay my bill?")
+    told_back = [triage.Reading("upset", "none", ("lonely",), "none", ""),
+                 triage.Reading("upset", "none", ("lonely",), "none", ""),
+                 triage.Reading("none", "none", (), "none", "Are there clubs?")]
+    assert triage.majority(told_back) == triage.Reading("upset", "none", ("lonely",), "none", "")
+    assert triage.majority([]) is None
+
+
+def test_the_message_is_read_three_times_at_once_and_most_reads_decide() -> None:
+    gateway = MeteredGateway(read(social="greeting"), read(social="nonsense"),
+                             read(social="greeting"))
+    result = ask(gateway, "heyyy", reads=3)
+    assert result.body["answer"] == triage.SOCIAL_TEXTS["greeting"]
+    assert result.trace is not None
+    assert [r["social"] for r in result.trace["read"]["reads"]] == [
+        "greeting", "nonsense", "greeting"]
+    assert (result.trace["modelCalls"], result.trace["committedNusd"]) == (3, 21)
+    assert len(gateway.inputs) == 3 and gateway.inputs[0] == gateway.inputs[2]
+
+
+def test_a_read_that_fails_leaves_the_others_to_decide() -> None:
+    def provider_down() -> Completion:
+        raise GatewayError("provider_unavailable", retryable=True)
+
+    gateway = MeteredGateway(read(social="greeting"), provider_down, read(social="greeting"))
+    result = ask(gateway, "heyyy", reads=3)
+    assert result.body["answer"] == triage.SOCIAL_TEXTS["greeting"]
+    assert result.trace is not None
+    assert result.trace["read"]["readsFailed"] == ["provider_unavailable"]
+
+
+def test_a_danger_one_read_finds_is_the_emergency_reply() -> None:
+    gateway = MeteredGateway(read(question="Who handles transcripts?"),
+                             read(danger="self_harm", question="Who handles transcripts?"),
+                             read(question="Who handles transcripts?"))
+    result = ask(gateway, "i dont want to be here anymore. who handles transcripts", reads=3)
+    assert result.body["answer"].startswith(SAFETY_TEXTS["self_harm"])
+    assert len(gateway.inputs) == 3

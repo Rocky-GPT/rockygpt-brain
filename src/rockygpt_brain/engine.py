@@ -1294,13 +1294,20 @@ class ChatEngine:
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
                  output: Literal["text", "json", "written"] = "text",
                  howto_one_call: bool | None = None, lookup_writer: bool | None = None,
-                 read_first: bool | None = None) -> None:
+                 read_first: bool | None = None, reads: int | None = None,
+                 picks: int | None = None) -> None:
         self.gateway, self.facts = gateway, facts
         # Dan 11-03: in written output one small model call reads what kind of message it is
         # before anything is searched (triage.py), unless code already understands the whole
         # message. BRAIN_READ_FIRST=0 turns it off.
         self.read_first = (os.environ.get("BRAIN_READ_FIRST", "1") != "0"
                            if read_first is None else read_first)
+        # How many reads are made at once, what most say being the reading (triage.READS), and
+        # how many section picks, the sections most choose being read first (one_call.PICKS).
+        self.reads = max(1, reads if reads is not None
+                         else int(os.environ.get("BRAIN_READS", "") or triage.READS))
+        self.picks = max(1, picks if picks is not None
+                         else int(os.environ.get("BRAIN_PICKS", "") or one_call.PICKS))
         # A how-to or policy question answered by one model call from code-found evidence
         # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
         self.howto_one_call = (os.environ.get("BRAIN_HOWTO_ONE_CALL") == "1"
@@ -3013,15 +3020,12 @@ class ChatEngine:
                     pool_scores, pool = one_call.chosen_units(
                         index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
                         per_page=one_call.POOL_PER_PAGE)
-                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
                     with measure("Pick the sections to read by heading"):
-                        picking = await self.gateway.complete(
-                            input=one_call.pick_messages(question, index, pool),
-                            tools=[one_call.PICK_TOOL], budget=budget)
-                    pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
+                        picks = await self._picks(one_call.pick_messages(question, index, pool),
+                                                  budget, trace)
                     chosen = one_call.with_picked(
                         index, vectors, pool_scores, pool,
-                        pick.arguments if pick is not None and pick.name == "pick_units" else None)
+                        one_call.agreed_pick(picks, len(pool)))
                 if searchable and index is not None:
                     with measure("Read the evidence"):
                         offices, found = await asyncio.to_thread(
@@ -3097,7 +3101,7 @@ class ChatEngine:
                         input=one_call.messages(latest, earlier if question != latest else None,
                                                 offices, turn.campus_now.date(), academic,
                                                 calendar, clubs, people, computed, code_parts,
-                                                contacts_by_code=contacts.asks_who(latest)),
+                                                contacts_by_code=True),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -3131,7 +3135,7 @@ class ChatEngine:
                                                     [*offices, *more], turn.campus_now.date(),
                                                     academic, calendar, clubs, people,
                                                     computed, code_parts,
-                                                    contacts_by_code=contacts.asks_who(latest)),
+                                                    contacts_by_code=True),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -3150,10 +3154,12 @@ class ChatEngine:
             written, repeated = one_call.without_repeats(written, code_parts)
             if repeated:
                 trace["oneCallRepeats"] = repeated[:5]
-        # Who to go to: the contacts of the offices the reply sends the student to, as the
-        # directory publishes them, written by code after the model's words.
+        # The contacts of the offices the reply sends the student to, as the directory publishes
+        # them, written by code after the model's words, in every reply (11-03 repeat test: the
+        # writer chose which contacts to give, and the same question got different phone
+        # numbers, emails and rooms, or none, from try to try).
         after: list[str] = []
-        if contacts.asks_who(latest) and offices and written:
+        if offices and written:
             try:
                 to_reach = self._cited_offices(written, offices)
                 said, found_sources, contact_facts = await asyncio.to_thread(
@@ -3763,11 +3769,45 @@ class ChatEngine:
         return (code_route(question, offices, venues, buildings) is not None
                 or shuttle_route(question) is not None)
 
+    async def _picks(self, messages: list[dict[str, Any]], budget: TurnBudget,
+                     trace: dict[str, Any]) -> list[dict[str, Any] | None]:
+        """The section pick made self.picks times at once (one_call.PICKS), each with its own
+        share of what is left of the turn's allowance, counted in the turn's; each pick's
+        arguments, or None for a pick that failed or came back malformed. Every pick failing is
+        the turn's failure, as one pick failing was."""
+        left = max(budget.max_cost_nusd - budget.committed_nusd, 0)
+        shares = [TurnBudget(budget.request_id, budget.deadline, max_calls=1,
+                             max_cost_nusd=left // self.picks) for _ in range(self.picks)]
+
+        async def one(share: TurnBudget) -> dict[str, Any] | GatewayError:
+            try:
+                picking = await self.gateway.complete(input=messages, tools=[one_call.PICK_TOOL],
+                                                      budget=share)
+            except GatewayError as error:
+                return error
+            pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
+            return pick.arguments if pick is not None and pick.name == "pick_units" else {}
+
+        try:
+            outcomes = await asyncio.gather(*(one(share) for share in shares))
+        finally:
+            budget.calls += sum(share.calls for share in shares)
+            budget.committed_nusd += sum(share.committed_nusd for share in shares)
+            budget.max_calls = max(budget.max_calls, budget.calls)
+        errors = [o for o in outcomes if isinstance(o, GatewayError)]
+        if len(errors) == len(outcomes):
+            raise errors[0]
+        if len(outcomes) > 1:
+            trace["oneCallPicks"] = [
+                None if isinstance(o, GatewayError) else o.get("n") for o in outcomes]
+        return [o if isinstance(o, dict) and o else None for o in outcomes]
+
     async def _read(self, turn: Turn, context: Context,
                     trace: dict[str, Any]) -> triage.Reading | None:
-        """What kind of message the latest one is (triage.py), from one small model call with its
-        own call and time allowance; None when the message is long, or the read fails, runs late
-        or comes back malformed, and the turn then goes on exactly as it would without it."""
+        """What kind of message the latest one is (triage.py): what most of the small model calls
+        made at once (self.reads) say, each with its own call and time allowance. None when the
+        message is long, or every read fails, runs late or comes back malformed, and the turn then
+        goes on exactly as it would without it."""
         latest = context.latest_message
         if len(latest) > triage.MAX_READ_CHARS:
             return None
@@ -3775,31 +3815,46 @@ class ChatEngine:
                               if m.role == "user"), None)
         previous_reply = next((m.content for m in reversed(context.recent_messages)
                                if m.role == "assistant"), None)
-        budget = TurnBudget(turn.request_id, time.monotonic() + triage.READ_SECONDS, max_calls=1,
-                            max_cost_nusd=self.max_turn_nusd)
+        messages = triage.read_messages(latest, previous_user, previous_reply)
+        budgets = [TurnBudget(turn.request_id, time.monotonic() + triage.READ_SECONDS,
+                              max_calls=1, max_cost_nusd=self.max_turn_nusd // self.reads)
+                   for _ in range(self.reads)]
         read: dict[str, Any] = {}
         trace["read"] = read
-        try:
-            with measure("Read the message"):
+
+        async def one(budget: TurnBudget) -> triage.Reading | str:
+            try:
                 async with asyncio.timeout(triage.READ_SECONDS):
                     completion = await self.gateway.complete(
-                        input=triage.read_messages(latest, previous_user, previous_reply),
-                        tools=[triage.READ_TOOL], budget=budget)
-        except Exception as error:  # noqa: BLE001 - any failure leaves the turn as it was
-            read["failed"] = getattr(error, "code", type(error).__name__)
-            LOG.warning("brain_read_failed request_id=%s code=%s", turn.request_id,
-                        read["failed"])
-            return None
+                        input=messages, tools=[triage.READ_TOOL], budget=budget)
+            except Exception as error:  # noqa: BLE001 - any failure leaves the turn as it was
+                return str(getattr(error, "code", type(error).__name__))
+            calls = completion.tool_calls
+            reading = (triage.reading_of(calls[0].arguments, latest)
+                       if len(calls) == 1 and calls[0].name == "read_message"
+                       and not completion.text.strip() else None)
+            return "malformed" if reading is None else reading
+
+        try:
+            with measure("Read the message"):
+                outcomes = await asyncio.gather(*(one(budget) for budget in budgets))
         finally:
-            read.update(calls=budget.calls, nusd=budget.committed_nusd)
-        calls = completion.tool_calls
-        reading = (triage.reading_of(calls[0].arguments, latest)
-                   if len(calls) == 1 and calls[0].name == "read_message"
-                   and not completion.text.strip() else None)
+            read.update(calls=sum(b.calls for b in budgets),
+                        nusd=sum(b.committed_nusd for b in budgets))
+        readings = [o for o in outcomes if isinstance(o, triage.Reading)]
+        failed = [o for o in outcomes if isinstance(o, str)]
+        if failed:
+            LOG.warning("brain_read_failed request_id=%s codes=%s", turn.request_id,
+                        ",".join(failed))
+        reading = triage.majority(readings)
         if reading is None:
-            read["failed"] = "malformed"
+            read["failed"] = failed[0] if failed else "malformed"
             return None
         read.update(reading.as_trace())
+        if len(readings) > 1:
+            read["reads"] = [r.as_trace() for r in readings]
+        if failed:
+            read["readsFailed"] = failed
         return reading
 
     async def _read_reply(self, turn: Turn, context: Context, reading: triage.Reading,
