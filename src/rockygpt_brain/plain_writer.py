@@ -26,7 +26,7 @@ _DERIVED_KEYS = frozenset({"subject", "predicate", "day", "date", "value", "sour
                            "current"})
 _DAY_KEYS = frozenset({"schedule", "hours", "periods", "notes", "season", "status", "absence",
                        "dates_not_published", "listed_hours", "closed_gaps", "meal_asked",
-                       "window"})
+                       "window", "meals_not_labelled", "meal_not_served"})
 _OPEN_KEYS = frozenset({"state", "now", "closes", "meal", "meal_ends", "then_meal", "reopens",
                         "reopens_meal", "last_closes", "next_meal", "next_opens"})
 _WEEK_KEYS = frozenset({"schedule", "days", "notes", "season", "dates_not_published"})
@@ -312,6 +312,12 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
     periods = value.get("periods") or []
     if not isinstance(periods, list) or not all(isinstance(p, dict) for p in periods):
         raise CannotSay
+    if value.get("meal_not_served") and value.get("meal_asked"):
+        # The day's meal periods are named, and the one asked is not among them (11-03).
+        reply.say(subject, f"{named} doesn't list {literal(value['meal_asked']).lower()} on "
+                           f"{day}.", sources)
+    # One set of hours with no meal names (meals_not_labelled) is said as it is: it neither
+    # serves nor skips the meal asked (11-03: the Atrium at lunch went unsaid).
     if value.get("meal_asked") and periods and all(p.get("label") for p in periods):
         for period in periods:
             reply.say(subject, f"{literal(period['label'])} at {named} on {day}: "
@@ -386,16 +392,18 @@ def _phones(value: Any) -> str:
     return "; ".join(said)
 
 
-def _rooms(value: Any) -> tuple[list[str], list[str]]:
+def _rooms(value: Any) -> tuple[list[str], list[tuple[str, str]]]:
+    """An office's rooms: the plain ones, and the labelled ones as (label, room)."""
     if not isinstance(value, list) or not value:
         raise CannotSay
-    plain, labelled = [], []
+    plain: list[str] = []
+    labelled: list[tuple[str, str]] = []
     for room in value:
         if isinstance(room, str):
             plain.append(literal(room))
         elif isinstance(room, dict) and set(room) <= {"location", "label"} and isinstance(
                 room.get("location"), str):
-            (labelled.append(f"{literal(room['label'])}: {literal(room['location'])}")
+            (labelled.append((literal(room["label"]), literal(room["location"])))
              if room.get("label") else plain.append(literal(room["location"])))
         else:
             raise CannotSay
@@ -699,8 +707,16 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
             phrase = first in _PLACE_WORDS
             reply.say(subject, (f"{subject} is {where[0].lower()}{where[1:]}." if phrase
                                 else f"{subject} is in {where}."), sources)
-        if labelled:
-            reply.say(subject, f"{'; '.join(labelled)}.", sources)
+        if labelled and plain:
+            reply.say(subject, "; ".join(f"{label}: {room}" for label, room in labelled) + ".",
+                      sources)
+        elif labelled:
+            # Rooms that are all labelled still say whose they are (11-03: "Main Office: C-209;
+            # ASB Office: ASB-513." never named the Career Center).
+            where = "; ".join(f"{room} ({label})" for label, room in labelled)
+            phrase = where.split(" ", 1)[0].casefold() in _PLACE_WORDS
+            reply.say(subject, (f"{subject} is {where[0].lower()}{where[1:]}." if phrase
+                                else f"{subject} is in {where}."), sources)
     elif key == "website":
         if not isinstance(value, str) or citation_url(value) is None:
             raise CannotSay

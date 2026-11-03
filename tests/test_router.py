@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from rockygpt_brain.router import code_route, shuttle_route
+from rockygpt_brain.router import code_route, places_named, shuttle_route
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
@@ -91,3 +91,23 @@ def test_who_to_contact_for_help_with_an_offices_service_label_is_routed_by_code
                       "fields": ["email", "phones", "offices"]}]}
     assert code_route("Who can help me with Canvas quizzes?", offices, VENUES) is None
     assert code_route("Who is the director of the IDC?", offices, VENUES) is None
+
+
+def test_a_number_sign_asks_for_the_number() -> None:
+    # 11-03 practice: "#" stands for "number", so "registrar # ?" asks the Registrar's phone.
+    assert route("registrar # ?") == {"query": "Registrar", "fields": ["phones"]}
+    assert route("financial aid #") == {"query": "Financial Aid", "fields": ["phones"]}
+
+
+def test_the_places_a_message_names_are_found_however_it_is_typed() -> None:
+    assert places_named("counseling center???", OFFICES, VENUES) == [
+        {("office", "Counseling Center")}]
+    # A name a few offices share is one name; a name inside a longer one is not a name.
+    assert places_named("public safety", OFFICES, VENUES) == [
+        {("office", "Public Safety (Emergency)"), ("office", "Public Safety (Non-Emergency)")}]
+    assert places_named("it help desk!!", OFFICES, VENUES) == [{("office", "IT Help Desk")}]
+    assert places_named("birch rn??", OFFICES, VENUES) == [{("venue", "Birch Tree Inn")}]
+    # Mashed keys, a topic with no office of its own, and "its" in lower case name no place.
+    assert places_named("jdjdjsjskskaka", OFFICES, VENUES) == []
+    assert places_named("scholarships", OFFICES, VENUES) == []
+    assert places_named("its fine", OFFICES, VENUES) == []

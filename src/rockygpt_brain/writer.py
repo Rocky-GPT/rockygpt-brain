@@ -111,7 +111,9 @@ give the page for the rest.
   to come today: say they are the next, then how many more leave later today
   (more_later_today), the last of them (last_later_today), and that the posted timetable has the
   full day. times_not_asked means every trip is timed but the
-  student did not ask for the times: never say times are not provided or not published. When
+  student did not ask for the times: never say times are not provided or not published; today
+  say when the next still to come leaves (next_at) and how many are still to come
+  (still_to_come_today). When
   none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When
   none_after is true, nothing is listed after the after time, and the day's last still leaves at

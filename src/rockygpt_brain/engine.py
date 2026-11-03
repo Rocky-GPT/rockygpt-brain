@@ -61,7 +61,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
-from rockygpt_brain.router import code_route, shuttle_route
+from rockygpt_brain.router import code_route, places_named, shuttle_route
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -3311,9 +3311,11 @@ class ChatEngine:
             turn, context, trace)
         if reading is None:
             return await self._campus_answer(turn, request, trace, started=started)
+        reading = await self._read_checked(context, reading, trace)
         # A follow-up keeps the conversation exactly as it is: the read fixes spelling only and
-        # never guesses what "it" or "that" means.
-        question = reading.question if not context.recent_messages else None
+        # never guesses what "it" or "that" means. A limit's own campus question has no "it".
+        question = (reading.question if not context.recent_messages
+                    or reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
         if reading.danger != "none":
             return await self._read_emergency(turn, request, reading, trace, question, started)
         if (done := await self._read_reply(turn, context, reading, trace)) is not None:
@@ -3342,6 +3344,30 @@ class ChatEngine:
             return True
         _, offices, _, venues, _, _ = await self._lists()
         return code_route(latest, offices, venues) is not None or shuttle_route(latest) is not None
+
+    async def _read_checked(self, context: Context, reading: triage.Reading,
+                            trace: dict[str, Any]) -> triage.Reading:
+        """The read, with what code knows for sure put first (11-03 practice). A message the read
+        calls nonsense that names a listed office or venue is a question about it, however it is
+        typed ("registrar # ?"): it goes on in the student's own words. Homework and writing
+        always have the same campus side, tutoring and writing help, asked when the read left
+        the question empty ("solve this: ..." names no subject)."""
+        read = trace.get("read")
+        corrected: triage.Reading | None = None
+        if reading.social == "nonsense" and not reading.question and reading.danger == "none":
+            _, offices, _, venues, _, _ = await self._lists()
+            if places_named(context.latest_message, offices, venues):
+                corrected = replace(reading, social="none",
+                                    question=context.latest_message.strip())
+                why = "names_a_place"
+        elif not reading.question and reading.limit in triage.LIMIT_QUESTIONS:
+            corrected = replace(reading, question=triage.LIMIT_QUESTIONS[reading.limit])
+            why = "limit_question"
+        if corrected is None:
+            return reading
+        if isinstance(read, dict):
+            read["corrected"] = {"why": why, **corrected.as_trace()}
+        return corrected
 
     async def _read(self, turn: Turn, context: Context,
                     trace: dict[str, Any]) -> triage.Reading | None:

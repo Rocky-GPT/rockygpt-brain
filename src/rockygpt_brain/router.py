@@ -47,12 +47,22 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", folded.replace("'", ""))
 
 
-def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
-               venues: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
-    """The graph_lookup arguments for a plain lookup of one listed office or venue, or None."""
-    words = _words(message)
-    if not words or len(words) > 16:
-        return None
+def _asked_words(message: str) -> list[str]:
+    """A question's words, "#" read as the word it stands for: "registrar #" asks its number."""
+    return _words(re.sub(r"#", " number ", message))
+
+
+def places_named(message: str, offices: Sequence[dict[str, Any]] | None,
+                 venues: Sequence[dict[str, Any]] | None) -> list[set[tuple[str, str]]]:
+    """The listed offices and venues a message names, one set per name said (a name a few
+    offices share is one set of them), the longest name first wherever two overlap."""
+    return _named(_asked_words(message), message, offices, venues)[0]
+
+
+def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | None,
+           venues: Sequence[dict[str, Any]] | None,
+           ) -> tuple[list[set[tuple[str, str]]], set[int]]:
+    """Each name said (as a set of the places that share it) and the word positions said."""
     names: dict[tuple[str, ...], set[tuple[str, str]]] = {}
     for kind, listed in (("office", offices or []), ("venue", venues or [])):
         for entry in listed:
@@ -82,6 +92,16 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
             continue
         covered.update(range(start, end))
         said.append(owners)
+    return said, covered
+
+
+def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
+               venues: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """The graph_lookup arguments for a plain lookup of one listed office or venue, or None."""
+    words = _asked_words(message)
+    if not words or len(words) > 16:
+        return None
+    said, covered = _named(words, message, offices, venues)
     # A menu asked of no place ("what's for lunch today?") is every venue's that publishes one,
     # as the lookups read it for the model too.
     menus = {("venue", str(v["name"])) for v in venues or []

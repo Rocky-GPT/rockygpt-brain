@@ -332,3 +332,34 @@ def test_another_days_times_are_every_trip_one_a_line() -> None:
     assert "from_now" not in got and len(got["trips"]) == got["trip_count"] == 9
     assert describe(got).startswith("Shuttles to Garden State Plaza on Tuesday, October 13:\n- ")
     assert describe(got).count("\n- ") == 9
+
+
+def test_whether_a_shuttle_goes_there_today_says_the_next_one_and_how_many_are_left() -> None:
+    # 11-03 practice: "is there a shuttle to the mall" got the day's name and no time at all.
+    got = departures(routes(), TUESDAY, at("10:00 AM"), "all", "Garden State Plaza",
+                     times=False)
+    assert got["times_not_asked"] is True and got["trips"] == []
+    assert (got["next_at"], got["still_to_come_today"]) == ("10:15 AM", 7)
+    assert describe(got) == (
+        "The posted timetable lists 9 shuttles to Garden State Plaza on Tuesday, October 13, the "
+        "first leaving campus at 7:00 AM and the last at 9:40 PM. The next leaves at 10:15 AM (7 "
+        "still to come today).")
+    last = departures(routes(), TUESDAY, at("9:00 PM"), "all", "Garden State Plaza", times=False)
+    assert describe(last).endswith(" The next leaves at 9:40 PM.")
+    # After the last one: none left today, and the next service day's first.
+    gone = departures(routes(), TUESDAY, at("11:00 PM"), "all", "Garden State Plaza",
+                      times=False)
+    assert gone["none_left"] is True and describe(gone) == (
+        "No more shuttles to Garden State Plaza are listed on Tuesday, October 13; the last one "
+        "left at 9:40 PM. The first on Wednesday, October 14 leaves at 7:00 AM.")
+    # Another day has nothing still to come: the count, the first and the last.
+    other = departures(routes(), TUESDAY, None, "all", "Garden State Plaza", times=False)
+    assert "next_at" not in other and describe(other) == (
+        "The posted timetable lists 9 shuttles to Garden State Plaza on Tuesday, October 13, the "
+        "first leaving campus at 7:00 AM and the last at 9:40 PM.")
+    # A ride back is timed by its pickup at the stop.
+    back = departures(routes(), TUESDAY, at("10:00 AM"), "all", "Ramsey Rt 17 Train",
+                      times=False, back=True)
+    assert describe(back) == (
+        "The posted timetable lists 21 rides back to campus from Ramsey Rt 17 Train on Tuesday, "
+        "October 13. The next picks up there at 11:00 AM (14 still to come today).")
