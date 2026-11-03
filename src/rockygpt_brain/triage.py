@@ -32,6 +32,13 @@ NEEDS = ("stress_or_sadness", "lonely", "school_trouble", "professor_trouble",
          "harassment", "food_or_housing", "disability")
 LIMITS = ("none", "clock", "off_topic", "my_records", "homework", "writing", "do_it_for_me",
           "opinion", "prediction", "live_status")
+# The order code says needs in, the same for the same needs whatever order the read lists them:
+# a problem the student names comes before the general feeling it brings, which comes last
+# (11-03 practice: "i think im gonna fail orgo" was read once as school trouble then stress, and
+# once the other way round, so one reply led with grades and the other with stress).
+NEED_ORDER = ("harassment", "health", "alcohol_or_drugs", "food_or_housing",
+              "thinking_of_leaving", "professor_trouble", "school_trouble", "roommate_trouble",
+              "money", "disability", "lonely", "stress_or_sadness")
 
 # A message longer than this is a detailed question, not small talk: it goes on as it is.
 MAX_READ_CHARS = 1_000
@@ -150,11 +157,31 @@ def _plain(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.casefold()))
 
 
+# A question asks something: it ends with a question mark, opens with a question or request word,
+# or says what the student needs or wants. A problem the student shares, told back as a statement,
+# asks nothing (11-03 practice: "My suitemate keeps eating my food and won't talk to me about it."
+# was answered as a campus question, with every contact of three offices, instead of the kind
+# sentence and the offices for roommate trouble).
+_ASKS = re.compile(
+    r"\?\s*$"
+    r"|^\W*(?:how|what|when|where|who|which|why|can|could|should|would|will|is|are|am|do|does|"
+    r"did|may|tell|show|give|list|find|help|explain)\b"
+    r"|\b(?:i|we)\s+(?:\w+\s+)?(?:need|want|would like|am looking for)\b"
+    r"|\b(?:i|we)(?:'d|’d)\s+like\b|\b(?:i'm|i’m|im)\s+looking for\b", re.IGNORECASE)
+
+
+def asks_something(question: str) -> bool:
+    """Whether the read's question asks for something, rather than telling the problem back."""
+    return bool(_ASKS.search(question))
+
+
 def reading_of(arguments: Any, latest: str) -> Reading | None:
     """The read's tool arguments as a Reading, or None when they are not the shape asked for.
 
     The clean question is dropped (the student's own words are used instead) when it adds a
     number the message does not hold, or runs long: it may only fix the words, never add a fact.
+    Beside a problem the student shares, a question that asks nothing is that problem told back,
+    so there is no campus question. The needs are put in NEED_ORDER.
     """
     if not isinstance(arguments, dict):
         return None
@@ -164,10 +191,10 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
         return None
     if not isinstance(needs, list) or not isinstance(question, str):
         return None
-    kept = tuple(dict.fromkeys(n for n in needs if n in NEEDS))
+    kept = tuple(sorted(dict.fromkeys(n for n in needs if n in NEEDS), key=NEED_ORDER.index))
     question = " ".join(question.split())
     if (len(question) > MAX_QUESTION_CHARS or not _digits(question) <= _digits(latest)
-            or not re.search(r"[A-Za-z]", question)):
+            or not re.search(r"[A-Za-z]", question) or (kept and not asks_something(question))):
         question = ""
     elif _plain(question) == _plain(latest):
         question = latest.strip()  # Nothing to fix: the student's own words, as they wrote them.

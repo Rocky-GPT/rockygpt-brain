@@ -465,7 +465,8 @@ def _topping(item: dict[str, Any]) -> bool:
 
 _BOARD_KEYS = frozenset({"board", "on_board", "read_at", "allergens_listed", "allergens_published",
                          "allergens_not_listed",
-                         "meal_asked", "meal_not_on_board", "nutrients_unlisted",
+                         "meal_asked", "meal_not_on_board", "meals_left_out",
+                         "nutrients_unlisted",
                          "allergens_unlabelled", "filter", "matched", "allergen_words",
                          "stations_listed", "sections", "detailed", "details_asked",
                          "only_menu_venue"})
@@ -599,6 +600,13 @@ def _board(subject: str, value: dict[str, Any]) -> list[str]:
         if filter_:
             head = (f"{subject}'s menu board has {value.get('matched')} items that match, "
                     "with their prices:")
+        elif value.get("meals_left_out"):
+            # The sections the board names for another meal are not said, nor counted.
+            others = " and ".join(literal(m).lower() for m in value["meals_left_out"])
+            count = sum(len(section.get("items") or []) for section in sections)
+            head = (f"{lead}{'It' if lead else subject + chr(39) + 's menu board'} lists "
+                    f"{count} items besides its {others} sections. Some of each section, with "
+                    "prices:")
         else:
             head = (f"{lead}{'It' if lead else subject + chr(39) + 's menu board'} lists "
                     f"{value.get('on_board')} items. Some of each section, with prices:")

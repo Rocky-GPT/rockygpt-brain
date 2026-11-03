@@ -10,6 +10,7 @@ from datetime import datetime
 
 import pytest
 
+from rockygpt_brain import one_call
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.events import (
@@ -179,3 +180,40 @@ def test_clubs_found_by_meaning_keep_the_kind_most_of_them_share() -> None:
     mixed = {"d1": ("dance",), "d2": ("music",), "d3": ("games",), "b": ("culture",)}
     assert of_shared_kind(found, mixed) == found
     assert of_shared_kind(found, None) == found
+
+
+def test_what_code_wrote_is_not_said_again_by_the_model() -> None:
+    # 11-03 practice: a film question's answer came twice, code's list and the model's copy of it.
+    code = ("The calendar lists no movie and film events in the next 14 days, Tuesday, November 3 "
+            "to Tuesday, November 17 [1].\n\nLater on the calendar:\n\nThursday, December 3:\n"
+            "- 1 PM to 2 PM: Internal Movie Night [2]")
+    copy = code.replace("movie and film", "movie or film")
+    assert one_call.without_repeats(copy, [code]) == ("", [
+        "The calendar lists no movie or film events in the next 14 days, Tuesday, November 3 to "
+        "Tuesday, November 17 [1].", "Later on the calendar:", "Thursday, December 3:",
+        "- 1 PM to 2 PM: Internal Movie Night [2]"])
+    left, _ = one_call.without_repeats(f"{copy}\n\nTickets are free at the door. [3]", [code])
+    assert left == "Tickets are free at the door. [3]"
+    # A statement that says anything code did not stays.
+    other = "The calendar lists no movie events this week [1]."
+    assert one_call.without_repeats(other, [code]) == (other, [])
+
+
+def test_a_models_copy_of_codes_list_is_dropped_from_the_reply() -> None:
+    copy = ("The club directory lists 3 clubs under Honor Society [1]:\n\n- Alpha Kappa Delta [2]\n"
+            "- Psi Chi Honors Society [3]\n- Sigma Tau Delta [4]\n\n"
+            "Each society's page says who may join. [3]")
+    reply = {"parts": [{"asked": "how to join", "not_on_pages": True, "sections": []}],
+             "text": copy}
+    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
+        {"type": "function_call", "call_id": "w", "name": "write_answer",
+         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "what honor societies are there and how do I join one"}]})
+    engine = ChatEngine(gateway, club_calendar(HONOR), output="written")
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    answer = result.body["answer"]
+    assert answer.count("Alpha Kappa Delta") == 1
+    assert answer.startswith("The club directory lists 3 clubs under Honor Society [1]:")
+    assert "Each society's page says who may join. [3]" in answer
+    assert result.trace is not None and len(result.trace["oneCallRepeats"]) == 4
