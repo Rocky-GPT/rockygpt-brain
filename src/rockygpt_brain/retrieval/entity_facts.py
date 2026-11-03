@@ -1645,6 +1645,9 @@ def menu_board_property(
                 picked = kept_rows
                 value["meals_left_out"] = list(dict.fromkeys(
                     meal_named for meal_named in others.values() if meal_named))
+                # The count said is a fact, so the reply's check finds its number (run 11: the
+                # count code worked out was refused, and the evidence text was sent instead).
+                value["on_board_besides"] = len(kept_rows)
     query = dict(query or {})
     nutrients = [w for w in query.get("contains") or [] if set(w.casefold().split()) & _NUTRIENTS]
     if nutrients:

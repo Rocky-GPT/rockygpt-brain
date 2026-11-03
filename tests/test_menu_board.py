@@ -169,10 +169,13 @@ def test_a_meal_the_board_does_not_name_leaves_out_another_meals_sections() -> N
     # sandwiches and sides beside its lunch food.
     value = board("lunch")
     assert value["meal_not_on_board"] == "lunch" and value["meals_left_out"] == ["breakfast"]
+    # The count said is in the facts, so the reply's number check holds it to them.
+    assert value["on_board_besides"] == 11
     assert [s["section"] for s in value["sections"]] == [
         "Burgers and Sandwiches", "Specialty Sandwiches", "Build Your Own Entree", "Sides"]
     result, _ = ask("What's for lunch at the Atrium?")
     answer = result.body["answer"]
+    assert result.trace["writer"] == {"used": True, "by": "code"}
     assert answer.startswith(
         "The Atrium's menu board doesn't list a separate lunch menu. It lists 11 items besides "
         "its breakfast sections. Some of each section, with prices:\n- The Grill, Burgers and "
