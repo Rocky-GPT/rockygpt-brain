@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 SOCIAL = ("none", "greeting", "how_are_you", "thanks", "goodbye", "okay", "about_bot",
-          "compliment", "complaint", "joke", "laugh", "nonsense")
+          "compliment", "complaint", "joke", "laugh", "nonsense", "upset")
 DANGER = ("none", "self_harm", "medical", "danger", "fire", "other")
 NEEDS = ("stress_or_sadness", "lonely", "school_trouble", "professor_trouble",
          "roommate_trouble", "health", "alcohol_or_drugs", "money", "thinking_of_leaving",
@@ -49,14 +49,15 @@ Fill every field:
 - social: what the message does when it is small talk: greeting (hi, hello, good morning, "anyone
   there?"), how_are_you, thanks, goodbye, okay (ok, got it, cool), about_bot (are you a bot or a
   person, who made you, what can you do, do you know my name), compliment, complaint (an insult,
-  "you're useless", "that's wrong"), joke (asks for a joke), laugh (lol, haha, laughing emoji),
-  nonsense (keyboard mashing, a word or emoji repeated with no meaning, a lone "?"), else none.
+  or "that's wrong" about RockyGPT's last reply), joke (asks for a joke), laugh (lol, haha, a
+  laughing emoji), nonsense (keyboard mashing, a word or emoji repeated with no meaning, a lone
+  "?"), upset (sounds upset or stressed in passing about a practical problem it asks how to fix:
+  something lost, missed, broken or locked), else none.
 - danger: someone may be in danger right now: self_harm (wanting to die, to hurt or kill
-  themselves, in any wording or slang: kms, unalive, "don't want to wake up"), medical (someone
-  unconscious, not breathing, overdosed, having a seizure, badly hurt), danger (a weapon, an
-  attack, being followed or threatened now), fire (fire, smoke, gas), other (an emergency of
-  unclear kind), else none. Figures of speech are none: "this class is killing me", "my parents
-  are gonna kill me", "I'm dead lol".
+  themselves, in any wording or slang, such as kms or unalive), medical (someone unconscious,
+  not breathing, overdosed, having a seizure, badly hurt), danger (a weapon, an attack, being
+  followed or threatened now), fire (fire, smoke, gas), other (an emergency of unclear kind),
+  else none. Figures of speech are none: "this class is killing me", "I'm dead lol".
 - needs: the problems or feelings the student shares, only from the list: stress_or_sadness
   (stress, anxiety, sadness, anger, grief, a breakup, feeling overwhelmed), lonely (lonely,
   homesick, no friends, left out), school_trouble (failing or failed a class or exam, missed an
@@ -64,9 +65,8 @@ Fill every field:
   medicine, a medical question), alcohol_or_drugs, money (can't pay or afford something),
   thinking_of_leaving (dropping out, transferring, quitting school), harassment (harassment,
   discrimination, sexual misconduct), food_or_housing (no food, nowhere to live), disability
-  (accommodations). A practical question with no feeling or problem in it ("how do I make friends
-  here?", "im bored, anything to do?"), or only a passing word of feeling beside one ("ugh im
-  freaking out, where's lost and found?"), has none.
+  (accommodations). A practical question with no feeling or problem in it has none, and so does a
+  passing word of feeling about a practical problem (that is social upset).
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -76,14 +76,15 @@ Fill every field:
   something happen), live_status (weather, closings or cancellations today, how busy a place is,
   whether someone is in right now), else none.
 - question: the campus question in the message, in plain English with spelling and slang fixed,
-  nothing added and nothing left out: "wen r finals" is "When are finals?", "wheres the libary"
-  is "Where is the library?". Keep the student's own names, places, days and numbers, and never
-  add one. Keep "it", "that" and "they" as they are. When a limit has a campus side, write that
-  instead: homework is where to get tutoring in that subject; writing is where to get help
-  writing it; my_records is how to check it; do_it_for_me is how to do it themselves;
-  live_status is how Ramapo announces it; prediction is what the requirement is. Leave it empty
-  when the message asks nothing about Ramapo: small talk, nonsense, off_topic, an opinion with no
-  campus side, and a feeling the student only shares.
+  nothing added and nothing left out: "wen r finals" is "When are finals?". Keep the student's
+  own names, places, days and numbers, and never add one. Keep "it", "that" and "they" as they
+  are. When a limit has a campus side, write that instead: homework is where to get tutoring in
+  that subject; writing is where to get help writing it; my_records is how to check it;
+  do_it_for_me is how to do it themselves; prediction is what the requirement is; live_status is
+  how Ramapo announces closings, when closings are asked. Leave it empty when the message asks
+  nothing about Ramapo: small talk, nonsense, off_topic, the weather, an opinion with no campus
+  side, a feeling the student only shares, and a medical question (what to take, whether
+  something is safe), which is no campus question.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
@@ -185,10 +186,11 @@ SOCIAL_TEXTS = {
     "laugh": "Ha! Glad something made you laugh. What can I help you with?",
     "nonsense": (f"I'm not sure what you mean. I can help with Ramapo things like {CAN_HELP}. "
                  "What would you like to know?"),
+    "upset": "Sorry to hear that! If there's something at Ramapo I can help you find, just ask.",
 }
 # Before a campus answer, only a short word back.
 SOCIAL_LEADS = {"greeting": "Hi!", "how_are_you": "Hi! I'm doing well, thanks for asking.",
-                "thanks": "You're welcome!"}
+                "thanks": "You're welcome!", "upset": "Sorry to hear that!"}
 JOKES = (
     "Why did the student bring a ladder to class? They heard the course was on another level.",
     "Why was the math book sad? It had too many problems.",
