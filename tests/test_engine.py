@@ -2022,6 +2022,37 @@ def test_one_offices_two_lines_under_one_name_are_both_given_not_asked_about() -
     assert office_family(asked) == []
 
 
+def test_a_found_line_brings_the_other_line_under_its_name() -> None:
+    # 11-03 Mac run: "who do I call if my car gets hit in the parking lot" found Public Safety
+    # (Non-Emergency) and gave only 684-7432; the Emergency line is read too, named.
+    names = (("ps-e", "Public Safety (Emergency)", "(201) 555-6666"),
+             ("ps-n", "Public Safety (Non-Emergency)", "(201) 555-7432"))
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": key, "name": name, "kind": "office", "aliases": [],
+                   "links": [{"collection": "contacts", "source_key": "directory",
+                              "source_record_keys": [key]}]} for key, name, _ in names],
+        contacts=[{"id": f"source-{key}", "source_key": "directory", "source_record_key": key,
+                   "name": name, "email": f"{key}@example.edu", "phone": phone,
+                   "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                   "freshness_sla_hours": 24} for key, name, phone in names],
+        now=lambda: NOW)
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Public Safety (Non-Emergency)", "fields": ["email", "phones"]}]})
+    result = answer(ScriptedGateway(lookup, finish()), service=service, messages=[
+        {"role": "user", "content": "who do I call if my car gets hit in the parking lot"}])
+    text = result.body["answer"]
+    assert "+12015557432" in text and "+12015556666" in text
+    assert result.trace is not None
+    assert [e.get("foundBy") for e in result.trace["lookups"]] == [None, "office_sibling"]
+    # A fax number asked of one line stays that line's.
+    fax = completion("graph_lookup", {"requests": [
+        {"query": "Public Safety (Non-Emergency)", "fields": ["phones"], "phone_kind": "fax"}]})
+    faxed = answer(ScriptedGateway(fax, finish()), service=service, messages=[
+        {"role": "user", "content": "public safety non-emergency fax"}])
+    assert faxed.trace is not None and len(faxed.trace["lookups"]) == 1
+
+
 def test_emergency_numbers_keep_the_name_of_each_extra_line() -> None:
     # 11-02: the fire reply listed "(201) 684-6666; (201) 684-7789; (201) 684-7011" with no
     # names, so the director's desk and the TDD line read like more emergency numbers.
