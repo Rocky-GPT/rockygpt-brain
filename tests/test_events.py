@@ -576,3 +576,126 @@ def test_a_place_named_for_its_host_office_says_where_not_what() -> None:
     cleanup = {"title": "Service Opportunity: Campus Cleanup", "tags": ["Volunteering"],
                "organizer": "Ramapo Green", "location": "The Arch"}
     assert _stem("service") in _about(cleanup, {_stem("service")})
+
+
+def test_an_upcoming_event_whose_title_names_all_that_is_asked_by_an_uncommon_word() -> None:
+    from rockygpt_brain.events import (
+        heading_words,
+        listing_words,
+        related_events,
+        related_text,
+        related_topic,
+    )
+    # What is asked about, not how it is asked: "info", "training", "food" (a menu's word).
+    assert related_topic("Any info on Narcan training?") == {"narcan"}
+    assert related_topic("is there kosher food on campus") == {"kosher"}
+    december = {**event("You Can Narcan!", "26", 12, []),
+                "starts_at": "2026-12-01T12:00:00-05:00", "date": "Dec 1"}
+    values = [event("You Can Narcan!", "26", 12, ["Wellness"]),
+              event("You Can Narcan!", "28", 12, ["Wellness"]), december,
+              event("Narcan Ninjas vs. Lehman", "27", 19, ["Athletics"]),
+              event("Library Open House", "27", 15, []),
+              event("Grab and Go Breakfast", "29", 9, []),
+              *({**event(f"Social {n}", "30", 18, []), "description": "Grab a snack."}
+                for n in range(4))]
+    listings = listing_words(values)
+    headings = heading_words([["health", "Naloxone (Narcan)"],
+                              *(["library", f"Library {n}"] for n in range(4))])
+    # The first date of the event the title names; not its later dates, one past the next 30
+    # days, or a game whose team happens to share the word.
+    (found,) = related_events(values, {"narcan"}, WEDNESDAY, listings, headings)
+    assert (found["title"], found["date"]) == ("You Can Narcan!", "Oct 26")
+    # Every word asked must be in the title, and a word many pages' sections ("library") or many
+    # listings ("grab a snack") say ties no one event to the question.
+    assert related_events(values, {"narcan", "dorm"}, WEDNESDAY, listings, headings) == []
+    assert related_events(values, {"librari"}, WEDNESDAY, listings, headings) == []
+    assert related_events(values, {"grab"}, WEDNESDAY, listings, headings) == []
+    assert related_events(values, set(), WEDNESDAY, listings, headings) == []
+    assert related_text([(3, found)], WEDNESDAY) == (
+        "Coming up on the campus calendar:\n\nMonday, October 26:\n"
+        "- 12 PM: You Can Narcan! (CSI), at SC [3]")
+
+
+def narcan_calendar() -> MemoryEntityFacts:
+    """A calendar with a Narcan training and a library open house, beside a meaning index whose
+    page sections say "library" four times and "narcan" once."""
+    import array
+
+    from rockygpt_brain.retrieval.meaning import MeaningIndex
+
+    def row(key: str, title: str, day: str, hour: int) -> dict[str, Any]:
+        return {"id": f"row-{key}", "source_key": "archway-events",
+                "source_record_key": f"Oct {day}:{title}", "title": title,
+                "date_label": f"Oct {day}", "starts_at": f"2026-10-{day}T{hour:02d}:00:00-04:00",
+                "start_time": f"{hour % 12 or 12} PM", "end_time": None,
+                "organizer": "Health Services", "collected_at": WEDNESDAY,
+                "event_url": f"https://archway.ramapo.edu/rsvp_boot?id={key}",
+                "freshness_sla_hours": 36, "listing": {"location": "Student Center (SC)"}}
+
+    class Indexed(MemoryEntityFacts):
+        def meaning_index(self) -> MeaningIndex | None:
+            labels = [["health", "Naloxone (Narcan)"],
+                      *(["library", f"Library {n}"] for n in range(4))]
+            return MeaningIndex({"dataset_version": "release-1", "identity_hash": "identities-1",
+                                 "model": "m", "dimensions": 2, "owner": [], "labels": labels,
+                                 "units": [[f"page-{n}", "0", []] for n in range(len(labels))]},
+                                array.array("f"))
+
+    rows = [row("n", "You Can Narcan!", "26", 12), row("l", "Library Open House", "27", 15)]
+    return Indexed(
+        dataset_version="release-1", identity_hash="identities-1", contacts=[],
+        entities=[{"id": f"ev-{r['id']}", "name": f"{r['title']} ({r['starts_at'][:10]})",
+                   "kind": "event", "aliases": [],
+                   "links": [{"collection": "events", "source_key": "archway-events",
+                              "source_record_keys": [r["source_record_key"]]}]} for r in rows],
+        records={"events": rows}, now=lambda: WEDNESDAY)
+
+
+def test_a_reply_the_model_wrote_is_followed_by_the_event_its_question_names() -> None:
+    from rockygpt_brain.engine import ChatResult
+    from test_engine import finish
+
+    def ask(message: str) -> Any:
+        request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+        engine = ChatEngine(ScriptedGateway(finish("unsupported")), narcan_calendar(),
+                            output="written")
+        return asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+
+    # 11-03 practice: "Anything about Narcan?" asks for no event, so the calendar was not read
+    # and the Narcan training was missed.
+    result = ask("Anything about Narcan?")
+    assert result.body["answer"].endswith(
+        "\n\nComing up on the campus calendar:\n\nMonday, October 26:\n"
+        "- 12 PM: You Can Narcan! (Health Services), at Student Center (SC) [1]\n\n"
+        "Sources: [1](https://archway.ramapo.edu/rsvp_boot?id=n)")
+    assert result.body["citations"] == [{"id": "event-1", "title": "You Can Narcan!",
+                                         "url": "https://archway.ramapo.edu/rsvp_boot?id=n"}]
+    assert result.trace is not None and result.trace["relatedEvents"] == {
+        "words": ["narcan"], "events": ["You Can Narcan!"]}
+    # "Library" is said by four of the pages' sections: no library event follows a library reply.
+    assert "calendar" not in ask("What are the library hours?").body["answer"]
+    # A question about events has read the calendar itself; its events are not said twice.
+    listed = ask("any narcan events?").body["answer"]
+    assert listed.count("You Can Narcan!") == 1 and "Coming up" not in listed
+
+    # A reply that already names the event, or that code wrote, stays as it is; another reply's
+    # sources are kept and the event is numbered after them.
+    request = ChatRequest.model_validate(
+        {"messages": [{"role": "user", "content": "Anything about Narcan?"}]})
+    engine = ChatEngine(ScriptedGateway(), narcan_calendar(), output="written")
+    turn = intake(request, now=WEDNESDAY)
+
+    def reply(text: str) -> ChatResult:
+        return ChatResult(200, {"answer": text, "status": "answered", "citations": [],
+                                "requestId": "r"})
+    named = reply("You Can Narcan! is on October 26. [1]\n\nSources: [1](https://a.edu/n)")
+    assert asyncio.run(engine._with_related_events(turn, request, named,
+                                                   {"decidedBy": "model"})) is named
+    pages = reply("Public Safety officers carry naloxone. [1]\n\nSources: [1](https://a.edu/ps)")
+    assert asyncio.run(engine._with_related_events(turn, request, pages,
+                                                   {"decidedBy": "code"})) is pages
+    added = asyncio.run(engine._with_related_events(turn, request, pages,
+                                                    {"decidedBy": "one_call"}))
+    assert added.body["answer"].endswith(
+        "at Student Center (SC) [2]\n\nSources: [1](https://a.edu/ps) "
+        "[2](https://archway.ramapo.edu/rsvp_boot?id=n)")
