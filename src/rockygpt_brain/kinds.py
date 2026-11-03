@@ -28,6 +28,10 @@ class Kind:
     holds: str
     # The words and phrases students call the kind itself (each a whole word or phrase).
     named: tuple[str, ...]
+    # Narrower kinds a student asking for this one also wants listed: a study abroad fair is an
+    # international event, a tutoring session an academic one. The model gives each card the
+    # kinds that fit it, and a kind asked lists these too (with_included).
+    includes: tuple[str, ...] = ()
 
 
 # Words that name a stage performance of any kind ("any shows this weekend").
@@ -64,7 +68,7 @@ KINDS: tuple[Kind, ...] = (
     Kind("international", "international",
          "international students and exchange students, global issues and world affairs, "
          "International Education Week",
-         ("international", "global")),
+         ("international", "global"), includes=("abroad",)),
     Kind("abroad", "study abroad",
          "studying in another country: study abroad programs and exchanges, their info sessions "
          "and fairs, and courses or trips abroad. A trip within the United States or its "
@@ -97,11 +101,16 @@ KINDS: tuple[Kind, ...] = (
          "leadership training, programs, conferences and retreats, and developing student "
          "leaders",
          ("leadership", "leader", "leaders")),
-    Kind("academic", "study help and academic",
-         "tutoring, study sessions and study skills, academic workshops, advising and "
-         "registration help, research presentations, academic honors",
-         ("academic", "academics", "study", "studying", "tutoring", "tutor", "tutors",
-          "homework", "study session", "study sessions")),
+    Kind("academic", "academic",
+         "academic subjects and achievement: lectures, talks and discussions on academic "
+         "subjects, research presentations, advising and registration help, academic honors, "
+         "honor societies and their inductions, and clubs for an academic subject",
+         ("academic", "academics"), includes=("study",)),
+    Kind("study", "study help",
+         "help with classes and studying: tutoring, study sessions, study halls and study "
+         "groups, writing, research and citation help, study skills and exam prep",
+         ("study", "studying", "tutoring", "tutor", "tutors", "homework", "study session",
+          "study sessions", "study group", "study groups", "study hall", "study halls")),
     Kind("service", "volunteer and service",
          "community service, volunteering, donation drives, charity events and fundraisers, "
          "cleanups",
@@ -154,6 +163,18 @@ KINDS: tuple[Kind, ...] = (
 )
 
 BY_KEY = {kind.key: kind for kind in KINDS}
+
+
+def with_included(keys: set[str] | frozenset[str]) -> frozenset[str]:
+    """The kinds asked and the narrower kinds each includes (Kind.includes), for finding the
+    listings: "international events" lists the study abroad sessions too (11-03 practice: once
+    a study abroad fair was judged by what happens at it, not by its international center
+    host, "events for international students" lost them)."""
+    found = set(keys)
+    for key in keys:
+        found |= set(BY_KEY[key].includes) if key in BY_KEY else set()
+    return frozenset(found)
+
 
 # How the model gives each card its kinds (scripts/build_meaning_index.py), before the list.
 RULES = (

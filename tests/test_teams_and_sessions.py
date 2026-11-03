@@ -152,28 +152,90 @@ def test_a_club_is_given_kinds_by_its_main_purpose() -> None:
     assert len(KINDS_VERSION) == 16
 
 
-def test_only_the_nearest_clubs_are_said_by_code_as_the_nearest() -> None:
-    # 11-03 practice: "is there a club for comic books" was answered "Yes" from the nearest clubs.
-    from rockygpt_brain.events import nearest_clubs_text
-    clubs = [{"n": 2, "name": "Geek and Nerd Culture", "category": "Special Interest"},
-             {"n": 3, "name": "The Fantasy Film and Novel Society"}]
-    assert nearest_clubs_text(clubs, "is there a club for comic books") == (
-        "The club directory lists no club for comic books by its name or entry. The nearest, by "
-        "what their entries describe: Geek and Nerd Culture (Special Interest) [2]; The Fantasy "
-        "Film and Novel Society [3].")
-    assert nearest_clubs_text(clubs[:1], "Is there a club for anime and manga?") == (
-        "The club directory lists no club for anime and manga by its name or entry. The nearest, "
-        "by what its entry describes: Geek and Nerd Culture (Special Interest) [2].")
-    # A club named for a word asked, or whose entry says what was asked, is the model's to
-    # describe (Geek and Nerd Culture says it was the Sci Fi and Comic Book Club); with none,
-    # nothing is cited.
-    assert nearest_clubs_text([{"n": 2, "name": "Comic Book Club"}],
-                              "is there a club for comic books") is None
-    was = {**clubs[0], "mission": "[PREVIOUSLY SCI FI AND COMIC BOOK CLUB] Looking to join?"}
-    assert nearest_clubs_text([was], "is there a club for comic books") is None
-    assert nearest_clubs_text([], "is there a club for comic books") is None
-    assert [f["fact"] for f in club_answers([was], "is there a club for comic books", False, 9)
-            if "nearest" in f["fact"]] == []
+def test_clubs_found_by_meaning_are_the_replys_to_judge_with_what_their_names_and_entries_say(
+        ) -> None:
+    # 11-03 practice: code's "lists no club for space" was wrong (the Astronomy Club is one), and
+    # "is there an anime club" never said that no club is named for anime.
+    geek = {"n": 2, "name": "Geek and Nerd Culture", "category": "Student Organization",
+            "mission": "[PREVIOUSLY SCI FI AND COMIC BOOK CLUB] Fans of games, anime and films?"}
+    stars = {"n": 3, "name": "Astronomy Club", "category": "Student Organization",
+             "mission": "Learn about the universe, the stars and constellations."}
+    facts = [f["fact"] for f in club_answers([geek, stars], "is there an anime club", False, 9)]
+    assert facts[0] == ("No club in the directory has anime in its name; the entry of Geek and "
+                        "Nerd Culture [2] says anime; the other clubs given are only the nearest "
+                        "by meaning.")
+    facts = [f["fact"] for f in club_answers(
+        [stars], "is there a club for people interested in space", False, 9)]
+    assert facts[0] == ("No club in the directory has space in its name; the clubs given are "
+                        "only the nearest by meaning.")
+    # The topic in the question's own words.
+    facts = [f["fact"] for f in club_answers([stars], "is there a martial arts club", False, 9)]
+    assert facts[0].startswith("No club in the directory has martial arts in its name")
+    # A word asked in a club's name: the reply judges whether it is what was asked.
+    midnight = {"n": 4, "name": "The Midnight Book Club", "category": "Student Organization"}
+    assert not [f for f in club_answers([geek, midnight], "is there a club for comic books",
+                                        False, 9) if "nearest" in f["fact"]]
+
+
+def test_the_college_and_a_name_inside_a_longer_name_are_no_club_a_page_names() -> None:
+    from rockygpt_brain.events import clubs_on_pages
+    directory = [{"name": "Ramapo College of New Jersey"}, {"name": "Phi Alpha"},
+                 {"name": "Phi Alpha Delta"}, {"name": "Order of Omega"}]
+    page = ("Fraternity and Sorority Life at Ramapo College of New Jersey: Phi Alpha Delta is a "
+            "pre-law fraternity, and members may join the Order of Omega.")
+    assert [c["name"] for c in clubs_on_pages(directory, page)] == [
+        "Phi Alpha Delta", "Order of Omega"]
+    assert [c["name"] for c in clubs_on_pages(directory, "Phi Alpha is for social work.")] == [
+        "Phi Alpha"]
+
+
+def test_a_description_saying_what_was_asked_counts_when_its_card_is_clearly_near() -> None:
+    # 11-03 practice: the cookie art and magnet decorating nights say "decorate" only in their
+    # descriptions and sat two spreads above the median card; the stand-out bar (three) dropped
+    # them. A birdwatching outing that provides books sat 1.2 spreads up for "book clubs".
+    from rockygpt_brain.events import rank_events
+    from test_kinds import END, START, event
+    calendar = [event(1, "Gingerbread Decorating", 5),
+                event(2, "Magnetic Moments", 6, "Make your own magnet to decorate."),
+                event(3, "Birdwatching", 7, "Binoculars and books will be provided."),
+                event(4, "Silent Book Club", 8)]
+    # Every other card: median 0.345, one spread 0.037; the stand-out bar is 0.456.
+    base = {f"x{n}": 0.30 + (n % 10) / 100 for n in range(40)}
+    decorating = base | {"e1": 0.60, "e2": 0.43, "e3": 0.30, "e4": 0.31}  # Magnets: 2.3 up.
+    ranked, _ = rank_events(calendar, "any decorating events", START, END, decorating, calendar)
+    assert [v["title"] for v in ranked] == ["Gingerbread Decorating", "Magnetic Moments"]
+    books = base | {"e1": 0.30, "e2": 0.31, "e3": 0.39, "e4": 0.62}  # Birdwatching: 1.2 up.
+    ranked, _ = rank_events(calendar, "any book clubs meeting", START, END, books, calendar)
+    assert [v["title"] for v in ranked] == ["Silent Book Club"]
+
+
+def test_events_for_commuters_names_commuter_affairs() -> None:
+    from rockygpt_brain.events import asked_topic, names_host
+    assert names_host("Commuter Affairs", asked_topic("any events for commuters"))
+    assert not names_host("Health Promotion", asked_topic("any health events"))
+    assert not names_host("College Programming Board", asked_topic("any board game events"))
+
+
+def test_a_kind_asked_lists_the_narrower_kinds_it_includes() -> None:
+    # 11-03 practice: "events for international students" lost the study abroad sessions, and
+    # "any study sessions" listed an honor society induction and a celebration.
+    from rockygpt_brain.events import rank_events
+    from rockygpt_brain.kinds import with_included
+    from test_kinds import END, START, event
+    assert with_included({"international"}) == {"international", "abroad"}
+    assert with_included({"study"}) == {"study"}
+    calendar = [event(1, "International Education Week", 5), event(2, "Study in Prague", 6),
+                event(3, "Writing Center Hours", 7), event(4, "Honor Society Induction", 8)]
+    kinds = {"e1": ["international"], "e2": ["abroad"], "e3": ["study"], "e4": ["academic"]}
+    ranked, _ = rank_events(calendar, "any events for international students", START, END,
+                            None, calendar, kinds=kinds)
+    assert [v["title"] for v in ranked] == ["International Education Week", "Study in Prague"]
+    ranked, _ = rank_events(calendar, "any study sessions", START, END, None, calendar,
+                            kinds=kinds)
+    assert [v["title"] for v in ranked] == ["Writing Center Hours"]
+    ranked, _ = rank_events(calendar, "any academic events", START, END, None, calendar,
+                            kinds=kinds)
+    assert [v["title"] for v in ranked] == ["Writing Center Hours", "Honor Society Induction"]
 
 
 def test_a_team_question_finds_no_event_by_meaning_alone() -> None:
@@ -188,3 +250,22 @@ def test_a_team_question_finds_no_event_by_meaning_alone() -> None:
     assert matched is False
     near, _ = rank_events(calendar, "anything like hockey", START, END, scores, calendar)
     assert [v["title"] for v in near] == ["Bills VS Vikings"]  # Not a team question.
+
+
+def test_a_kind_of_club_lists_the_clubs_of_the_kinds_it_includes() -> None:
+    from rockygpt_brain.engine import ChatEngine
+    from test_kinds import club_calendar
+
+    class Index:
+        kinds = {"c0": ("international",), "c1": ("abroad",), "c2": ("games",)}
+
+    names = [("International Student Organization", "Student Organization"),
+             ("Study Abroad Ambassadors", "Student Organization"),
+             ("Chess Club", "Student Organization")]
+    engine = ChatEngine(ScriptedGateway(), club_calendar(names), output="written")
+    found = engine._clubs_by_kind(Index(), "are there any international clubs", 0)  # type: ignore[arg-type]
+    assert found is not None
+    clubs, _, said = found
+    assert [c["name"] for c in clubs] == ["International Student Organization",
+                                          "Study Abroad Ambassadors"]
+    assert said == "international"
