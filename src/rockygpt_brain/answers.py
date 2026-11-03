@@ -94,6 +94,8 @@ def _value_text(key: str, value: Any) -> str:
             for item in value)
     if key == "menu" and isinstance(value, dict) and isinstance(value.get("meals"), list):
         return _menu_text(value)
+    if key == "menu" and isinstance(value, dict) and isinstance(value.get("sections"), list):
+        return _board_text(value)
     if key == "procedures" and isinstance(value, dict) and isinstance(value.get("text"), str):
         # The code's own text names the section, starts it and links its page; the writer is
         # given the whole section. Three offices' sections in full would not fit one reply.
@@ -134,6 +136,37 @@ def _menu_text(value: dict[str, Any]) -> str:
             for station in meal["stations"])
         meals.append(f"{literal(meal['meal'])}. {stations}")
     return f"{literal(value.get('date', ''))}. " + " ".join(meals)
+
+
+def _board_price(item: dict[str, Any]) -> str:
+    prices = [" ".join(literal(p[key]) for key in ("size", "price", "calories") if p.get(key))
+              for p in item.get("prices") or [] if isinstance(p, dict)]
+    if item.get("calories"):
+        prices.append(literal(item["calories"]))
+    return ", ".join(prices)
+
+
+def _board_text(value: dict[str, Any]) -> str:
+    """A menu board as read from the venue's menu file: each section's items with their prices."""
+    head = f"Menu board: {literal(value.get('board', ''))}"
+    if value.get("filter") is not None and not value["sections"]:
+        listed = ", ".join(literal(s) for s in value.get("stations_listed", []))
+        return f"{head}. No item on the board matches" + (
+            f"; its stations are {listed}" if listed else "")
+    parts = []
+    for section in value["sections"]:
+        where = ", ".join(literal(n) for n in (section.get("station"), section.get("section"))
+                          if n)
+        items = []
+        for item in section.get("items", []):
+            text = literal(item.get("name", ""))
+            notes = [n for n in (_board_price(item), literal(item["marked"])
+                                 if item.get("marked") else "",
+                                 f"contains {literal(item['contains'])}"
+                                 if item.get("contains") else "") if n]
+            items.append(f"{text} ({'; '.join(notes)})" if notes else text)
+        parts.append(f"{where}: {', '.join(items)}")
+    return f"{head}. " + ". ".join(parts)
 
 
 _WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")

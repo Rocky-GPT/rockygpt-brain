@@ -342,6 +342,161 @@ def _topping(item: dict[str, Any]) -> bool:
     return not isinstance(calories, int) or calories < TOPPING_CALORIES
 
 
+_BOARD_KEYS = frozenset({"board", "on_board", "read_at", "allergens_listed", "allergens_published",
+                         "allergens_not_listed",
+                         "meal_asked", "meal_not_on_board", "nutrients_unlisted",
+                         "allergens_unlabelled", "filter", "matched", "allergen_words",
+                         "stations_listed", "sections", "detailed", "details_asked",
+                         "only_menu_venue"})
+_BOARD_ITEM_KEYS = frozenset({"name", "prices", "calories", "marked", "contains", "description",
+                              "options", "options_matched"})
+
+
+def _board_prices(item: dict[str, Any]) -> str:
+    """An item's prices as the board prints them: '$9.99, 540 cal' or '6" $9.99, 12" $11.99'."""
+    said = []
+    for price in item.get("prices") or []:
+        if not isinstance(price, dict):
+            raise CannotSay
+        said.append(" ".join(literal(price[key]) for key in ("size", "price", "calories")
+                             if price.get(key)))
+    if item.get("calories"):
+        said.append(literal(item["calories"]))
+    return "; ".join(s for s in said if s)
+
+
+def _board_line(item: dict[str, Any]) -> str:
+    """A board item in a list: its name and its price."""
+    _known(item, _BOARD_ITEM_KEYS)
+    prices = [literal(p["price"]) for p in item.get("prices") or []
+              if isinstance(p, dict) and p.get("price")]
+    notes = [" / ".join(prices)] if prices else []
+    notes += [literal(o) for o in item.get("options_matched") or []]
+    if item.get("marked"):
+        notes.append(literal(item["marked"]))
+    return literal(item["name"]) + (f" ({', '.join(notes)})" if notes else "")
+
+
+def _board_detail(item: dict[str, Any], where: str, allergens: bool, marks: bool = True) -> str:
+    """One board item in full: where it is, its prices and calories, its description, the
+    options matched (or all of a build-your-own item's), and what it says it contains."""
+    _known(item, _BOARD_ITEM_KEYS)
+    said = f"- {literal(item['name'])} ({where})"
+    prices = _board_prices(item)
+    said += f": {prices}." if prices else "."
+    if item.get("description"):
+        described = literal(item["description"])
+        said += f" {described[:1].upper()}{described[1:]}."
+    if item.get("marked") and marks:
+        said += f" The board marks it {literal(item['marked'])}."
+    options = [o for o in item.get("options") or [] if isinstance(o, dict)]
+    matched = item.get("options_matched")
+    if matched:
+        options = [o for o in options if o.get("name") in matched]
+    if options:
+        groups: dict[str, list[str]] = {}
+        for option in options:
+            extra = [literal(option[k]) for k in ("price", "calories") if option.get(k)]
+            extra += [" ".join(literal(p[k]) for k in ("size", "price") if p.get(k))
+                      for p in option.get("prices") or [] if isinstance(p, dict)]
+            groups.setdefault(literal(option.get("group") or "Choices"), []).append(
+                literal(option["name"]) + (f" ({', '.join(extra)})" if extra else ""))
+        said += " " + "; ".join(f"{group}: {', '.join(names)}"
+                                for group, names in groups.items()) + "."
+    if item.get("contains"):
+        said += f" Contains {literal(item['contains'])}."
+    elif allergens:
+        said += " The board lists no allergens for it."
+    return said
+
+
+def _board(subject: str, value: dict[str, Any]) -> list[str]:
+    """A venue's menu board (no date): its sections with their items and prices; the items a
+    student named in full; a diet or allergen list by the board's own marks and words."""
+    _known(value, _BOARD_KEYS)
+    sections = value.get("sections")
+    if not isinstance(sections, list) or not isinstance(value.get("board"), str):
+        raise CannotSay
+    filter_ = value.get("filter") or {}
+    if not isinstance(filter_, dict):
+        raise CannotSay
+    said: list[str] = []
+    lead = (f"{subject}'s menu board doesn't list a separate "
+            f"{literal(value['meal_not_on_board']).lower()} menu. "
+            if value.get("meal_not_on_board") else "")
+    unchecked = value.get("allergens_not_listed") or 0
+    free_of = filter_.get("without_allergens") or []
+    if filter_ and not value.get("matched") and free_of and not (
+            filter_.get("contains") or filter_.get("diet")):
+        words = " or ".join(literal(a) for a in free_of)
+        return [f"None of the {value.get('allergens_listed')} items on {subject}'s menu board that "
+                f"list allergens is free of {words}."
+                + (f" The other {unchecked} items list no allergens, so they can't be checked."
+                   if unchecked > 0 else "")]
+    if filter_ and not value.get("matched"):
+        stations = ", ".join(literal(s) for s in value.get("stations_listed") or [])
+        foods = " or ".join(literal(f) for f in filter_.get("contains") or [])
+        return [*said, f"Nothing on {subject}'s menu board matches"
+                + (f" {foods}" if foods else "")
+                + (f"; its stations are {stations}." if stations else ".")]
+    if not sections and value.get("allergens_unlabelled") and not filter_:
+        labels = [literal(a) for a in value.get("allergens_published") or []]
+        if not labels:
+            raise CannotSay
+        return [*said, f"{subject}'s menu board lists allergens for "
+                       f"{_count(value.get('allergens_listed') or 0)} of its "
+                       f"{value.get('on_board')} items: {', '.join(labels)}."]
+    if not sections:
+        raise CannotSay
+
+    def where(section: dict[str, Any]) -> str:
+        names = [literal(n) for n in (section.get("station"), section.get("section")) if n]
+        if not names:
+            raise CannotSay
+        return ", ".join(names)
+
+    allergens = bool(filter_.get("with_allergens") or filter_.get("without_allergens")
+                     or "allergens" in (value.get("details_asked") or []))
+    if value.get("detailed"):
+        if filter_.get("contains"):
+            foods = " or ".join(literal(f) for f in filter_["contains"])
+            head = f"{subject}'s menu board items with {foods}:"
+        elif filter_.get("diet"):
+            head = (f"{subject}'s menu board marks {_count(value['matched'])} items "
+                    f"{'vegan' if filter_['diet'] == 'vegan' else 'vegan or vegetarian'}:")
+        elif filter_:
+            head = f"{subject}'s menu board items that match:"
+        elif value.get("meal_asked"):
+            head = (f"{subject}'s menu board, {literal(value['meal_asked']).lower()} items:")
+        else:
+            raise CannotSay
+        lines = [_board_detail(item, where(section), allergens,
+                               filter_.get("diet") != "vegan")
+                 for section in sections for item in section.get("items") or []]
+        said.append(lead + head + "\n" + "\n".join(lines))
+    else:
+        if filter_:
+            head = (f"{subject}'s menu board has {value.get('matched')} items that match, "
+                    "with their prices:")
+        else:
+            head = (f"{lead}{'It' if lead else subject + chr(39) + 's menu board'} lists "
+                    f"{value.get('on_board')} items. Some of each section, with prices:")
+        lines = []
+        for section in sections:
+            items = [_board_line(item) for item in section.get("items") or []]
+            if len(items) > MENU_ITEMS:
+                items = [*items[:MENU_ITEMS], f"and {_count(len(items) - MENU_ITEMS)} more"]
+            lines.append(f"- {where(section)}: {', '.join(items)}")
+        said.append(head + "\n" + "\n".join(lines) + (
+            "\n\nAsk me about any item for its description, calories and the allergens the "
+            "board lists." if not filter_ else ""))
+    if allergens and value.get("allergens_listed") is not None:
+        if unchecked > 0 and (filter_.get("without_allergens") or filter_.get("with_allergens")):
+            said.append(f"The board lists allergens for only {value['allergens_listed']} of its "
+                        f"{value.get('on_board')} items, so the others can't be checked.")
+    return said
+
+
 def _menu(subject: str, value: dict[str, Any]) -> list[str]:
     """A date's menu: each meal's stations, one line each, with their first few dishes. Items the
     student named (a filter's foods) are all said, with their details."""
@@ -484,7 +639,7 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
     elif key == "prefers_email" and value is True:
         reply.say(subject, f"{subject} says it prefers email.", sources)
     elif key == "menu" and isinstance(value, dict):
-        for sentence in _menu(subject, value):
+        for sentence in (_board(subject, value) if "board" in value else _menu(subject, value)):
             reply.say(subject, sentence, sources)
     else:
         raise CannotSay
