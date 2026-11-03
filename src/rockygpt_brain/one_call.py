@@ -160,9 +160,15 @@ _A_DETAIL = re.compile(
     r"address|today|tonight|tomorrow|now)\b")
 
 
+# "Where's" is "where is": the read writes its clean question in everyday English, and a place
+# asked about that way goes to the lookups like "where is" does (11-03 check set: "Where's the
+# Bradley Center?" went to the how-to pages, which have no section saying where it is).
+_WHERE_IS = re.compile(r"\bwhere(?:'|’)?s\b")
+
+
 def routes_here(message: str) -> bool:
     """Whether a message is a how-to, policy or what-is question for the one-call path."""
-    text = message.casefold()
+    text = _WHERE_IS.sub("where is", message.casefold())
     if _WHAT_IS.search(text) and not _A_DETAIL.search(text):
         return True
     if _SERVICES.search(text) and not _MEAL_PLAN.search(text) and not asks_academics(text) \

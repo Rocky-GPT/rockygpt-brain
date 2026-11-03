@@ -342,3 +342,28 @@ def test_the_commonest_self_harm_slang_gets_the_self_harm_text(message: str) -> 
 ])
 def test_kilometers_are_not_self_harm_slang(message: str) -> None:
     assert read(message) == CONTINUE
+
+
+@pytest.mark.parametrize("message", [
+    "failed my quiz and my mom is going to kill me",
+    "if i get a C my dad will kill me",
+    "coach is gonna kill us if we lose",
+])
+def test_going_to_kill_me_keeps_the_danger_text_and_is_also_answered(message: str) -> None:
+    # Most often a figure of speech, and a real threat is worded the same way: the danger text
+    # still comes first, and the rest of the message is read and answered beside it.
+    result = read(message)
+    assert result.kind == "safety" and result.situation == "danger"
+    assert result.message == SAFETY_TEXTS["danger"] and result.also_answer is True
+
+
+@pytest.mark.parametrize("message", [
+    "he has a knife and says he is going to kill me",
+    "someone broke into my room and is going to kill me",
+    "my ex is going to hurt me",
+    "im going to kill myself",
+    "im going to kill him",
+])
+def test_a_threat_with_anything_more_is_the_floors_reply_alone(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.also_answer is False

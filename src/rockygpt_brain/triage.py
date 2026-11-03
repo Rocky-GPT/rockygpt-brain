@@ -69,7 +69,9 @@ Fill every field:
   discrimination, sexual misconduct), food_or_housing (no food, nowhere to live), disability
   (accommodations). A practical question with no feeling or problem in it has none, and so does a
   passing word of feeling about a practical problem (that is social upset). A question about a
-  cost, a rule or a deadline is no need either.
+  cost, a rule or a deadline is no need either. A need is only a problem the student says they
+  have, never one guessed from what they ask for: wanting something free or cheap, a job or a
+  discount is a practical question.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -87,7 +89,8 @@ Fill every field:
   are. When a limit has a campus side, write that instead: homework is where to get tutoring in
   that subject; writing is where to get help writing it; my_records is how to check it;
   do_it_for_me is how to do it themselves; opinion is what the college publishes about the
-  choices named; prediction is what the requirement is; live_status is how Ramapo announces
+  choices named, and when the choice is about their own studies or career, also who helps
+  students decide; prediction is what the requirement is; live_status is how Ramapo announces
   closings, when closings are asked. Homework and writing always have a campus side. Leave it
   empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
   current time or date, the weather, an opinion with no campus side, a feeling the student only
@@ -199,6 +202,17 @@ SOCIAL_TEXTS = {
 # Before a campus answer, only a short word back.
 SOCIAL_LEADS = {"greeting": "Hi!", "how_are_you": "Hi! I'm doing well, thanks for asking.",
                 "thanks": "You're welcome!", "upset": "Sorry to hear that!"}
+
+
+def social_lead(social: str, needs: Sequence[str]) -> str | None:
+    """Code's short word back before the rest of a reply. A problem the student shares gets its
+    own kind sentence, so "Sorry to hear that!" is not said before it as well (11-03 check set:
+    "Sorry to hear that! I'm sorry you're going through that.")."""
+    if social == "upset" and needs:
+        return None
+    return SOCIAL_LEADS.get(social)
+
+
 JOKES = (
     "Why did the student bring a ladder to class? They heard the course was on another level.",
     "Why was the math book sad? It had too many problems.",

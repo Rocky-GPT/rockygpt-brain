@@ -273,14 +273,18 @@ def test_a_feeling_beside_a_question_gets_the_kind_sentence_the_answer_and_the_o
 
 
 def test_the_question_beside_a_floor_emergency_is_answered_like_any_other() -> None:
-    gateway = ScriptedGateway(LOOKUP, finish())  # No read: the floor already read it.
+    # The floor's message is read like any other (11-03 check set), and its clean question is
+    # answered after the emergency text.
+    gateway = MeteredGateway(read(question="Who do I call about my car?"), LOOKUP, finish())
     result = ask(gateway, "someone broke into my car, not 911 obviously, who do i call",
                  floor="danger")
     answer = result.body["answer"]
     assert answer.startswith(SAFETY_TEXTS["danger"] + "\n\n")
     assert "Registrar email: published@example.edu." in answer
     assert result.body["status"] == "partial"
-    assert result.trace is not None and "read" not in result.trace
+    assert latest_asked(gateway.inputs[1]) == "Who do I call about my car?"
+    assert result.trace is not None and result.trace["read"]["question"] == (
+        "Who do I call about my car?")
 
 
 @pytest.mark.parametrize(("limit", "asked"), sorted(triage.LIMIT_QUESTIONS.items()))
@@ -359,3 +363,36 @@ def test_a_hello_before_a_question_is_said_once() -> None:
     answer = ask(gateway, "hello! who handles transcripts").body["answer"]
     assert answer.startswith("Hi!\n\n") and "published@example.edu" in answer
     assert triage.SOCIAL_TEXTS["greeting"] not in answer
+
+
+def test_a_threat_the_floor_found_is_also_read_and_answered_after_the_danger_text() -> None:
+    # "My mom is going to kill me" over a quiz: the floor's danger text first, then what the read
+    # found, the kind words and offices for the feeling shared (11-03 check set: the emergency
+    # reply alone, with nothing for the student's real worry).
+    gateway = MeteredGateway(read(needs=["stress_or_sadness"]))
+    result = ask(gateway, "failed my quiz and my mom is going to kill me", floor="danger")
+    answer = result.body["answer"]
+    assert answer.startswith(SAFETY_TEXTS["danger"])
+    assert triage.SUPPORT_TEXTS["stress_or_sadness"] in answer
+    assert "counseling@example.edu" in answer and result.body["status"] == "partial"
+    assert result.trace is not None and result.trace["situation"] == "danger"
+
+
+def test_a_threat_the_read_also_calls_a_danger_says_the_danger_text_once() -> None:
+    gateway = MeteredGateway(read(danger="danger"))
+    result = ask(gateway, "someone is going to kill me", floor="danger")
+    answer = result.body["answer"]
+    assert answer.startswith(SAFETY_TEXTS["danger"])
+    assert answer.count(SAFETY_TEXTS["danger"]) == 1
+
+
+def test_a_shared_problem_gets_one_kind_sentence_not_two_sorries() -> None:
+    # 11-03 check set: "Sorry to hear that! I'm sorry you're going through that."
+    result = ask(ScriptedGateway(read(social="upset", needs=["stress_or_sadness"])),
+                 "so nervous about my speech tmrw")
+    answer = result.body["answer"]
+    assert answer.startswith(triage.SUPPORT_TEXTS["stress_or_sadness"])
+    assert triage.SOCIAL_LEADS["upset"] not in answer
+    # Upset about a practical problem with no need shared keeps its short word back.
+    assert triage.social_lead("upset", []) == triage.SOCIAL_LEADS["upset"]
+    assert triage.social_lead("greeting", ["lonely"]) == "Hi!"
