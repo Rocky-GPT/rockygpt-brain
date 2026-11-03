@@ -79,6 +79,9 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   not list is not offered in the catalog; say so plainly.
 - calendar.events are the college calendar's events in the window code chose (calendar.window):
   give each one's title, day and time, place and host as written, with its number. When
+  calendar.said_by_code is true, already_written already gives these events and says whether any
+  match what was asked: never list, restate or count them again; say only what else is asked
+  about them. When
   calendar.topic_matched is false, first say the calendar lists nothing for what was asked in
   that window, then give what the sections say about it (a fair's season, a series' next
   date), then offer the window's other events; with no events, say so and give

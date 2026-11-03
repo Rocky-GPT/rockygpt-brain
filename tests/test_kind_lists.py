@@ -164,6 +164,11 @@ def test_a_kinds_events_are_the_models_to_say_from_its_clubs() -> None:
     assert "clubs under Honor Society" not in given.get("already_written", "")
     assert [c["name"] for c in given["clubs"]] == [
         "Alpha Kappa Delta", "Psi Chi Honors Society", "Sigma Tau Delta"]
+    # Code wrote the calendar's part, and the model is told so (run 11: "any movie screenings"
+    # said the calendar's answer twice, the second time in the model's words).
+    assert given["already_written"].startswith("The calendar lists no event this week")
+    assert given["calendar"]["said_by_code"] is True
+    assert "calendar.said_by_code is true" in gateway.inputs[0][0]["content"]
 
 
 def test_clubs_found_by_meaning_keep_the_kind_most_of_them_share() -> None:

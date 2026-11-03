@@ -2860,6 +2860,11 @@ class ChatEngine:
                             return done
                     if events_said:
                         code_parts.append(events_said)
+                        # The model is told the events are said, so the calendar's own rules
+                        # ("first say nothing matches") don't have it say them again (run 11:
+                        # "any movie screenings" said the no-screenings line and the December
+                        # event twice, the second time in the model's words).
+                        calendar = {**(calendar or {}), "said_by_code": True}
                         code_view["calendar"] = calendar
                 if searchable:
                     assert index is not None
