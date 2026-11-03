@@ -2576,8 +2576,9 @@ class ChatEngine:
         asked, rest = events.asked_kinds(message, events.asked_topic(message))
         if not asked or rest:
             return None
+        listed = kinds_module.with_included(asked)
         chosen = [entry for entry in self._club_directory()
-                  if asked & set(index.kinds.get(str(entry["id"]), ()))]
+                  if listed & set(index.kinds.get(str(entry["id"]), ()))]
         if not chosen:
             return None
         clubs = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"}}
@@ -2642,6 +2643,8 @@ class ChatEngine:
         academic: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
         clubs: list[dict[str, Any]] = []
+        # Whether the clubs are every club of a kind asked (_clubs_by_kind).
+        kind_listed = False
         people: list[dict[str, Any]] = []
         vectors: list[list[float]] = []
         offices: list[dict[str, Any]] = []
@@ -2862,6 +2865,7 @@ class ChatEngine:
                     if kind_clubs is not None:
                         # A kind of club ("cultural clubs", "are there any religious clubs") is
                         # every club of that kind, by the kinds given to each directory entry.
+                        kind_listed = True
                         clubs, club_sources, kinds_said = kind_clubs
                         sources = [*sources, *club_sources]
                         clubs = self._clubs_by_words(clubs, latest, sources)
@@ -2882,16 +2886,6 @@ class ChatEngine:
                         clubs = self._clubs_by_words(clubs, latest, sources)
                         computed = [*computed, *events.club_answers(
                             clubs, latest, False, len(self._club_directory()))]
-                        # Whether a club exists, when none is named for what was asked and only
-                        # the nearest were found, is said by code (the model said "Yes").
-                        if kind == "club" and earlier is None and not people_asked \
-                                and not named_people and not (programs and any(programs)) \
-                                and not events.asks_events(latest) \
-                                and (done := self._code_answer(
-                                    turn, trace, events.nearest_clubs_text(clubs, latest),
-                                    sources, dataset_version or self.facts.active_release()[0],
-                                    clubs=clubs, computed=computed)):
-                            return done
                     elif calendar_asked and clubs and events.asks_clubs(latest):
                         # A club named ("College Republicans") does not hide the others the
                         # question names by a word ("young democrats").
@@ -2951,8 +2945,11 @@ class ChatEngine:
                     computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
                         gen_ed_lines), *computed]
-                if calendar_asked and events.asks_clubs(latest) and offices:
+                if calendar_asked and events.asks_clubs(latest) and offices and not kind_listed:
                     # A group a page given names is checked against the club directory by code.
+                    # A kind asked is its listed clubs: the other groups a page about it names
+                    # (the Student Government Association that recognizes its chapters, an honor
+                    # society for its members) are not of it (11-03 practice).
                     given = {c.get("url") for c in clubs}
                     text = " ".join(str(section.get(k) or "") for office in offices
                                     for section in office.get("sections") or []
