@@ -242,17 +242,65 @@ def test_each_card_is_given_its_kinds_once_and_only_known_kinds() -> None:
     try:
         cache: dict[str, list[str]] = {}
         assert build.label_kinds(cards, cache) == (3, 0)
-        # A weekly event's dates share one card; a program is not given kinds.
-        assert asked == [["Ramapo College campus event: Ceramics and Tea",
-                          "Ramapo College campus event: Hall Meeting",
-                          "Ramapo College student club: Chess Club"]]
+        # A weekly event's dates share one card; a program is not given kinds. Each card is read
+        # LABEL_READS times.
+        assert len(asked) == kinds.LABEL_READS
+        assert all(sorted(batch) == ["Ramapo College campus event: Ceramics and Tea",
+                                     "Ramapo College campus event: Hall Meeting",
+                                     "Ramapo College student club: Chess Club"]
+                   for batch in asked)
         assert build.kinds_of(cards, cache) == {"e1": ["arts", "culture", "games"],
                                                 "e2": ["arts", "culture", "games"]}
         # The cache keeps every card read, so the next build asks for none of them again.
-        assert build.label_kinds(cards, cache) == (0, 0) and len(asked) == 1
+        assert build.label_kinds(cards, cache) == (0, 0) and len(asked) == kinds.LABEL_READS
     finally:
         build._post = original
     assert "Kinds:\n- arts: " in build.KINDS_PROMPT
+
+
+def test_a_card_keeps_the_kinds_most_of_its_reads_give() -> None:
+    # 11-03 run 12: one read alone moved borderline clubs in and out of a kind whenever the rules
+    # were reworded (Geek and Nerd Culture became cultural; the Disc Club lost sports).
+    import json
+
+    import build_meaning_index as build
+
+    seen: dict[str, int] = {}
+    given = {"Ramapo College student club: Geek and Nerd Culture": [
+                 ["games", "culture"], ["games"], ["games", "film"]],
+             "Ramapo College student club: Disc Club (Athletics)": [
+                 ["athletics"], [], ["athletics", "fitness"]],
+             "Ramapo College student club: Trillium (Office Sponsored Organization)": [
+                 [], ["lgbtq"], []]}
+
+    def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        listings = json.loads(body["input"][1]["content"])["listings"]
+        items = []
+        for x in listings:
+            read = seen[x["listing"]] = seen.get(x["listing"], -1) + 1
+            items.append({"n": x["n"], "kinds": given[x["listing"]][read]})
+        return {"output": [{"type": "message", "content": [
+            {"type": "output_text", "text": json.dumps({"items": items})}]}]}
+
+    cards = [("g", "club", "Ramapo College student club: Geek and Nerd Culture"),
+             ("d", "club", "Ramapo College student club: Disc Club (Athletics)"),
+             ("t", "club", "Ramapo College student club: Trillium (Office Sponsored Organization)")]
+    original, build._post = build._post, post
+    try:
+        cache: dict[str, list[str]] = {}
+        assert build.label_kinds(cards, cache) == (3, 0)
+        assert build.kinds_of(cards, cache) == {"g": ["games"], "d": ["athletics"]}
+    finally:
+        build._post = original
+
+    def failing(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("down")
+    original, build._post = build._post, failing
+    try:
+        # A card no read answered for is failed and read again by the next build.
+        assert build.label_kinds(cards[:1], {}) == (1, 1)
+    finally:
+        build._post = original
 
 
 def club_calendar(names: list[tuple[str, str]],

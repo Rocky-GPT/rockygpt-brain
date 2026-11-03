@@ -147,7 +147,9 @@ def test_a_club_is_given_kinds_by_its_main_purpose() -> None:
     assert "main purpose" in RULES and "locks out a room" in RULES
     # 11-03 run 10: "Trillium", a club entry with a name and no mission, was labelled LGBTQ+
     # from the name alone; the college's pages say it is the literary magazine.
-    assert "only the listing's own words" in RULES
+    assert "only the listing's own words (its name, category" in RULES
+    # A fan community is not a culture (11-03 run 12: Geek and Nerd Culture was listed cultural).
+    assert "Not fan or hobby communities" in BY_KEY["culture"].holds
     # Esports and watch parties are no sports; politics is not every cause.
     assert "Not esports" in BY_KEY["athletics"].holds
     assert "activism" not in BY_KEY["civic"].named and "activism" in BY_KEY["advocacy"].named

@@ -26,16 +26,18 @@ import hashlib
 import json
 import math
 import os
+import random
 import sys
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from rockygpt_brain.academics import requisite_codes
-from rockygpt_brain.kinds import KINDS, KINDS_VERSION
+from rockygpt_brain.kinds import KINDS, KINDS_VERSION, LABEL_READS
 from rockygpt_brain.kinds import RULES as KINDS_RULES
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
@@ -292,12 +294,19 @@ def label_kinds(cards: list[tuple[str, str, str]],
                 cache: dict[str, list[str]]) -> tuple[int, int]:
     """Each event and club card's kinds (kinds.py), read by the chat model 25 cards at a time for
     the cards not already in the cache, which is keyed by the list's version and the card's text
-    (a weekly event's dates share one card). Returns how many cards were read and how many of
-    those failed (they are read again by the next build)."""
+    (a weekly event's dates share one card). Each card is read LABEL_READS times, beside other
+    cards each time, and keeps the kinds more than half of its reads give; a card fewer than two
+    reads answered for is failed. Returns how many cards were read and how many of those failed
+    (they are read again by the next build)."""
     due = list({_digest(KINDS_VERSION, card): card for _, kind, card in cards
                 if kind in ("event", "club") and _digest(KINDS_VERSION, card) not in cache
                 }.values())
-    batches = [due[k:k + 25] for k in range(0, len(due), 25)]
+    batches = []
+    for read_number in range(LABEL_READS):
+        order = list(due)
+        # The same orders for the same cards and rules, so a build can be run again as it was.
+        random.Random(f"{KINDS_VERSION}:{read_number}").shuffle(order)  # noqa: S311 - an order, not a secret
+        batches += [order[k:k + 25] for k in range(0, len(order), 25)]
 
     def read(batch: list[str]) -> dict[str, list[str]]:
         try:
@@ -320,9 +329,18 @@ def label_kinds(cards: list[tuple[str, str, str]],
                 list(dict.fromkeys(k for k in x["kinds"] if k in known))[:MAX_KINDS]
                 for x in got if 0 <= x["n"] < len(batch)}
 
+    reads: dict[str, list[list[str]]] = {}
     with ThreadPoolExecutor(8) as pool:
         for found in pool.map(read, batches):
-            cache.update(found)
+            for key, kinds in found.items():
+                reads.setdefault(key, []).append(kinds)
+    for key, given in reads.items():
+        if len(given) < 2:
+            continue
+        counts = Counter(kind for kinds in given for kind in kinds)
+        first = list(dict.fromkeys(kind for kinds in given for kind in kinds))
+        kept = [kind for kind in first if counts[kind] * 2 > len(given)]
+        cache[key] = sorted(kept, key=lambda kind: (-counts[kind], first.index(kind)))[:MAX_KINDS]
     return len(due), sum(_digest(KINDS_VERSION, card) not in cache for card in due)
 
 
