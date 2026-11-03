@@ -30,12 +30,14 @@ _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 _TODAY = frozenset({"today", "tonight", "now"})
 # Words a plain lookup question is made of besides the name and the day. Any other word means it
 # asks something more ("can I book an appointment", "for grad students"): the model reads it.
+# "Who do I contact for help with Canvas?" asks only how to reach the office Canvas names (11-03).
 _PLAIN = frozenset("""
 a an the is are what whats when where how do does did can could i me my for of at to in on it its
 there please ramapo college office offices right now today tonight tomorrow s time number numbers
 phone phones telephone email e mail address hours open opens close closes closing closed contact
 reach located location room building menu menus serving serve serves breakfast brunch lunch dinner
 late night fax call get find and its their
+who help with
 """.split())
 
 

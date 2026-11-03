@@ -1122,6 +1122,36 @@ PART_NOTES = {
 }
 
 
+_911 = re.compile(r"(?<![\d-])911(?![\d-])")
+_PHONE_DIGITS = re.compile(r"\(?\b\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}\b")
+
+
+def says_911(text: str) -> bool:
+    """Whether a reply tells the reader to call 911 (its body, not its sources' links)."""
+    return bool(_911.search(text.split("\n\nSources:")[0]))
+
+
+def _digits(text: str) -> set[str]:
+    # Code's own phone text escapes its parentheses for Markdown ("\\(201\\) 684-6666").
+    return {re.sub(r"\D", "", m)[-10:] for m in _PHONE_DIGITS.findall(text.replace("\\", ""))}
+
+
+def with_campus_help(text: str, citations: list[dict[str, Any]], help_: Sequence[Rendered],
+                     ) -> tuple[str, list[dict[str, Any]]]:
+    """The reply with the campus emergency numbers code read put after its body and before its
+    sources, and their citations; the reply as it is when it already gives each of them."""
+    body, sep, sources = text.partition("\n\nSources:")
+    given = _digits(body)
+    shown = [r for r in help_ if r.text and not _digits(r.text) <= given]
+    if not shown:
+        return text, citations
+    lines = "\n".join(r.text for r in shown)
+    seen = {c.get("id") for c in citations}
+    more = [c for r in shown for c in r.citations if c.get("id") not in seen]
+    return (f"{body}\n\n{HELP_TEXT}\n{lines}{sep}{sources}",
+            [*citations, *list({c["id"]: c for c in more}.values())])
+
+
 def emergency_kind(situations: list[str]) -> str:
     """One kind keeps its own text. Several different kinds get the general one."""
     kinds = set(situations)
@@ -2559,6 +2589,13 @@ class ChatEngine:
         trace["wordCheck"] = {"statements": sum(1 for p in one_call.statements(text)
                                                 if p.strip()),
                               "flaggedTotal": len(flagged), "flagged": flagged[:10]}
+        # A reply that sends the reader to 911 ("if the student is in imminent danger ... call
+        # 911", a counseling page's words) also gives Public Safety's published emergency line,
+        # from the graph and in code's words, unless the reply already gives every number of it
+        # (11-03: "I'm worried about a student" named 911 but not Public Safety).
+        if says_911(text):
+            help_, _ = await self._campus_help(["danger"], trace, None, None, turn.campus_now)
+            text, citations = with_campus_help(text, citations, help_)
         trace.update(decidedBy="one_call", modelCalls=budget.calls,
                      committedNusd=budget.committed_nusd, writer={"used": True},
                      oneCall={"parts": len(vectors), "sections": len(sources),
@@ -3037,22 +3074,24 @@ class ChatEngine:
                                         named_people=named_people, people_asked=people_asked)
             if done is not None:
                 return done
-        elif (self.howto_one_call and self.output == "written" and floor_situation is None
+        listed: tuple[Any, ...] | None = None
+        # A plain lookup of one listed office or venue is routed by code, and its one lookup is
+        # all that is asked, so no model call is made (router.py; Dan 11-02).
+        plain = (self.output == "written" and not context.recent_messages
+                 and floor_situation is None and not names_a_danger(context.latest_message))
+        if (not (named_programs[0] or named_programs[2] or calendar_asked or named_people
+                 or people_asked)
+                and self.howto_one_call and self.output == "written" and floor_situation is None
                 and one_call.routes_here(context.latest_message)):
-            done = await self._one_call(turn, context, budget, trace)
-            if done is not None:
-                return done
-        listing: dict[str, Any] | None = None
-        try:
-            async with asyncio.timeout(OFFICE_LIST_SECONDS):
-                listing = await asyncio.to_thread(self.facts.list_offices, limit=500)
-                topics = await asyncio.to_thread(self.facts.list_topics)
-            offices = with_topics(published_offices(listing), topics["topics"])
-        except (TimeoutError, EvidenceUnavailable):
-            # The lookups read the same data and report a failure themselves.
-            offices = None
-        known = known_office_names(listing) if offices is not None else {}
-        venues, stops, routes = await self._service_lists()
+            # "Who do I contact for help with Canvas?" names the Instructional Design Center by
+            # its listed service label and asks only how to reach it: the lookup code is sure of
+            # comes before the pages (11-03, the live answer gave the IT Help Desk's number).
+            listed = await self._lists()
+            if not (plain and code_route(context.latest_message, listed[1], listed[3])):
+                done = await self._one_call(turn, context, budget, trace)
+                if done is not None:
+                    return done
+        listing, offices, known, venues, stops, routes = listed or await self._lists()
         with measure("Prepare model input"):
             inputs = model_input(turn, context, graph.root(), offices, venues, stops, routes)
             # What a tie between offices that share a name may be broken by: the latest message
@@ -3061,10 +3100,6 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
-        # A plain lookup of one listed office or venue is routed by code, and its one lookup is
-        # all that is asked, so no model call is made (router.py; Dan 11-02).
-        plain = (self.output == "written" and not context.recent_messages
-                 and floor_situation is None and not names_a_danger(context.latest_message))
         plan, plan_tool = (code_route(context.latest_message, offices, venues) if plain
                            else None), "graph_lookup"
         if plan is None and plain:
@@ -3267,6 +3302,22 @@ class ChatEngine:
             trace["modelCalls"], trace["committedNusd"] = budget.calls, budget.committed_nusd
             LOG.info("brain_turn request_id=%s model_calls=%d committed_nusd=%d tools=%d",
                      turn.request_id, budget.calls, budget.committed_nusd, attempts)
+
+    async def _lists(self) -> tuple[Any, ...]:
+        """The published offices (with topics), their names, venues, stops and routes the model
+        and the code route choose from."""
+        listing: dict[str, Any] | None = None
+        try:
+            async with asyncio.timeout(OFFICE_LIST_SECONDS):
+                listing = await asyncio.to_thread(self.facts.list_offices, limit=500)
+                topics = await asyncio.to_thread(self.facts.list_topics)
+            offices = with_topics(published_offices(listing), topics["topics"])
+        except (TimeoutError, EvidenceUnavailable):
+            # The lookups read the same data and report a failure themselves.
+            offices = None
+        known = known_office_names(listing) if offices is not None else {}
+        venues, stops, routes = await self._service_lists()
+        return listing, offices, known, venues, stops, routes
 
     async def _campus_help(self, situations: list[str], trace: dict[str, Any],
                             version: str | None, identity_hash: str | None,
