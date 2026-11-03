@@ -1965,6 +1965,26 @@ class ChatEngine:
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed, said
 
+    def _sibling_lines(self, result: OfficeResult, request: OfficeRequest,
+                       results: Mapping[str, OfficeResult]) -> list[str]:
+        """The offices sharing a found office's name but for a part in parentheses ("Public
+        Safety (Emergency)" beside "Public Safety (Non-Emergency)") whose phones are not read
+        yet, when the student asked for this office's phones: each line's name says what it is
+        for. Empty for a fax or an office with no such sibling."""
+        if ("phones" not in request.fields or request.phone_kind
+                or not result.rendered.supported or not result.part
+                or result.part.get("kind") != "office_facts"):
+            return []
+        name = str(result.part["office"].get("name") or "")
+        plain = contacts.plain_name(name)
+        if not plain or plain == name.casefold():
+            return []
+        read = {str(r.part["office"].get("name")) for r in results.values()
+                if r.part and r.part.get("kind") == "office_facts"}
+        return [str(o["name"]) for o in self.facts.identities(("office",))
+                if contacts.plain_name(str(o["name"])) == plain
+                and str(o["name"]) != name and str(o["name"]) not in read][:2]
+
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
         """The offices a reply sends the student to: the first whose sections it cites, and a
@@ -3508,6 +3528,33 @@ class ChatEngine:
                                        "clarification": result.clarification,
                                        "error": result.error_code})
                         looked_up.append((rid, len(output) - 1, item))
+                        # "Who do I call if my car gets hit": the lookup found Public Safety
+                        # (Non-Emergency); its Emergency line is read too, so the answer names
+                        # which number is which (11-03 Mac run).
+                        for name in self._sibling_lines(result, item, results):
+                            sibling = item.model_copy(update={"query": name, "fields": ["phones"],
+                                                              "about": None})
+                            with measure(f"Lookup {len(trace['lookups'])} · {name}"):
+                                each = await asyncio.to_thread(
+                                    self._lookup, sibling,
+                                    CampusGraph(self.facts, dataset_version=version,
+                                                identity_hash=identity_hash),
+                                    turn.campus_now, exact_name_only=True,
+                                    latest=context.latest_message)
+                            if not each.rendered.supported:
+                                continue
+                            rid = f"r{len(results) + 1}"
+                            results[rid] = each
+                            trace["lookups"].append({
+                                "tool": "graph_lookup", "traversedBy": "code",
+                                "status": _lookup_status(each), "foundBy": "office_sibling",
+                                "arguments": sibling.model_dump(), **each.detail})
+                            output.append({"query": name, "rendered": each.rendered.text,
+                                           "supported": each.rendered.supported,
+                                           "complete": each.rendered.complete,
+                                           "clarification": each.clarification,
+                                           "error": each.error_code})
+                            looked_up.append((rid, len(output) - 1, sibling))
                     await self._pick_procedures(looked_up, results, output, budget, trace,
                                                 turn.campus_now, meaning,
                                                 {id(requests[n]) for n in situational})
