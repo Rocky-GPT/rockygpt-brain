@@ -356,6 +356,26 @@ def test_todays_published_hours_menus_and_events_are_no_live_update() -> None:
     assert live.trace is not None and "corrected" not in live.trace["read"]
 
 
+@pytest.mark.parametrize(("limit", "message"), [
+    ("off_topic", "any sports games coming up"),
+    ("prediction", "is there a semi formal coming up"),
+])
+def test_what_is_coming_up_on_the_calendar_is_never_off_topic_or_a_prediction(
+        limit: str, message: str) -> None:
+    # 11-03 practice: "any sports games coming up" got "I only know about Ramapo College", and
+    # "is there a semi formal coming up" got "I can't predict that" before its answer.
+    gateway = MeteredGateway(read(limit=limit), LOOKUP, finish())
+    result = ask(gateway, message)
+    assert result.trace is not None and result.trace["read"]["corrected"]["why"] == (
+        "calendar_lookup")
+    assert not result.body["answer"].startswith(triage.LIMIT_TEXTS.get(limit, "I only know"))
+    assert not result.body["answer"].startswith("I only know about Ramapo College")
+    # A game's result is not on the calendar: the read's word stands.
+    score = ask(MeteredGateway(read(limit="off_topic")), "who won the game last night")
+    assert score.body["answer"].startswith("I only know about Ramapo College")
+    assert score.trace is not None and "corrected" not in score.trace["read"]
+
+
 def test_a_hello_before_a_question_is_said_once() -> None:
     # 11-03 practice: "Hi!" came first, then the whole greeting again after the answer.
     gateway = MeteredGateway(read(social="greeting", question="Who handles transcripts?"),

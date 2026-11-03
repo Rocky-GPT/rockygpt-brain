@@ -220,10 +220,45 @@ def events_in(events: Sequence[dict[str, Any]], start: datetime,
     return found
 
 
+def _stem(word: str) -> str:
+    """A word's plain form, so a question's word and a listing's match however each is written:
+    no plural ("fraternities" is fraternity, "classes" is class), no -ing ("studying" is study,
+    "gaming" is game, "swimming" is swim), no final e ("dance" and "dancing") and a final y as i
+    ("party" and "parties"). Only endings: "cultural" and "culture" stay apart, as do "formal"
+    and "form". 11-03 practice: the plural s alone made "fraternitie" of "fraternities", so the
+    reply said no club had the word in its name though eight do, and "religious" lost its s."""
+    if len(word) <= 3 or not word.isalpha():
+        return word
+    if word.endswith("ies") and len(word) > 4:
+        word = word[:-3] + "i"
+    elif word.endswith("s") and not (word.endswith("ss")
+                                     or (len(word) > 4 and word.endswith(("us", "is")))):
+        word = word[:-1]
+    if word.endswith("ing") and len(word) > 5 and re.search(r"[aeiouy]", word[:-3]):
+        word = word[:-3]
+        if word[-1] == word[-2] and word[-1] not in "aeioulsz":
+            word = word[:-1]
+    if len(word) > 3 and word.endswith("e") and not word.endswith("ee"):
+        word = word[:-1]
+    if len(word) > 3 and word.endswith("y") and word[-2] not in "aeiou":
+        word = word[:-1] + "i"
+    return word
+
+
 def _stems(text: str) -> set[str]:
-    """Words with a plural s dropped ("nights" is night, "games" is game)."""
-    return {w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
-            for w in discovery_tokens(text)}
+    """A text's words in their plain form (_stem)."""
+    return {_stem(w) for w in discovery_tokens(text)}
+
+
+def said_words(message: str, words: AbstractSet[str]) -> str:
+    """The question's own words for a set of plain forms, in the order asked, for a reply to
+    say ("fraternities, sororities", never "fraterniti")."""
+    tokens = re.findall(r"[^\W_]+", re.sub(r"(?<=\w)['’]s\b", "", message.casefold()))
+    said: list[str] = []
+    for token in tokens:
+        if _stem(token) in words and token not in said and len(token) > 2:
+            said.append(token)
+    return ", ".join(said)
 
 
 def topic_words(message: str) -> set[str]:
@@ -257,16 +292,25 @@ def _about(value: dict[str, Any], words: AbstractSet[str] = frozenset()) -> set[
     """An event's words: its title, tags, place and description, and its host's name only when
     the question names the host. A host's name says who runs an event, not what it is about
     (11-03 practice: "a board game club" matched every College Programming Board event, whose
-    listings say "Join the College Programming Board")."""
+    listings say "Join the College Programming Board"), and a place named for its office says
+    where, not what ("service events" matched every event in the room of Women's Center &
+    LGBTQ+ Services, 11-03 practice). "Services" in a place's name is an office's word."""
     title = str(value.get("title") or "")
     organizer = str(value.get("organizer") or "").strip()
+    place = str(value.get("location") or "")
     said = [title, " ".join(value.get("tags") or []), str(value.get("description") or "")]
     if organizer and not names_host(organizer, words):
-        # Its listing names its host in its tags and description too.
-        host = re.compile(re.escape(organizer), re.I)
-        said, organizer = [host.sub(" ", text) for text in said], ""
-    return _stems(" ".join([*said, organizer, str(value.get("location") or ""),
+        # Its listing names its host in its tags, description and place too, with either
+        # apostrophe.
+        host = re.compile(_APOSTROPHE.sub("['’]", re.escape(_APOSTROPHE.sub("'", organizer))),
+                          re.I)
+        said, place, organizer = [host.sub(" ", text) for text in said], host.sub(" ", place), ""
+    return _stems(" ".join([*said, organizer, _OFFICE_WORD.sub(" ", place),
                             "game match" if _VERSUS.search(title) else ""]))
+
+
+_APOSTROPHE = re.compile(r"['’]")
+_OFFICE_WORD = re.compile(r"\bservices\b", re.I)
 
 
 # An event is about the topic asked when it holds words carrying at least this share of the
@@ -298,25 +342,48 @@ def topic_share(values: Sequence[dict[str, Any]], words: set[str],
 
 # An event found by its card's meaning (title, tags, host, place, admission, description) when
 # its listing names nothing asked: it stands out from every event card for the question
-# (meaning.standout_bar), is within EVENT_NEAR of the best that does, and is one of at most
-# MAX_NEAR_EVENTS listings (a weekly event's dates count once). A fixed floor of 0.44 (10-22)
+# (meaning.standout_bar), is within EVENT_NEAR of the window's best event by meaning, those its
+# listing names included, and is one of at most MAX_NEAR_EVENTS listings (a weekly event's dates
+# count once). When the words found the event asked for, only events about as near count too
+# (11-03 practice: "sexual health" found the HIV awareness event by its words, then four
+# wellness and LGBTQ+ events far below it by meaning). A fixed floor of 0.44 (10-22)
 # listed a dozen unrelated events for a question about club fairs (11-03 check set) and none
 # for "is there a play i can go see", whose play scored 0.43.
 EVENT_NEAR, MAX_NEAR_EVENTS = 0.08, 5
 
 
+# A listing holding every word of what was asked (or of one alternative) has the whole topic.
+WHOLE_TOPIC = 0.999
+
+
+def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
+             meaning: Mapping[int, float], scores: Mapping[str, float] | None) -> set[int]:
+    """The window's events (by id of their value) whose listing names what was asked: every word
+    of it; or, when no listing does, most of its weight (TOPIC_SHARE) where the card's meaning
+    agrees, standing out for the question too (meaning.standout_bar; without scores the words
+    alone). A word can be the same and the thing different (11-03 practice: "saving money" found
+    "a life saving drug", "sports games" a birdwatching outing tagged Sports/Recreation and a
+    trading card game meeting, while the basketball games held both words)."""
+    whole = {id(v) for v in timed if share.get(id(v), 0.0) >= WHOLE_TOPIC}
+    if whole:
+        return whole
+    bar = standout_bar((scores or {}).values()) if scores else None
+    return {id(v) for v in timed if share.get(id(v), 0.0) >= TOPIC_SHARE
+            and (bar is None or meaning[id(v)] >= bar)}
+
+
 def near_in_meaning(candidates: Sequence[dict[str, Any]], meaning: Mapping[int, float],
                     scores: Mapping[str, float] | None) -> set[int]:
     """The candidate events (by id of their value) found by meaning: their card's score
-    (`meaning`) stands out from every event card's (`scores`), within EVENT_NEAR of the best that
-    does, at most MAX_NEAR_EVENTS titles."""
+    (`meaning`, every window event's) stands out from every event card's (`scores`), within
+    EVENT_NEAR of the window's best, at most MAX_NEAR_EVENTS titles."""
     bar = standout_bar((scores or {}).values())
     if bar is None:
         return set()
     above = sorted((v for v in candidates if meaning[id(v)] >= bar), key=lambda v: -meaning[id(v)])
     if not above:
         return set()
-    best = meaning[id(above[0])]
+    best = max(meaning.values())
     titles: set[str] = set()
     chosen: set[int] = set()
     for value in above:
@@ -381,14 +448,15 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
             for key, part in topic_share(timed, alternative, corpus or values).items():
                 share[key] = max(share.get(key, 0.0), part)
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
+        worded = by_words(timed, share, meaning, scores)
         near = near_in_meaning(
-            [v for v in timed if share.get(id(v), 0.0) < TOPIC_SHARE
-             and not (food and food_mention(v))], meaning, scores)
+            [v for v in timed if id(v) not in worded and not (food and food_mention(v))],
+            meaning, scores)
         matching = []
         for value in timed:
             # How each event matched, for the reply to say: its listing names the topic, it
             # mentions food, or it is only near the topic in meaning.
-            by = ("words" if share.get(id(value), 0.0) >= TOPIC_SHARE
+            by = ("words" if id(value) in worded
                   else "food" if food and food_mention(value)
                   else "meaning" if id(value) in near
                   else None)
@@ -448,6 +516,7 @@ DESCRIPTION_CHARS = 240
 
 _GENERIC_CLUB = discovery_tokens("club clubs society association organization union team group "
                                  "student students council chapter")
+_GENERIC_STEMS = _stems(" ".join(_GENERIC_CLUB))
 # Words of a host's name that do not say which host it is ("Club", "Ramapo", "Center for").
 _HOST_FILLER = _stems(" ".join(_NOT_TOPIC | _GENERIC_CLUB))
 
@@ -487,13 +556,42 @@ MAX_CATEGORY_CLUBS = 25
 _GENERIC_CATEGORY = {"student organization", "department", "office sponsored organization"}
 
 
+def _category_head(entry: Mapping[str, Any]) -> str:
+    return str(entry.get("category") or "").split(" - ")[0].strip().casefold()
+
+
+def names_its_kind(entry: Mapping[str, Any]) -> bool:
+    """Whether a directory entry's name only says its own category ("Honor Societies", listed
+    under Honor Society - Academic): it stands for the kind, not one club, so a question naming
+    it asks for the kind (11-03 practice: "are there any honor societies" was answered with that
+    one entry, and none of the 31 honor societies was named)."""
+    name = _stems(str(entry.get("name") or "")) - _stems("ramapo college rcnj")
+    return bool(name) and name <= _stems(str(entry.get("category") or ""))
+
+
+def kind_members(found: Sequence[dict[str, Any]],
+                 directory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The clubs found, each entry that names its kind (names_its_kind) followed by every
+    directory club of that kind; each club once, at most MAX_CATEGORY_CLUBS."""
+    by_id = {str(e.get("id")): e for e in directory}
+    chosen: dict[str, dict[str, Any]] = {}
+    for club in found:
+        chosen.setdefault(str(club.get("id")), club)
+        entry = by_id.get(str(club.get("id")))
+        if entry is not None and names_its_kind(entry):
+            for member in directory:
+                if _category_head(member) == _category_head(entry):
+                    chosen.setdefault(str(member.get("id")),
+                                      {"id": member.get("id"), "name": member.get("name")})
+    return list(chosen.values())[:MAX_CATEGORY_CLUBS]
+
+
 def club_category(found: Sequence[dict[str, Any]],
                   directory: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """Every club of the category most of the clubs found share, when it is a specific one
     ("Greek Life", "Honor Society": not "Student Organization"): a question about a kind of
     club wants the kind, not the few nearest. Empty when no such category leads."""
-    def head(entry: dict[str, Any]) -> str:
-        return str(entry.get("category") or "").split(" - ")[0].strip().casefold()
+    head = _category_head
     heads = [head(e) for e in found if head(e)]
     if len(heads) < 3:
         return []
@@ -520,17 +618,19 @@ def _day(moment: datetime) -> str:
 def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                      events: Sequence[dict[str, Any]], matched: bool | None, words: set[str],
                      food: bool, outside: Sequence[dict[str, Any]] = (),
-                     calendar_n: int | None = None) -> list[dict[str, Any]]:
+                     calendar_n: int | None = None, asked: str = "") -> list[dict[str, Any]]:
     """What code works out from the calendar for the reply to state as it is: the window's
     dates; how many events it holds, how many are about the topic asked or that none is (and
     the topic's events outside the window); for a food question, which listings mention food
     and what they say. `events` are the window's lines given (with "n" and the published
     value under "_value"); `outside` the topic's lines after the window; `calendar_n` the
-    calendar page's number, for the facts about the whole window."""
+    calendar page's number, for the facts about the whole window; `asked` the question, whose
+    own words the facts say."""
     span = (_day(start) if start.date() == end.date()
             else f"{_day(start)} to {_day(end)}")
     where = f"on {span}" if start.date() == end.date() else f"from {span}"
-    topic = ", ".join(sorted(w for w in words if len(w) > 2))
+    topic = (said_words(asked, words) if asked
+             else ", ".join(sorted(w for w in words if len(w) > 2)))
     facts: list[dict[str, Any]] = [{"fact": f"The window asked ({label}) is {span}.",
                                     "n": calendar_n}]
     shown = len(events)
@@ -712,14 +812,14 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
     as the directory lists it; for clubs found only by meaning, whether any has a word the
     question asked for in its name (else they are only the nearest); or that the directory lists
     no club for what was asked."""
-    words = topic_words(message) - _GENERIC_CLUB
-    topic = ", ".join(sorted(w for w in words if len(w) > 2))
+    words = topic_words(message) - _GENERIC_STEMS
+    topic = said_words(message, words)
     if not clubs:
         return [{"fact": f"The club directory ({directory_size} clubs and organizations) lists "
                          f"no club for {topic or 'what was asked'}."}]
     facts: list[dict[str, Any]] = []
     if not by_name:
-        named = [c for c in clubs if _stems(" ".join(words)) & _stems(str(c.get("name") or ""))]
+        named = [c for c in clubs if words & _stems(str(c.get("name") or ""))]
         if not named:
             facts.append({"fact": f"No club in the directory has {topic or 'the words asked'} in "
                                   "its name; the clubs given are only the nearest by meaning."})
@@ -853,8 +953,7 @@ MAX_WORD_CLUBS = 12
 def clubs_by_words(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
     """The directory clubs whose name has a word the question asks about ("arts" for an art
     club question, "commuter" for Commuter Affairs), at most MAX_WORD_CLUBS."""
-    words = _stems(" ".join(topic_words(message) - _GENERIC_CLUB))
-    words = {w for w in words if len(w) > 2}
+    words = {w for w in topic_words(message) - _GENERIC_STEMS if len(w) > 2}
     return [c for c in directory if words & _stems(str(c.get("name") or ""))][:MAX_WORD_CLUBS]
 
 

@@ -2119,7 +2119,7 @@ class ChatEngine:
                       for line, value in zip(chosen, ranked, strict=True)]
             computed = events.computed_answers(
                 label, start, end, in_window, valued, matched, words, events.asks_food(message),
-                outside, numbered_from + 1)
+                outside, numbered_from + 1, asked=message)
             said = events.topic_text(
                 label, start, end, in_window, valued, matched,
                 [{**line, "_value": value}
@@ -2133,6 +2133,7 @@ class ChatEngine:
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
                                   message) if events.asks_clubs(message) else []
         if found:
+            found = events.kind_members(found, self._club_directory())
             for facts in self.facts.get_club_facts([c["id"] for c in found], version,
                                                    identity_hash=identity_hash, as_of=now):
                 value = facts["properties"][0]["values"][0]["value"]
@@ -2358,6 +2359,8 @@ class ChatEngine:
             if not statuses or named is None:
                 return None
             listed = next((e for e in self._club_directory() if e.get("id") == named["id"]), None)
+            if listed is not None and events.names_its_kind(listed):
+                return None  # "Honor Societies" names a kind: its clubs are listed instead.
             entry = {"n": 1, **{k: v for k, v in listed.items() if k != "id"}} if listed else None
             status = statuses.get(named["id"])
             if status is not None:
@@ -3533,7 +3536,8 @@ class ChatEngine:
         calls nonsense that names a listed office or venue is a question about it, however it is
         typed ("registrar # ?"): it goes on in the student's own words. Homework and writing
         always have the same campus side, tutoring and writing help, asked when the read left
-        the question empty ("solve this: ..." names no subject)."""
+        the question empty ("solve this: ..." names no subject). What is coming up on the
+        calendar is never off-topic or a prediction."""
         read = trace.get("read")
         corrected: triage.Reading | None = None
         if reading.social == "nonsense" and not reading.question and reading.danger == "none":
@@ -3558,6 +3562,15 @@ class ChatEngine:
             # times are published, so nothing live is asked (11-03 practice).
             corrected = replace(reading, limit="none")
             why = "published_lookup"
+        elif (reading.limit in ("off_topic", "prediction") and reading.danger == "none"
+              and not triage.RESULT_WORDS.search(context.latest_message)
+              and events.asks_events(context.latest_message)):
+            # What is coming up is the campus calendar's, which code reads: "any sports games
+            # coming up" was once read as sports scores, "is there a semi formal coming up" as a
+            # prediction (11-03 practice). A game's result is neither.
+            corrected = replace(reading, limit="none",
+                                question=reading.question or context.latest_message.strip())
+            why = "calendar_lookup"
         if corrected is None:
             return reading
         if isinstance(read, dict):
