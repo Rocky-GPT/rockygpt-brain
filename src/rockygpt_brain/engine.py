@@ -4104,6 +4104,12 @@ class ChatEngine:
                 done = await self._one_call(turn, context, budget, trace)
                 if done is not None:
                     return done
+        # A page answer that fell back leaves the four-call loop its own calls: its picks and
+        # writer had used four or five of the turn's five, so the loop stopped on its first or
+        # second call with "reached RockyGPT's work limit" (11-03 repeat test, q1 and q38). The
+        # turn's cost limit and deadline still hold.
+        if budget.calls:
+            budget.max_calls = budget.calls + TurnBudget.max_calls
         listing, offices, known, venues, stops, routes = listed or await self._lists()
         with measure("Prepare model input"):
             inputs = model_input(turn, context, graph.root(), offices, venues, stops, routes)
