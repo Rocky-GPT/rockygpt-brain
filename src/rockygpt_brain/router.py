@@ -108,6 +108,16 @@ def places_named(message: str, offices: Sequence[dict[str, Any]] | None,
     return _named(_asked_words(message), message, offices, venues, buildings)[0]
 
 
+def without_places(message: str, offices: Sequence[dict[str, Any]] | None,
+                   venues: Sequence[dict[str, Any]] | None,
+                   buildings: Sequence[dict[str, Any]] | None = None) -> str:
+    """A question's words without the listed offices, venues and buildings it names (and rooms
+    said by a building's prefix): what it asks, not where ("a flu shot at the Health Center")."""
+    words = _asked_words(message)
+    _, covered, _ = _named(words, message, offices, venues, buildings)
+    return " ".join(word for k, word in enumerate(words) if k not in covered)
+
+
 def _named(words: list[str], message: str, offices: Sequence[dict[str, Any]] | None,
            venues: Sequence[dict[str, Any]] | None,
            buildings: Sequence[dict[str, Any]] | None = None,

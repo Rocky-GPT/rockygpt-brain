@@ -8,6 +8,7 @@ from rockygpt_brain.router import (
     places_named,
     rooms_said,
     shuttle_route,
+    without_places,
 )
 
 OFFICES: list[dict[str, Any]] = [
@@ -117,6 +118,14 @@ def test_the_places_a_message_names_are_found_however_it_is_typed() -> None:
     assert places_named("jdjdjsjskskaka", OFFICES, VENUES) == []
     assert places_named("scholarships", OFFICES, VENUES) == []
     assert places_named("its fine", OFFICES, VENUES) == []
+
+
+def test_the_words_left_when_the_places_a_message_names_are_taken_out() -> None:
+    # What is asked of a place, not where: the words an event title must hold (events.py).
+    assert without_places("can I get a flu shot at the Counseling Center?", OFFICES,
+                          VENUES) == "can i get a flu shot at the"
+    assert without_places("what's at the Birch's grill", OFFICES, VENUES) == "what at the grill"
+    assert without_places("anything about narcan", None, None) == "anything about narcan"
 
 
 BUILDINGS: list[dict[str, Any]] = [

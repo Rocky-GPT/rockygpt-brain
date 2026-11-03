@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -78,6 +79,7 @@ from rockygpt_brain.router import (
     places_named,
     rooms_said,
     shuttle_route,
+    without_places,
 )
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
@@ -1364,6 +1366,10 @@ class ChatEngine:
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
+        # How many calendar listings say each word (per release and day) and how many page
+        # sections (per meaning index), for the events a reply's question names (events.py).
+        self._listing_words: tuple[tuple[str, str], Counter[str]] | None = None
+        self._heading_words: tuple[str, Counter[str]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
         self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
         # The buildings and every office's and venue's names, read once per release (_names).
@@ -1588,7 +1594,7 @@ class ChatEngine:
     def _names(self) -> dict[str, Any]:
         """Read once per release: the buildings by name, other names and room-number prefixes
         (as the router reads names), every office's and venue's name and other names as said
-        plainly, and each office's and venue's id by its name."""
+        plainly and as the router reads them, and each office's and venue's id by its name."""
         key = self.facts.active_release()
         if self._names_cache is not None and self._names_cache[0] == key:
             return self._names_cache[1]
@@ -1600,7 +1606,10 @@ class ChatEngine:
         names = {"buildings": buildings,
                  "places": {_said_name(str(name)) for place in places
                             for name in [place["name"], *place["aliases"]]},
-                 "ids": {str(place["name"]): place["id"] for place in places}}
+                 "ids": {str(place["name"]): place["id"] for place in places},
+                 **{f"{kind}s": [{"name": place["name"], "also_called": list(place["aliases"])}
+                                 for place in places if place["kind"] == kind]
+                    for kind in ("office", "venue")}}
         self._names_cache = (key, names)
         return names
 
@@ -3706,6 +3715,8 @@ class ChatEngine:
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
             trace["decidedBy"], trace["errorCode"] = "error", code
+        if floor_situation is None:
+            result = await self._with_related_events(turn, request, result, trace)
         # Every reply leaves by here, so this is where a web address written on its own in a
         # sentence is made into a link, whoever wrote the sentence.
         answer = result.body.get("answer")
@@ -4002,6 +4013,77 @@ class ChatEngine:
         return replace(result, body={**result.body, "answer": text, "citations": citations,
                                      "datasetVersion": result.body.get("datasetVersion")
                                      or self.facts.active_release()[0]})
+
+    async def _with_related_events(self, turn: Turn, request: ChatRequest, result: ChatResult,
+                                   trace: dict[str, Any]) -> ChatResult:
+        """The reply, then the upcoming calendar events whose titles name all that its question
+        asks (events.related_events), in code's words, each citing its listing, numbered after
+        the reply's own sources. Only a reply the model wrote from the pages or lookups gets
+        them: code's own answers give the one record asked, a question about events or clubs
+        has read the calendar already, and a reply cut short or about an emergency stays as it
+        is, as does one already naming the event. The reply goes out as it was when the
+        calendar can't be read."""
+        answer = result.body.get("answer")
+        if (self.output != "written" or result.status_code != 200
+                or trace.get("decidedBy") not in ("model", "one_call")
+                or result.body.get("status") not in ("answered", "partial", "unavailable")
+                or not isinstance(answer, str) or not answer or situation_of(answer)):
+            return result
+        context = build_context(request)
+        # The read's clean question is the one answered when it was used (_answer).
+        read = trace.get("read")
+        question = ((read.get("question") if isinstance(read, dict)
+                     and not context.recent_messages else None) or context.latest_message)
+        if events.asks_events(question) or events.asks_clubs(question):
+            return result
+        try:
+            with measure("Find the upcoming events the question names"):
+                names = await asyncio.to_thread(self._names)
+                words = events.related_topic(without_places(
+                    question, names["offices"], names["venues"], names["buildings"]))
+                found = (await asyncio.to_thread(self._related_events, words, turn.campus_now)
+                         if words else [])
+        except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
+            return result
+        found = [v for v in found if str(v.get("title")).casefold() not in answer.casefold()]
+        if not found:
+            return result
+        numbered = list(enumerate(found, start=max(
+            (int(n) for n in re.findall(r"\[(\d+)\]", answer)), default=0) + 1))
+        sources = [{"n": n, "title": str(value.get("title")),
+                    "url": url if (url := str(value.get("url") or ""))
+                    and not re.search(r"[\s()]", url) else events.CALENDAR_URL}
+                   for n, value in numbered]
+        cited = SUPPORT_LINKS.search(answer)
+        body, links = (answer[:cited.start()], cited.group(1).strip()) if cited else (answer, "")
+        links = " ".join(x for x in (links, *(f"[{s['n']}]({s['url']})" for s in sources)) if x)
+        text = f"{body}\n\n{events.related_text(numbered, turn.campus_now)}\n\nSources: {links}"
+        citations = [*result.body.get("citations", []),
+                     *({"id": f"event-{s['n']}", "title": s["title"], "url": s["url"]}
+                       for s in sources)]
+        trace["relatedEvents"] = {"words": sorted(words), "events": [s["title"] for s in sources]}
+        return replace(result, body={**result.body, "answer": text, "citations": citations,
+                                     "datasetVersion": result.body.get("datasetVersion")
+                                     or self.facts.active_release()[0]})
+
+    def _related_events(self, words: set[str], now: datetime) -> list[dict[str, Any]]:
+        """The upcoming events whose titles name all of the words asked (events.related_events),
+        with how many calendar listings and page sections say each word; none without a meaning
+        index, whose sections' headings tell a common campus word from an uncommon one."""
+        index = self.facts.meaning_index()
+        if index is None:
+            return []
+        upcoming = self._upcoming_events(now)
+        if self._upcoming_cache is None:
+            return []
+        day, listed = self._upcoming_cache
+        if self._listing_words is None or self._listing_words[0] != day:
+            self._listing_words = (day, events.listing_words(listed))
+        if self._heading_words is None or self._heading_words[0] != index.dataset_version:
+            self._heading_words = (index.dataset_version,
+                                   events.heading_words(index.labels.values()))
+        return events.related_events(upcoming, words, now, self._listing_words[1],
+                                     self._heading_words[1])
 
     async def _read_emergency(self, turn: Turn, request: ChatRequest, reading: triage.Reading,
                               trace: dict[str, Any], question: str | None,
