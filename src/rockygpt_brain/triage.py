@@ -350,13 +350,27 @@ SUPPORT_TEXTS = {
                        "help.",
     "disability": "You can ask for support with that.",
 }
-SUPPORT_LEAD = "These offices can help:"
+# A limit whose campus side is always one office's job, named after the answer the same way:
+# help writing an essay, statement or letter is the writing center's, whatever page the
+# student's words find (11-03 practice: "write my personal statement for the nursing program"
+# was sent only to the fellowships office's personal-statement advice). Homework's tutoring
+# depends on the subject, so the pages find it.
+LIMIT_OFFICES: dict[str, tuple[str, ...]] = {
+    "writing": ("Center for Reading and Writing",),
+}
 MAX_SUPPORT_OFFICES = 3
 
 
-def support_offices(needs: Sequence[str]) -> list[str]:
-    """The offices for the needs read, in order, each once, at most MAX_SUPPORT_OFFICES."""
-    names = dict.fromkeys(name for need in needs for name in SUPPORT_OFFICES.get(need, ()))
+def support_lead(count: int) -> str:
+    """The line before the offices listed."""
+    return "This office can help:" if count == 1 else "These offices can help:"
+
+
+def support_offices(needs: Sequence[str], limit: str = "none") -> list[str]:
+    """The offices for the needs read, in order, then the office for the limit read, each once,
+    at most MAX_SUPPORT_OFFICES."""
+    names = dict.fromkeys([*(name for need in needs for name in SUPPORT_OFFICES.get(need, ())),
+                           *LIMIT_OFFICES.get(limit, ())])
     return list(names)[:MAX_SUPPORT_OFFICES]
 
 

@@ -35,7 +35,8 @@ def office(key: str, name: str, email: str, phone: str) -> tuple[dict[str, Any],
 def campus() -> MemoryEntityFacts:
     rows = [office("registrar", "Registrar", "published@example.edu", "+12015550100"),
             office("counseling", "Counseling Center", "counseling@example.edu", "+12015550101"),
-            office("csi", "Center for Student Involvement", "csi@example.edu", "+12015550102")]
+            office("csi", "Center for Student Involvement", "csi@example.edu", "+12015550102"),
+            office("crw", "Center for Reading and Writing", "crw@example.edu", "+12015550103")]
     return MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
                              entities=[entity for entity, _ in rows],
                              contacts=[contact for _, contact in rows], now=lambda: NOW)
@@ -276,7 +277,7 @@ def test_a_feeling_beside_a_question_gets_the_kind_sentence_the_answer_and_the_o
     kind = triage.SUPPORT_TEXTS["stress_or_sadness"]
     assert answer.startswith(f"{kind}\n\nRegistrar email: published@example.edu. [1]\n\n")
     assert answer.endswith(
-        "These offices can help:\n**Counseling Center**: Phone: (201) 555-0101. Email: "
+        "This office can help:\n**Counseling Center**: Phone: (201) 555-0101. Email: "
         "counseling@example.edu. [2]\n\nSources: [1](https://example.edu/registrar) "
         "[2](https://example.edu/counseling)")
 
@@ -311,6 +312,38 @@ def test_homework_and_writing_always_ask_their_campus_side(limit: str, asked: st
     again = MeteredGateway(read(limit=limit), LOOKUP, finish())
     ask(again, "ok now do my essay", history=history)
     assert latest_asked(again.inputs[1]) == asked
+
+
+def test_a_writing_request_names_the_writing_center_after_the_answer() -> None:
+    # 11-03 practice: "write my personal statement for the nursing program" was sent only to the
+    # fellowships office's personal-statement advice, which the student's words found. Help
+    # writing is the writing center's job whatever the page search finds, so code names it.
+    gateway = ScriptedGateway(read(limit="writing", question=(
+        "Where can I get help writing my personal statement for the nursing program?")),
+        LOOKUP, finish())
+    answer = ask(gateway, "write my personal statement for the nursing program").body["answer"]
+    assert answer.startswith(triage.LIMIT_TEXTS["writing"] + "\n\n")
+    assert answer.endswith(
+        "This office can help:\n**Center for Reading and Writing**: Phone: (201) 555-0103. "
+        "Email: crw@example.edu. [2]\n\nSources: [1](https://example.edu/registrar) "
+        "[2](https://example.edu/crw)")
+    # A reply that already names it doesn't list it again.
+    named = ScriptedGateway(
+        read(limit="writing", question="What is the Center for Reading and Writing's email?"),
+        completion("graph_lookup", {"requests": [
+            {"query": "Center for Reading and Writing", "fields": ["email"]}]}), finish())
+    answer = ask(named, "write my essay").body["answer"]
+    assert "crw@example.edu" in answer and "can help:" not in answer
+
+
+def test_offices_for_a_problem_come_first_then_the_one_for_the_limit_each_once() -> None:
+    assert triage.support_offices(["lonely"], "writing") == [
+        "Counseling Center", "Center for Student Involvement", "Center for Reading and Writing"]
+    assert triage.support_offices([], "homework") == []
+    assert triage.support_offices(["stress_or_sadness", "lonely"]) == [
+        "Counseling Center", "Center for Student Involvement"]
+    assert triage.support_lead(1) == "This office can help:"
+    assert triage.support_lead(2) == "These offices can help:"
 
 
 def test_a_message_that_names_a_campus_office_is_never_nonsense() -> None:

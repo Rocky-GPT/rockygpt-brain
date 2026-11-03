@@ -3660,8 +3660,8 @@ class ChatEngine:
         lead = self._read_lead(turn, reading)
         if lead:
             result = replace(result, body={**result.body, "answer": f"{lead}\n\n{answer}"})
-        if reading.needs:
-            result = await self._with_support(result, reading.needs)
+        if reading.needs or reading.limit in triage.LIMIT_OFFICES:
+            result = await self._with_support(result, reading.needs, reading.limit)
         return result
 
     async def _code_understands(self, context: Context) -> bool:
@@ -3832,15 +3832,16 @@ class ChatEngine:
             said.append(triage.SUPPORT_TEXTS[reading.needs[0]])
         return " ".join(s for s in said if s)
 
-    async def _with_support(self, result: ChatResult, needs: Sequence[str]) -> ChatResult:
-        """The reply, then the offices whose job the student's problem is (triage.py), each with
-        the phones, email and room the directory publishes, numbered after the reply's own
-        sources. An office the reply already names is not listed again; the reply goes out as it
-        was when none can be read and checked."""
+    async def _with_support(self, result: ChatResult, needs: Sequence[str],
+                            limit: str = "none") -> ChatResult:
+        """The reply, then the offices whose job the student's problem is, or what they asked
+        RockyGPT to do (triage.py), each with the phones, email and room the directory
+        publishes, numbered after the reply's own sources. An office the reply already names is
+        not listed again; the reply goes out as it was when none can be read and checked."""
         answer = str(result.body.get("answer") or "")
         by_name = {str(office.get("name")): office
                    for office in self.facts.identities(("office",))}
-        offices = [by_name[name] for name in triage.support_offices(needs)
+        offices = [by_name[name] for name in triage.support_offices(needs, limit)
                    if name in by_name and name.casefold() not in answer.casefold()]
         if not offices:
             return result
@@ -3858,7 +3859,7 @@ class ChatEngine:
         found = SUPPORT_LINKS.search(answer)
         body, links = (answer[:found.start()], found.group(1).strip()) if found else (answer, "")
         links = " ".join(x for x in (links, *(f"[{s['n']}]({s['url']})" for s in sources)) if x)
-        text = f"{body}\n\n{triage.SUPPORT_LEAD}\n{lines}\n\nSources: {links}"
+        text = f"{body}\n\n{triage.support_lead(len(offices))}\n{lines}\n\nSources: {links}"
         citations = [*result.body.get("citations", []),
                      *({"id": f"support-{s['n']}", "title": s["title"], "url": s["url"]}
                        for s in sources)]
