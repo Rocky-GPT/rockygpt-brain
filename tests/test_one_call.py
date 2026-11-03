@@ -245,6 +245,15 @@ def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
         'passed, so this is in effect now.',
         'A page says "Starting January 5, 2027 parking forms move online" [5]: January 5, 2027 '
         'is still to come, so this is not in effect yet.']
+    # A session that starts on a date, or a row of a table of dates, is no change (11-03: a
+    # refund table read as "August 26, 2026 has passed, so this is in effect now").
+    table = [{"sections": [{"n": 7, "text": "7 week class session beginning August 26, 2026 "
+                                            "100 % Refund: August 28, 2026 50 % Refund: "
+                                            "September 2, 2026"},
+                           # A change that starts on a date still is one.
+                           {"n": 8, "text": "Beginning August 26, 2026 refund requests are "
+                                            "online only."}]}]
+    assert [f["n"] for f in dated_statements(table, today, "do i get my refund money back")] == [8]
 
 
 def test_grouped_marks_cite_every_source_they_name() -> None:

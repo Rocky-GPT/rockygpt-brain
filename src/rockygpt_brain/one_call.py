@@ -572,6 +572,16 @@ _DATED = re.compile(
     r"(?:(" + "|".join(_MONTH_NAMES) + r")\s+(\d{1,2}),?\s+(\d{4})|(\d{1,2})/(\d{1,2})/(\d{2,4}))"
     r"([^.;]{0,100})", re.IGNORECASE)
 MAX_DATED = 4
+# "Beginning" or "starting" after a session or term starts that session, not a change: "7 week
+# class session beginning August 26, 2026 100 % Refund: August 28" is a refund table's row, which
+# was read as "has passed, so this is in effect now" (11-03, a drop-and-refund question).
+_STARTS_A_TERM = re.compile(
+    r"\b(?:sessions?|class(?:es)?|courses?|semesters?|terms?|weeks?|modules?|blocks?|parts?|"
+    r"programs?|year)\s*$", re.IGNORECASE)
+# A second date in the words after it: a schedule of dates, not one change.
+_ANOTHER_DATE = re.compile(
+    r"\b(?:" + "|".join(_MONTH_NAMES) + r")\s+\d{1,2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b",
+    re.IGNORECASE)
 
 
 def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: str,
@@ -596,6 +606,10 @@ def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: s
                         when = date(year + 2000 if year < 100 else year, int(found.group(5)),
                                     int(found.group(6)))
                 except ValueError:
+                    continue
+                if found.group(1).casefold() in ("beginning", "starting") and (
+                        _STARTS_A_TERM.search(text[:found.start()])
+                        or _ANOTHER_DATE.search(found.group(8))):
                     continue
                 said = found.group(0)
                 if found.group(1).casefold() == "as of":  # "Not active as of 6/12/25."

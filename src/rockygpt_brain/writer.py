@@ -276,7 +276,10 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
             problems.append(f"an email address the facts do not hold: {email}")
     rest = _EMAIL.sub(" ", rest)
     for url in _URL.findall(rest):
-        if url.rstrip(".,;:") not in held:
+        # A trailing slash names the same page: ".../report-an-incident-form/" was refused when
+        # the page wrote ".../report-an-incident-form", and the whole reply with it (11-03).
+        bare = url.rstrip(".,;:").rstrip("/")
+        if bare not in held and f"{bare}/" not in held:
             problems.append(f"a web address the facts do not hold: {url}")
     rest = _URL.sub(" ", rest)
     for phone in _PHONE.findall(rest):
