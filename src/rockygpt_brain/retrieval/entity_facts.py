@@ -57,9 +57,11 @@ BUILDING_PLACE_KINDS = ("office", "venue", "facility", "organization", "school",
 # A staff person's record: the names, addresses and titles their offices' own pages print.
 # A parking lot's record: who may park there and its notes, each quoting the parking pages.
 # A venue's menu board items (The Atrium's board), each as the board prints it.
+# A varsity team's record: its season, record, coaches and games, from the athletics site.
 GRAPH_RECORD_COLLECTIONS = {"terms": 1, "calendar_dates": 1, "buildings": 1, "map_places": 8,
                             "club_categories": 1, "stops": 1, "staff": 1, "parking_lots": 1,
-                            "menu_board_items": 200, "course_attributes": 1}
+                            "menu_board_items": 200, "course_attributes": 1,
+                            "teams": 1}
 RECORD_COLLECTIONS = {
     "dining_hours": MAX_DINING_ROWS, "menu": MAX_MENU_ROWS, "shuttle_trips": MAX_TRIP_ROWS,
     "menu_documents": 10, "menu_listings": 2, "shuttle_stops": 40, "campus_topics": 1,
@@ -3322,6 +3324,22 @@ class EntityFacts:
                     {**rows[0], "_id": entity["id"]})
             if len(found["dates"]) > MAX_CALENDAR_DATES:
                 raise EvidenceUnavailable("The academic calendar exceeds the bounded read.")
+            return found
+
+    def teams(self, dataset_version: str, *, identity_hash: str | None = None,
+              ) -> list[dict[str, Any]]:
+        """Every varsity team in the release, each its one record as published (rockygpt-data
+        athletics.ts: season, record, coaches, games) with its identity's id and name; an empty
+        list when the release has none."""
+        with self.snapshot() as snapshot:
+            self._pin(snapshot, dataset_version, identity_hash)
+            found: list[dict[str, Any]] = []
+            for entity in snapshot.entities:
+                if entity["kind"] != "team":
+                    continue
+                rows = snapshot.record_reader(entity, "teams")
+                if len(rows) == 1:
+                    found.append({**rows[0], "_id": entity["id"], "name": entity["name"]})
             return found
 
     def program_people(self, entity_ids: Sequence[str], dataset_version: str, *,

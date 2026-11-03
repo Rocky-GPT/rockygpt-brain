@@ -18,7 +18,16 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call, triage
+from rockygpt_brain import (
+    academic_calendar,
+    academics,
+    catalog,
+    contacts,
+    events,
+    one_call,
+    teams,
+    triage,
+)
 from rockygpt_brain import kinds as kinds_module
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
@@ -3272,6 +3281,21 @@ class ChatEngine:
                                  [{"n": 1, "url": url, "title": "Academic calendar"}], version,
                                  calendar=facts)
 
+    def _team_answer(self, turn: Turn, trace: dict[str, Any], message: str) -> ChatResult | None:
+        """The coaches, next games or results of the teams a question names, said by code
+        (teams.py); None when the release has no teams, none is named, or the check finds
+        something the records do not hold."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            found = self.facts.teams(version, identity_hash=identity_hash)
+        except (EvidenceUnavailable, DatasetChanged):
+            return None
+        said = teams.answer(message, found, turn.campus_now.date()) if found else None
+        if said is None:
+            return None
+        text, sources, records = said
+        return self._code_answer(turn, trace, text, sources, version, teams=records)
+
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
                      ) -> ChatResult | None:
@@ -4064,6 +4088,15 @@ class ChatEngine:
             with measure("Read the academic calendar"):
                 done = await asyncio.to_thread(self._calendar_answer, turn, trace,
                                                context.latest_message, calendar_kind)
+            if done is not None:
+                return done
+        # A varsity team's coaches, next games or results ("who coaches men's soccer"): code's
+        # answer from the team's record, read from the athletics site (teams.py).
+        if (self.output == "written" and floor_situation is None and not context.recent_messages
+                and teams.asked(context.latest_message)):
+            with measure("Read the varsity teams"):
+                done = await asyncio.to_thread(self._team_answer, turn, trace,
+                                               context.latest_message)
             if done is not None:
                 return done
         # A question naming a major, minor or certificate is answered from the catalog's own
