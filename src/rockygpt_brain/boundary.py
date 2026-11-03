@@ -94,6 +94,13 @@ _DANGER: dict[str, list[re.Pattern[str]]] = {
             r"\b(end|take) my (own )?life\b",
             rf"\bsuicid\w*\b{_NOT_A_HAZARD}",
             r"\b(want|wanna|going|plan|planning) to die\b",
+            # The slang the most common forms are typed in (11-03: "i want to kms" got 988 but no
+            # 911 or Public Safety). The read step (triage.py) catches other wordings; these hold
+            # when it can't run. "kms" after a number is kilometers.
+            r"(?<![0-9] )(?<![0-9])(?<!how many )\bkms\b(?! (away|per|an hour|long|wide)\b)",
+            r"\bunaliv(e|ing) (my ?self|me)\b",
+            r"\b(want|wanna|going|gonna|plan|planning) (to )?unalive\b",
+            r"\b(wanna|gonna) die\b",
             r"\b(dont|do not) (want to|wanna) (live|be alive|exist|be here|go on|keep going)",
             r"\b(end it all|better off dead|not worth living|no reason to live)\b",
             # "to just not wake up" is a wish, where "she wont wake up" is an unconscious person

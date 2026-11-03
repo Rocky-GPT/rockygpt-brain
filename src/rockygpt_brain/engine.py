@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call
+from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call, triage
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -479,19 +479,15 @@ UNSUPPORTED_AFTER_LOOKUP_MESSAGE = ("I don't have verified information about tha
 UNSUPPORTED_PART_MESSAGE = "I don't have verified information about that part."
 CLARIFICATION_MESSAGE = "Which office or service, and which details, do you mean?"
 FIXED_REPLIES = {
-    "greeting": ("Hi! I'm RockyGPT. I can look up published contact details and hours for Ramapo "
-                 "offices, the posted shuttle timetable, and dining hours and menus. What do "
-                 "you need?"),
-    "thanks": ("You're welcome! Ask me for an office's contact details, a shuttle time or "
-               "dining hours whenever you need them."),
+    "greeting": triage.SOCIAL_TEXTS["greeting"],
+    "thanks": triage.SOCIAL_TEXTS["thanks"],
     "okay": ("Okay, thanks for letting me know. If anything changes, call 911, or call or text "
              "988 to talk with someone. I can look up office contact details whenever you need "
              "them."),
-    "about": ("I'm RockyGPT, an AI assistant for Ramapo College students. Right now I can look "
-              "up published office contact details such as email, phone, room and hours, the "
-              "posted shuttle timetable, and dining hours and menus, with sources. I can't see "
-              "your personal student records."),
+    "about": triage.SOCIAL_TEXTS["about_bot"],
 }
+# The office lines a feeling or problem gets, after code's kind sentence (triage.py).
+SUPPORT_LINKS = re.compile(r"\n\nSources: ((?:\[\d+\]\([^)\s]+\) ?)+)$")
 
 
 ERRORS: dict[str, tuple[int, str, bool]] = {
@@ -1271,8 +1267,14 @@ class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
                  output: Literal["text", "json", "written"] = "text",
-                 howto_one_call: bool | None = None, lookup_writer: bool | None = None) -> None:
+                 howto_one_call: bool | None = None, lookup_writer: bool | None = None,
+                 read_first: bool | None = None) -> None:
         self.gateway, self.facts = gateway, facts
+        # Dan 11-03: in written output one small model call reads what kind of message it is
+        # before anything is searched (triage.py), unless code already understands the whole
+        # message. BRAIN_READ_FIRST=0 turns it off.
+        self.read_first = (os.environ.get("BRAIN_READ_FIRST", "1") != "0"
+                           if read_first is None else read_first)
         # A how-to or policy question answered by one model call from code-found evidence
         # (one_call.py) instead of the four-call loop; off unless BRAIN_HOWTO_ONE_CALL=1.
         self.howto_one_call = (os.environ.get("BRAIN_HOWTO_ONE_CALL") == "1"
@@ -2441,7 +2443,7 @@ class ChatEngine:
             (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
             and kind != "course")
         try:
-            async with asyncio.timeout(self.turn_seconds):
+            async with asyncio.timeout(max(0.0, budget.deadline - time.monotonic())):
                 # Only what is on in a window: code lists the calendar's events, with no model
                 # call and no search (Dan 11-02: code works out the answer).
                 if kind == "events" and calendar_asked and earlier is None and not people_asked:
@@ -3294,7 +3296,14 @@ class ChatEngine:
         question should still be answered beside: its text comes first, as for a model's own."""
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
-        result = await self._answer(turn, request, trace, floor_situation)
+        if floor_situation is not None and self.output == "written":
+            result = await self._beside_emergency(turn, request, trace, floor_situation)
+        else:
+            result = await self._answer(turn, request, trace, floor_situation)
+        read = trace.get("read")
+        if isinstance(read, dict):
+            trace["modelCalls"] = trace.get("modelCalls", 0) + read.get("calls", 0)
+            trace["committedNusd"] = trace.get("committedNusd", 0) + read.get("nusd", 0)
         # A failure, or a reply cut short by one, was decided by the error, not the model.
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
@@ -3303,10 +3312,239 @@ class ChatEngine:
 
     async def _answer(self, turn: Turn, request: ChatRequest,
                       trace: dict[str, Any], floor_situation: str | None = None) -> ChatResult:
+        """Read the message first (triage.py) when code does not already understand it: code
+        writes the whole reply to anything that is not a campus question, and a campus question
+        is answered in its clean words, after code's short lead and before the offices for a
+        problem the student shared. Any read that fails leaves the turn as it was."""
+        started = time.monotonic()
+        if not (self.read_first and self.output == "written" and floor_situation is None):
+            return await self._campus_answer(turn, request, trace, floor_situation)
+        context = build_context(request)
+        reading = None if await self._code_understands(context) else await self._read(
+            turn, context, trace)
+        if reading is None:
+            return await self._campus_answer(turn, request, trace, started=started)
+        # A follow-up keeps the conversation exactly as it is: the read fixes spelling only and
+        # never guesses what "it" or "that" means.
+        question = reading.question if not context.recent_messages else None
+        if reading.danger != "none":
+            return await self._read_emergency(turn, request, reading, trace, question, started)
+        if (done := await self._read_reply(turn, context, reading, trace)) is not None:
+            return done
+        result = await self._campus_answer(turn, request, trace, question=question,
+                                           started=started)
+        answer = result.body.get("answer")
+        if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
+            return result
+        lead = self._read_lead(turn, reading)
+        if lead:
+            result = replace(result, body={**result.body, "answer": f"{lead}\n\n{answer}"})
+        if reading.needs:
+            result = await self._with_support(result, reading.needs)
+        return result
+
+    async def _code_understands(self, context: Context) -> bool:
+        """Whether code already understands the whole message, so it is not read first: one kind
+        of academic calendar date asked plainly ("when are finals?"), or a plain lookup of one
+        listed office, venue or the shuttle ("Registrar phone number"). Plain questions don't
+        wait for the read."""
+        latest = context.latest_message
+        if context.recent_messages or names_a_danger(latest):
+            return False
+        if academic_calendar.kind_asked(latest) is not None:
+            return True
+        _, offices, _, venues, _, _ = await self._lists()
+        return code_route(latest, offices, venues) is not None or shuttle_route(latest) is not None
+
+    async def _read(self, turn: Turn, context: Context,
+                    trace: dict[str, Any]) -> triage.Reading | None:
+        """What kind of message the latest one is (triage.py), from one small model call with its
+        own call and time allowance; None when the message is long, or the read fails, runs late
+        or comes back malformed, and the turn then goes on exactly as it would without it."""
+        latest = context.latest_message
+        if len(latest) > triage.MAX_READ_CHARS:
+            return None
+        previous_user = next((m.content for m in reversed(context.recent_messages)
+                              if m.role == "user"), None)
+        previous_reply = next((m.content for m in reversed(context.recent_messages)
+                               if m.role == "assistant"), None)
+        budget = TurnBudget(turn.request_id, time.monotonic() + triage.READ_SECONDS, max_calls=1,
+                            max_cost_nusd=self.max_turn_nusd)
+        read: dict[str, Any] = {}
+        trace["read"] = read
+        try:
+            with measure("Read the message"):
+                async with asyncio.timeout(triage.READ_SECONDS):
+                    completion = await self.gateway.complete(
+                        input=triage.read_messages(latest, previous_user, previous_reply),
+                        tools=[triage.READ_TOOL], budget=budget)
+        except Exception as error:  # noqa: BLE001 - any failure leaves the turn as it was
+            read["failed"] = getattr(error, "code", type(error).__name__)
+            LOG.warning("brain_read_failed request_id=%s code=%s", turn.request_id,
+                        read["failed"])
+            return None
+        finally:
+            read.update(calls=budget.calls, nusd=budget.committed_nusd)
+        calls = completion.tool_calls
+        reading = (triage.reading_of(calls[0].arguments, latest)
+                   if len(calls) == 1 and calls[0].name == "read_message"
+                   and not completion.text.strip() else None)
+        if reading is None:
+            read["failed"] = "malformed"
+            return None
+        read.update(reading.as_trace())
+        return reading
+
+    async def _read_reply(self, turn: Turn, context: Context, reading: triage.Reading,
+                          trace: dict[str, Any]) -> ChatResult | None:
+        """Code's whole reply when the message asks no campus question: a feeling or problem
+        shared, something RockyGPT can't do, or small talk. None for a campus question, and for
+        a read that found nothing to say."""
+        if reading.question:
+            return None
+        lead = triage.SOCIAL_LEADS.get(reading.social)
+        if reading.needs:
+            kind = triage.SUPPORT_TEXTS[reading.needs[0]]
+            said = f"{lead} {kind}" if lead else kind
+            reply = self._json(answered(turn, said, "answered"),
+                               [{"kind": "support", "needs": list(reading.needs),
+                                 "approved_text": kind}], turn)
+            trace["decidedBy"] = "read"
+            return await self._with_support(reply, reading.needs)
+        part: dict[str, Any]
+        status = "answered"
+        if reading.limit == "clock":
+            text = CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT))
+            part = {"kind": "clock", "campusNow": turn.campus_now.isoformat()}
+            text = f"{lead} {text}" if lead else text
+        elif reading.limit in triage.LIMIT_TEXTS:
+            text = triage.LIMIT_TEXTS[reading.limit] + triage.LIMIT_ALONE.get(reading.limit, "")
+            part = {"kind": ("account_limit" if reading.limit in ("my_records", "do_it_for_me")
+                             else "unsupported"), "limit": reading.limit}
+            text, status = (f"{lead} {text}" if lead else text), "unavailable"
+        elif reading.social == "joke":
+            text, part = f"{triage.joke(context.latest_message)} {triage.JOKE_AFTER}", {
+                "kind": "joke"}
+        elif reading.social == "okay" and earlier_emergency(context):
+            # "ok im safe now" after an emergency reply: the reminder of 911 and 988 stays.
+            text, part = FIXED_REPLIES["okay"], {"kind": "okay"}
+        elif reading.social in triage.SOCIAL_TEXTS:
+            text, part = triage.SOCIAL_TEXTS[reading.social], {"kind": reading.social}
+        else:
+            return None
+        trace["decidedBy"] = "read"
+        return self._json(answered(turn, text, status), [{**part, "approved_text": text}], turn)
+
+    def _read_lead(self, turn: Turn, reading: triage.Reading) -> str:
+        """Code's few words before a campus answer: a hello back, what RockyGPT can't do of what
+        was asked, and one kind sentence for a problem the student shared."""
+        said = [triage.SOCIAL_LEADS.get(reading.social, "")]
+        if reading.limit == "clock":
+            said.append(CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT)))
+        elif reading.limit == "off_topic":
+            said.append(triage.OFF_TOPIC_BESIDE)
+        else:
+            said.append(triage.LIMIT_TEXTS.get(reading.limit, ""))
+        if reading.needs:
+            said.append(triage.SUPPORT_TEXTS[reading.needs[0]])
+        return " ".join(s for s in said if s)
+
+    async def _with_support(self, result: ChatResult, needs: Sequence[str]) -> ChatResult:
+        """The reply, then the offices whose job the student's problem is (triage.py), each with
+        the phones, email and room the directory publishes, numbered after the reply's own
+        sources. An office the reply already names is not listed again; the reply goes out as it
+        was when none can be read and checked."""
+        answer = str(result.body.get("answer") or "")
+        by_name = {str(office.get("name")): office
+                   for office in self.facts.identities(("office",))}
+        offices = [by_name[name] for name in triage.support_offices(needs)
+                   if name in by_name and name.casefold() not in answer.casefold()]
+        if not offices:
+            return result
+        numbered_from = max((int(n) for n in re.findall(r"\[(\d+)\]", answer)), default=0)
+        try:
+            with measure("Read the support offices' contacts"):
+                lines, sources, listed = await asyncio.to_thread(
+                    self._office_contacts, offices, numbered_from)
+        except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
+            return result
+        view = {"offices": listed, "sources": [{"n": s["n"], "urls": [s["url"]]}
+                                               for s in sources]}
+        if lines is None or unsupported_by(lines, view):
+            return result
+        found = SUPPORT_LINKS.search(answer)
+        body, links = (answer[:found.start()], found.group(1).strip()) if found else (answer, "")
+        links = " ".join(x for x in (links, *(f"[{s['n']}]({s['url']})" for s in sources)) if x)
+        text = f"{body}\n\n{triage.SUPPORT_LEAD}\n{lines}\n\nSources: {links}"
+        citations = [*result.body.get("citations", []),
+                     *({"id": f"support-{s['n']}", "title": s["title"], "url": s["url"]}
+                       for s in sources)]
+        return replace(result, body={**result.body, "answer": text, "citations": citations,
+                                     "datasetVersion": result.body.get("datasetVersion")
+                                     or self.facts.active_release()[0]})
+
+    async def _read_emergency(self, turn: Turn, request: ChatRequest, reading: triage.Reading,
+                              trace: dict[str, Any], question: str | None,
+                              started: float) -> ChatResult:
+        """An emergency the read found in words the phrase floor does not list: the floor's same
+        reply. The read can only add an emergency, never take one away: the floor has already
+        run. As the floor does for a question asked beside one (Dan 10-20: crisis first, then
+        policy), the question is answered after it, except beside self-harm, whose reply is sent
+        alone and at once. Any failure of that answer leaves the emergency reply, never an
+        error."""
+        reply = await self.safety_reply(turn, reading.danger)
+        floor = reply.trace or {}
+        trace.update(decidedBy="read", situation=floor.get("situation"))
+        if reading.danger != "self_harm" and reading.question:
+            try:
+                async with asyncio.timeout(max(0.0, started + self.turn_seconds
+                                               - time.monotonic())):
+                    fuller = await self._beside_emergency(turn, request, trace, reading.danger,
+                                                          question=question, started=started)
+                answer = fuller.body.get("answer")
+                if fuller.status_code == 200 and isinstance(answer, str) and situation_of(answer):
+                    return fuller
+            except Exception:  # noqa: BLE001 - the emergency reply stands
+                LOG.warning("brain_read_emergency_answer_failed request_id=%s", turn.request_id)
+            trace.update(decidedBy="read", situation=floor.get("situation"))
+        trace["lookups"].extend(floor.get("lookups", []))
+        return reply
+
+    async def _beside_emergency(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                                situation: str, *, question: str | None = None,
+                                started: float | None = None) -> ChatResult:
+        """The phrase floor's emergency text and campus numbers first, then the student's own
+        question answered the way any question is (Dan 10-20: crisis first, then policy). 11-03:
+        the question beside "broke into my car ... not 911" went down the old lookup path and came
+        out as raw evidence ("+12016847432"). A failed answer, or one that is itself an emergency
+        reply, is returned as it is, and the floor's own reply stands."""
+        result = await self._campus_answer(turn, request, trace, question=question,
+                                           started=started)
+        answer = result.body.get("answer")
+        if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
+            return result
+        help_, _ = await self._campus_help([situation], trace, None, None, turn.campus_now)
+        emergency = "\n\n".join(self._emergency_chunks([situation], help_))
+        cited = {c["id"]: c for r in help_ for c in r.citations}
+        citations = [*cited.values(),
+                     *(c for c in result.body.get("citations", []) if c.get("id") not in cited)]
+        trace["situation"] = situation
+        return replace(result, body={**result.body, "answer": f"{emergency}\n\n{answer}",
+                                     "status": "partial", "citations": citations})
+
+    async def _campus_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                             floor_situation: str | None = None, *, question: str | None = None,
+                             started: float | None = None) -> ChatResult:
+        """The campus answer: code's routes, then the model's. `question` is the read's clean
+        question, which every route and search reads in place of the student's words; `started`
+        is when the turn began, so the read's time comes out of the turn's own."""
         with measure("Prepare conversation and root"):
             context = build_context(request)
-            budget = TurnBudget(turn.request_id, time.monotonic() + self.turn_seconds,
-                                max_cost_nusd=self.max_turn_nusd)
+            if question:
+                context = replace(context, latest_message=question)
+            budget = TurnBudget(turn.request_id,
+                                (time.monotonic() if started is None else started)
+                                + self.turn_seconds, max_cost_nusd=self.max_turn_nusd)
             results: dict[str, OfficeResult] = {}
             version: str | None = None
             identity_hash: str | None = None
@@ -3375,7 +3613,7 @@ class ChatEngine:
         if plan is not None:
             trace["decidedBy"] = "code"
         try:
-            async with asyncio.timeout(self.turn_seconds):
+            async with asyncio.timeout(max(0.0, budget.deadline - time.monotonic())):
                 while finish is None:
                     if plan is not None and results:
                         finish = Finish(parts=[])
