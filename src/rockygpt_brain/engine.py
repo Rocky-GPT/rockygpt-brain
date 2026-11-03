@@ -63,7 +63,13 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
-from rockygpt_brain.router import asks_inside, code_route, places_named, shuttle_route
+from rockygpt_brain.router import (
+    asks_inside,
+    code_route,
+    places_named,
+    rooms_said,
+    shuttle_route,
+)
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -1535,13 +1541,15 @@ class ChatEngine:
                 for name in names if name in ids]
 
     def _names(self) -> dict[str, Any]:
-        """Read once per release: the buildings by name and other names (as the router reads
-        names), every office's and venue's name and other names as said plainly, and each
-        office's and venue's id by its name."""
+        """Read once per release: the buildings by name, other names and room-number prefixes
+        (as the router reads names), every office's and venue's name and other names as said
+        plainly, and each office's and venue's id by its name."""
         key = self.facts.active_release()
         if self._names_cache is not None and self._names_cache[0] == key:
             return self._names_cache[1]
-        buildings = [{"name": b["name"], "also_called": list(b["aliases"]), "entity_id": b["id"]}
+        rooms = self.facts.room_prefixes()
+        buildings = [{"name": b["name"], "also_called": list(b["aliases"]), "entity_id": b["id"],
+                      **({"room_prefixes": rooms[b["id"]]} if b["id"] in rooms else {})}
                      for b in self.facts.identities(("building",))]
         places = self.facts.identities(("office", "venue"))
         names = {"buildings": buildings,
@@ -1624,6 +1632,9 @@ class ChatEngine:
             "office": {"id": building["entity_id"], "name": facts["entity"]["name"],
                        "kind": "building"},
             "facts": facts}
+        if rooms := rooms_said(latest, building):
+            # "Where is ASB 407?": the room asked, which its prefix places in this building.
+            part["rooms"] = rooms
         if "hours" in request.fields:
             part["hours_places"] = detail["hours_places"] = self._hours_places(
                 facts, graph, as_of)

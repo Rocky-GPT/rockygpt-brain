@@ -171,6 +171,9 @@ class _Reply:
         self.year = as_of[:4] if isinstance(as_of, str) and as_of[:4].isdigit() else None
         fields = asked.get("fields") if isinstance(asked, dict) else None
         self.fields = {str(f) for f in fields} if isinstance(fields, list) else set()
+        # The rooms asked of a building by its room-number prefix ("Where is ASB 407?").
+        rooms = asked.get("rooms") if isinstance(asked, dict) else None
+        self.rooms = [r for r in rooms if isinstance(r, str)] if isinstance(rooms, list) else []
         # Whose hours the view holds: a building's hours are said by its places' own.
         self.with_hours = {str(entry.get("subject")) for kind in ("derived_facts", "facts")
                            for entry in view.get(kind) or [] if isinstance(entry, dict)
@@ -853,7 +856,13 @@ def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[i
             raise CannotSay
         said = [literal(p) for p in value]
         prefixes = said[0] if len(said) == 1 else f"{', '.join(said[:-1])} or {said[-1]}"
-        if where:
+        # "Where is ASB 407?": its prefix is what places the room in this building (11-03).
+        rooms = [literal(room) for room in reply.rooms if any(
+            re.match(rf"{re.escape(p)}(?![A-Za-z])", room, re.IGNORECASE) for p in value)]
+        if where and rooms:
+            reply.say(subject, f"{_and(rooms)} {'is' if len(rooms) == 1 else 'are'} in "
+                               f"{subject}, where room numbers start with {prefixes}.", sources)
+        elif where:
             reply.say(subject, f"Room numbers in {subject} start with {prefixes}.", sources)
     else:
         if not isinstance(value, list) or not value or not all(
@@ -865,8 +874,9 @@ def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[i
             reply.say(subject, (f"I don't have hours for {subject} as a whole, but places in it "
                                 "list their own." if reply.with_hours & set(names)
                                 else f"I don't have hours for {subject}."), [])
-        if where:
-            # Asked what is in it, every place is named; beside where it is, a few are.
+        if where and (not reply.rooms or "places_in" in reply.fields):
+            # Asked what is in it, every place is named; beside where it is, a few are; beside
+            # where a room in it is, none.
             cut = None if "places_in" in reply.fields else PLACES_SAID
             shown = [literal(n) for n in names[:cut]]
             if cut is not None and len(names) > cut:
@@ -1075,9 +1085,13 @@ def _plain_text(view: dict[str, Any], quotes: tuple[int, int]) -> str | None:
         menus = {f.get("subject") for f in facts if isinstance(f, dict)
                  and f.get("predicate") == "menu"}
         facts = _conflicts(reply, facts)
-        # A building is said before the places in it whose hours follow.
-        _facts(reply, [f for f in facts if isinstance(f, dict)
-                       and f.get("predicate") in _BUILDING_KEYS], also=False)
+        # A building is said before the places in it whose hours follow; asked where a room in
+        # it is, the room's building comes first, then where the campus map shows it.
+        building = [f for f in facts if isinstance(f, dict)
+                    and f.get("predicate") in _BUILDING_KEYS]
+        if reply.rooms:
+            building.sort(key=lambda f: f.get("predicate") != "room_prefixes")
+        _facts(reply, building, also=False)
         facts = [f for f in facts if not isinstance(f, dict)
                  or f.get("predicate") not in _BUILDING_KEYS]
         for entry in _day_conflicts(reply, view.get("derived_facts") or [], menus):
