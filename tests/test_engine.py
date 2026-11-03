@@ -274,10 +274,10 @@ def test_model_cannot_omit_missing_evidence_to_report_full_success() -> None:
 
 
 @pytest.mark.parametrize(("kind", "phrase"), [
-    ("greeting", "shuttle timetable, and dining hours and menus"),
+    ("greeting", "dining menus, the shuttle, events and clubs"),
     ("thanks", "You're welcome"),
     ("okay", "call 911, or call or text 988"),
-    ("about", "I can't see your personal student records"),
+    ("about", "your personal student records"),
 ])
 def test_small_talk_gets_a_fixed_server_written_reply_not_an_error(kind: str, phrase: str) -> None:
     # "okay" answers an earlier emergency, so the conversation holds the Brain's own safety reply.

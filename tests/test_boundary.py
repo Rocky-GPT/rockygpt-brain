@@ -315,3 +315,30 @@ def test_someone_not_answering_messages_is_not_unresponsive(message: str) -> Non
 ])
 def test_a_person_who_cannot_respond_still_gets_the_safety_help(message: str) -> None:
     assert is_safety(message)
+
+
+# 11-03: "i want to kms" went to page search and got 988 and Counseling but no 911 or Public
+# Safety. The read step (triage.py) catches any wording; the commonest slang also holds here.
+@pytest.mark.parametrize("message", [
+    "i want to kms",
+    "lowkey wanna kms rn",
+    "i wanna kms from all this stress",
+    "kms",
+    "im gonna unalive myself",
+    "i want to unalive",
+    "i wanna die",
+])
+def test_the_commonest_self_harm_slang_gets_the_self_harm_text(message: str) -> None:
+    result = read(message)
+    assert result.kind == "safety" and result.situation == "self_harm"
+    assert result.also_answer is False
+
+
+@pytest.mark.parametrize("message", [
+    "i ran 5 kms today",
+    "the mall is like 3 kms away",
+    "how many kms is it to the train station",
+    "is the 10km race this weekend",
+])
+def test_kilometers_are_not_self_harm_slang(message: str) -> None:
+    assert read(message) == CONTINUE
