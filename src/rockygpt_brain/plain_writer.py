@@ -127,7 +127,7 @@ _QUOTED_SECTION = re.compile(r"^.{1,120}?'s page (?:\"[^\"]*\" )?says: \"")
 class _Reply:
     """Sentences by subject in the order first said, each with its source marks merged."""
 
-    def __init__(self) -> None:
+    def __init__(self, view: dict[str, Any] | None = None) -> None:
         self.subjects: dict[str, dict[str, list[int]]] = {}
         self.days_said: set[tuple[str, str]] = set()
         self.dates_note: str | None = None
@@ -135,6 +135,20 @@ class _Reply:
         # A page section two subjects share (Public Safety's emergency and non-emergency lines
         # link the same pages) is said once.
         self.sections_said: set[tuple[str, str]] = set()
+        # Weekdays a week was said with as "not listed", by subject and day, with the sources
+        # it was said from: the gap that says so again is not said twice.
+        self.not_listed: dict[tuple[str, str], set[int]] = {}
+        view = view or {}
+        # Each source's published dates (a dining venue's special hours for November 6 to 7).
+        self.windows: dict[int, tuple[str, str]] = {
+            source["n"]: (source["valid_from"], source["valid_until"])
+            for source in view.get("sources") or []
+            if isinstance(source, dict) and isinstance(source.get("n"), int)
+            and isinstance(source.get("valid_from"), str)
+            and isinstance(source.get("valid_until"), str)}
+        asked = view.get("asked") if isinstance(view.get("asked"), dict) else {}
+        as_of = asked.get("asOf") if isinstance(asked, dict) else None
+        self.year = as_of[:4] if isinstance(as_of, str) and as_of[:4].isdigit() else None
 
     def say(self, subject: str, sentence: str, sources: list[int]) -> None:
         said = self.subjects.setdefault(subject, {})
@@ -153,6 +167,61 @@ class _Reply:
         if self.dates_note:
             paragraphs.append(f"{self.dates_note} {_marks(self.dates_sources)}".strip())
         return "\n\n".join(paragraphs)
+
+
+def _and(items: list[str]) -> str:
+    """Items as a sentence lists them: "Friday", "Friday and Saturday", "Monday, Friday and
+    Sunday"."""
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+_WEEK = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+
+def _days(days: list[Any]) -> str:
+    if not days or not all(isinstance(d, str) for d in days):
+        raise CannotSay
+    return "any day" if set(days) >= set(_WEEK) else _and([literal(d) for d in days])
+
+
+def _schedule_name(value: dict[str, Any], subject: str) -> str:
+    """A schedule as code's text names it: its own name, with its season when the name lacks it
+    ("Student Accounts (Academic Year)")."""
+    schedule, season = value.get("schedule"), value.get("season")
+    named = literal(schedule) if schedule else subject
+    if season and str(season) not in str(schedule or ""):
+        named += f" ({literal(season)})"
+    return named
+
+
+def _window(reply: _Reply, sources: list[int]) -> str | None:
+    """The dates a schedule's sources publish ("November 6 to November 7"), or None when one of
+    them publishes none. The year is said when it is not the year asked in."""
+    if not sources or any(n not in reply.windows for n in sources):
+        return None
+    said = []
+    for start, end in dict.fromkeys(reply.windows[n] for n in sources):
+        year = reply.year is None or start[:4] != reply.year or end[:4] != reply.year
+        first, last = _when(start, year=year), _when(end, year=year)
+        said.append(first if first == last else f"{first} to {last}")
+    return _and(said)
+
+
+def _dates(reply: _Reply, value: dict[str, Any], fact: dict[str, Any],
+           sources: list[int]) -> str | None:
+    """For a schedule that is not current, the dates its sources publish (Dunkin's special hours
+    "November 6 to November 7"). One whose dates are not published (a season with no dates) adds
+    the note that says so and has none. One that is not current for no reason the view gives
+    can't be said."""
+    if not (value.get("dates_not_published") or fact.get("current") is False):
+        return None
+    if value.get("dates_not_published") or value.get("season"):
+        _undated(reply, {}, sources)
+        return None
+    window = _window(reply, sources)
+    if window is None:
+        raise CannotSay
+    return window
 
 
 def _undated(reply: _Reply, entry: dict[str, Any], sources: list[int]) -> None:
@@ -258,6 +327,13 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
             "current") is False:
         _undated(reply, entry, sources)
     _notes(reply, subject, value.get("notes"), value["hours"], sources)
+
+
+def _not_listed(reply: _Reply, subject: str, value: dict[str, Any], sources: list[int]) -> None:
+    for entry in value.get("days") or []:
+        if isinstance(entry, dict) and entry.get("hours") is None \
+                and entry.get("status") != "not_published":
+            reply.not_listed.setdefault((subject, str(entry.get("day"))), set()).update(sources)
 
 
 def _week(value: dict[str, Any]) -> str:
@@ -599,16 +675,10 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
     if key == "hours":
         if not isinstance(value, dict):
             raise CannotSay
-        schedule, season = value.get("schedule"), value.get("season")
-        named = literal(schedule) if schedule else subject
-        if season and str(season) not in str(schedule or ""):
-            named += f" ({literal(season)})"
-        week = _week(value)
-        reply.say(subject, f"{named} hours: {week}.", sources)
-        if value.get("dates_not_published") or fact.get("current") is False:
-            if not value.get("dates_not_published") and not season:
-                raise CannotSay
-            _undated(reply, {}, sources)
+        named, week = _schedule_name(value, subject), _week(value)
+        dates = _dates(reply, value, fact, sources)
+        reply.say(subject, f"{named} hours{f' for {dates}' if dates else ''}: {week}.", sources)
+        _not_listed(reply, subject, value, sources)
         _notes(reply, subject, value.get("notes"), week, sources)
     elif key == "phones":
         all_labelled = all(isinstance(p, dict) and (p.get("type") or p.get("label"))
@@ -699,31 +769,158 @@ def _excerpt(text: str) -> tuple[str, bool]:
     return text[:stop], stop < len(text)
 
 
+def _listings(group: list[dict[str, Any]], subject_name: str,
+              names: list[str]) -> tuple[str, list[int], list[str]]:
+    """How a conflict is introduced: the name its lead sentence gives (the one schedule's, or the
+    office's when the schedules differ), the sources that sentence is marked with, and each
+    value's label. Values one page gives are "One listing" and "Another listing", with the
+    page's mark on the lead too; values from different pages are "One page" and "Another page"."""
+    subject = literal(subject_name)
+    lead = names[0] if len(set(names)) == 1 else subject
+    same = len({tuple(item["sources"]) for item in group}) == 1
+    kind = "listing" if same else "page"
+    labels = []
+    for n, named in enumerate(names):
+        label = f"{'One' if n == 0 else 'Another'} {kind}"
+        if named != lead and _plain(named) != _plain(subject_name):
+            label += f", for {named}"
+        labels.append(label)
+    return lead, (list(group[0]["sources"]) if same else []), labels
+
+
 def _conflicts(reply: _Reply, facts: list[Any]) -> list[Any]:
     """Hours the office's pages give differently (status conflicting), said as each page gives
     them, schedule by schedule, with no winner picked; the other facts are returned to be said."""
-    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    groups: dict[str, list[dict[str, Any]]] = {}
     rest = []
     for fact in facts:
         if isinstance(fact, dict) and fact.get("status") == "conflicting" \
                 and fact.get("predicate") == "hours" and isinstance(fact.get("value"), dict):
-            groups.setdefault((str(fact["subject"]), str(fact["value"].get("schedule"))),
-                              []).append(fact)
+            groups.setdefault(str(fact["subject"]), []).append(fact)
         else:
             rest.append(fact)
-    for (subject_name, schedule), group in groups.items():
+    for subject_name, group in groups.items():
         subject = literal(subject_name)
-        season = group[0]["value"].get("season")
-        named = literal(schedule) + (f" ({literal(season)})" if season and season not in schedule
-                                     else "")
-        reply.say(subject, f"The pages list different {named} hours.", [])
-        for n, fact in enumerate(group):
+        names = [_schedule_name(fact["value"], subject) for fact in group]
+        lead, marks, labels = _listings(group, subject_name, names)
+        reply.say(subject, f"The {'page lists' if marks else 'pages list'} different {lead} "
+                           "hours.", marks)
+        for fact, label in zip(group, labels, strict=True):
             value = {k: v for k, v in fact["value"].items() if k not in ("schedule", "season")}
-            reply.say(subject, f"{'One page' if n == 0 else 'Another page'}: {_week(value)}.",
+            dates = _dates(reply, fact["value"], fact, fact["sources"])
+            week = _week(value)
+            reply.say(subject, f"{label}{f', for {dates}' if dates else ''}: {week}.",
                       fact["sources"])
-            if value.get("dates_not_published") or fact.get("current") is False:
-                _undated(reply, {}, fact["sources"])
+            _not_listed(reply, subject, value, fact["sources"])
     return rest
+
+
+def _day_conflicts(reply: _Reply, entries: list[Any], menus: set[Any]) -> list[Any]:
+    """One day's hours the pages give differently (derived facts with status conflicting: the IT
+    Help Desk's page lists 8:00am-8:00pm and 8:30am-8:00pm for a Tuesday), said listing by
+    listing in the page's words with no winner picked. Whether the office is open now is said
+    when every listing says the same. The other derived facts are returned to be said."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    rest = []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("status") == "conflicting" \
+                and entry.get("predicate") == "hours_on":
+            groups.setdefault((str(entry["subject"]), str(entry["date"])), []).append(entry)
+        else:
+            rest.append(entry)
+    for (subject_name, _), every in groups.items():
+        group = [entry for entry in every if entry.get("applies") is not False]
+        for entry in group:
+            _known(entry, _DERIVED_KEYS | {"status"})
+            _known(entry["value"], _DAY_KEYS)
+        if not group:
+            continue
+        subject = literal(subject_name)
+        reply.days_said.add((subject, group[0]["day"]))
+        names = [_schedule_name(entry["value"], subject) for entry in group]
+        lead, marks, labels = _listings(group, subject_name, names)
+        every_source = list(dict.fromkeys(n for entry in group for n in entry["sources"]))
+        for key, listed in (("open_now", False), ("listed_open_now", True)):
+            nows = [entry.get(key) for entry in group]
+            if subject_name in menus or not all(isinstance(now, dict) for now in nows):
+                continue
+            said = [_open_now(subject, now, listed) for now in nows if isinstance(now, dict)]
+            agreed = said[0] if all(s == said[0] for s in said) else (
+                said[0][:1] if all(s[0] == said[0][0] for s in said) else [])
+            for sentence in agreed:
+                reply.say(subject, sentence, every_source)
+        reply.say(subject, f"The {'page lists' if marks else 'pages list'} different {lead} "
+                           f"hours for {_day(group[0])}.", marks)
+        for entry, label in zip(group, labels, strict=True):
+            value = entry["value"]
+            hours = value.get("hours") if value.get("hours") is not None \
+                else value.get("listed_hours")
+            if hours is not None and not isinstance(hours, str):
+                raise CannotSay
+            said_hours = (literal(hours) if hours else "not published"
+                          if value.get("status") == "not_published" else "not listed")
+            reply.say(subject, f"{label}: {said_hours}.", entry["sources"])
+            if value.get("dates_not_published") or entry.get("applicability") \
+                    or entry.get("current") is False:
+                _undated(reply, entry, entry["sources"])
+            _notes(reply, subject, value.get("notes"), str(hours or ""), entry["sources"])
+    return rest
+
+
+# What an office's pages list more than one of, said before each value (Degree Completion's
+# rooms: the director's ASB-435 and ASB-424).
+_MORE_THAN_ONE = {"offices": "room", "phones": "phone number", "email": "email address",
+                  "website": "website"}
+
+
+def _facts(reply: _Reply, facts: list[Any], also: bool) -> None:
+    """The facts said in turn (`also`: the ones published beside the answer). A value the pages
+    give differently is said after a sentence that says they list more than one, with no
+    winner picked."""
+    led: set[tuple[str, str]] = set()
+    for fact in facts:
+        if not isinstance(fact, dict) or (fact.get("purpose") == "also_published") != also:
+            continue
+        if "status" in fact:
+            thing = _MORE_THAN_ONE.get(str(fact.get("predicate")))
+            if fact["status"] != "conflicting" or thing is None:
+                raise CannotSay
+            subject = literal(fact["subject"])
+            if (subject, fact["predicate"]) not in led:
+                led.add((subject, fact["predicate"]))
+                group = [f for f in facts if isinstance(f, dict) and f.get("status")
+                         == "conflicting" and f.get("subject") == fact["subject"]
+                         and f.get("predicate") == fact["predicate"]]
+                same = len({tuple(f.get("sources") or []) for f in group}) == 1
+                reply.say(subject, f"The {'page lists' if same else 'pages list'} more than one "
+                                   f"{thing} for {subject}.",
+                          list(fact["sources"]) if same else [])
+            fact = {k: v for k, v in fact.items() if k != "status"}
+        _fact(reply, fact)
+
+
+# A gap in a schedule: which schedule (and season) it is of, the record's own reason, the days it
+# leaves unknown, and the proof that the schedule's dates are not published.
+_GAP_KEYS = frozenset({"subject", "predicate", "reason", "sources", "schedule", "status",
+                       "details", "days", "source_statements", "season", "validity_absence"})
+
+
+def _unknown_days(reply: _Reply, subject: str, gap: dict[str, Any]) -> None:
+    """Weekdays of a schedule with no verified hours. Not said when a day was asked (a derived
+    fact said it: the week's other days are not what was asked), nor when the week said those
+    days were not listed. A reason that holds hours nothing else said ("Normal: 8:30 a.m. to 4:30
+    p.m.", which names no days) is said in its own words."""
+    sources = gap.get("sources") or []
+    days = gap.get("days") or []
+    said = all(set(sources) <= reply.not_listed.get((subject, str(d)), set()) for d in days)
+    if days and not said and not any(asked[0] == subject for asked in reply.days_said):
+        season = gap.get("season")
+        named = subject + (f" ({literal(season)})" if season
+                           and str(season).casefold() not in subject.casefold() else "")
+        reply.say(subject, f"{named} has no verified hours for {_days(days)}.", sources)
+    details = gap.get("details")
+    if isinstance(details, str) and _numbers(details) - _numbers(reply.text()):
+        reply.say(subject, f'Its listing adds: "{literal(details.strip())}"', sources)
 
 
 def plain_text(view: dict[str, Any]) -> str | None:
@@ -732,18 +929,16 @@ def plain_text(view: dict[str, Any]) -> str | None:
     try:
         if not isinstance(view, dict) or set(view) - _VIEW_KEYS:
             raise CannotSay
-        reply = _Reply()
+        reply = _Reply(view)
         facts = view.get("facts") or []
         menus = {f.get("subject") for f in facts if isinstance(f, dict)
                  and f.get("predicate") == "menu"}
         facts = _conflicts(reply, facts)
-        for entry in view.get("derived_facts") or []:
+        for entry in _day_conflicts(reply, view.get("derived_facts") or [], menus):
             if not isinstance(entry, dict) or entry.get("predicate") != "hours_on":
                 raise CannotSay
             _day_hours(reply, entry, brief=entry.get("subject") in menus)
-        for fact in facts:
-            if fact.get("purpose") != "also_published":
-                _fact(reply, fact)
+        _facts(reply, facts, also=False)
         for absence in view.get("not_published") or []:
             _known(absence, _ABSENCE_KEYS)
             thing = _NOT_PUBLISHED.get(absence["predicate"])
@@ -754,28 +949,18 @@ def plain_text(view: dict[str, Any]) -> str | None:
                                f"{_when(absence['checked_at'], year=True)}).",
                       absence.get("sources") or [])
         for gap in view.get("missing") or []:
-            if not isinstance(gap, dict) or set(gap) - {
-                    "subject", "predicate", "reason", "sources", "schedule", "status", "details",
-                    "days", "source_statements"}:
+            if not isinstance(gap, dict) or set(gap) - _GAP_KEYS:
                 raise CannotSay
             subject = literal(gap["subject"])
             if gap.get("reason") == "partially_unknown_schedule":
-                # Some weekdays of a week's schedule have no verified hours. When a day was asked
-                # (a derived fact said it), the week's other days are not what was asked.
-                days = gap.get("days") or []
-                if days and not any(said[0] == subject for said in reply.days_said):
-                    reply.say(subject, f"{subject} has no verified hours for "
-                                       f"{' and '.join(literal(d) for d in days)}.",
-                              gap.get("sources") or [])
+                _unknown_days(reply, subject, gap)
             elif gap.get("reason") == "no_fax_line":
                 reply.say(subject, f"None of {subject}'s published phone lines is a fax.", [])
             else:
                 thing = _UNKNOWN.get(gap["predicate"], str(gap["predicate"]).replace("_", " "))
                 reply.say(subject, f"I don't have verified information about {subject}'s "
                                    f"{literal(thing)}.", [])
-        for fact in facts:
-            if fact.get("purpose") == "also_published":
-                _fact(reply, fact)
+        _facts(reply, facts, also=True)
         text = reply.text()
         return text or None
     except (CannotSay, KeyError, TypeError):

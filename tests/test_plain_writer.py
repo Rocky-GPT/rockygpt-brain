@@ -104,7 +104,10 @@ def test_a_schedule_for_other_dates_is_left_out_and_page_markup_stays_text() -> 
 def test_a_shape_it_does_not_know_is_left_to_the_codes_evidence_text() -> None:
     assert plain_text(view(ambiguities=[{"query": "x", "choices": ["A", "B"]}])) is None
     assert plain_text(view(facts=[{"subject": "Registrar", "predicate": "email",
-                                   "status": "conflicting", "value": "a@example.edu",
+                                   "status": "multiple", "value": "a@example.edu",
+                                   "sources": [1]}])) is None
+    assert plain_text(view(facts=[{"subject": "Registrar", "predicate": "procedures",
+                                   "status": "conflicting", "value": {"text": "x"},
                                    "sources": [1]}])) is None
     assert plain_text(view(derived_facts=[{"subject": "Shuttle", "predicate": "departures",
                                            "day": "Monday", "date": "2026-11-02", "value": {},
@@ -219,3 +222,128 @@ def test_hours_two_pages_give_differently_are_said_page_by_page_with_no_winner()
     assert plain_text(view(facts=[week("8:30am-4:30pm", 1), week("8:30am-4:00pm", 2)])) == (
         "The pages list different Student Accounts (Academic Year) hours. One page: Monday and "
         "Tuesday: 8:30am-4:30pm. [1] Another page: Monday and Tuesday: 8:30am-4:00pm. [2]")
+
+
+# Card shapes the check over every office and venue in the 11-03 release graph found the plain
+# writer could not say (scripts/check_plain_writer.py): each went to the student as code's
+# evidence text, with notes like "captured 2026-10-23T14:20".
+
+def test_a_seasonal_week_is_said_and_its_gap_is_not_said_twice() -> None:
+    # The gym's Fall hours: its gap names the schedule's season, and the week already says
+    # Saturday is not listed.
+    v = view(facts=[{"subject": "Auxiliary Gym", "predicate": "hours", "current": False,
+                     "value": {"schedule": "Auxiliary Gym", "season": "Fall Semester Hours",
+                               "days": [{"day": "Friday", "hours": "8:00am-9:30am"},
+                                        {"day": "Saturday", "hours": None},
+                                        {"day": "Sunday", "hours": "12:00pm-4:00pm"}]},
+                     "sources": [1]}],
+             missing=[{"subject": "Auxiliary Gym", "predicate": "hours",
+                       "reason": "partially_unknown_schedule", "schedule": "Auxiliary Gym",
+                       "status": "unknown", "season": "Fall Semester Hours",
+                       "details": "No verified hours are published for the listed weekdays.",
+                       "days": ["Saturday"], "source_statements": [], "sources": [1]}])
+    said = plain_text(v)
+    assert said == (
+        "Auxiliary Gym (Fall Semester Hours) hours: Friday: 8:00am-9:30am; Saturday: not listed; "
+        "Sunday: 12:00pm-4:00pm. [1]\n\n"
+        "The page does not say which dates this schedule covers. [1]")
+    assert unsupported_by(said, v) == []
+
+
+def test_hours_a_schedule_gives_without_days_are_said_in_its_own_words() -> None:
+    # Purchasing's page gives "Normal: 8:30 a.m. to 4:30 p.m." and names no days: no day is
+    # assumed, and the hours are not hidden either.
+    v = view(missing=[{"subject": "Purchasing", "predicate": "hours",
+                       "reason": "partially_unknown_schedule", "schedule": "Purchasing",
+                       "status": "unknown", "season": "Normal",
+                       "details": "Normal: 8:30 a.m. to 4:30 p.m.",
+                       "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+                                "Saturday", "Sunday"],
+                       "source_statements": [],
+                       "validity_absence": {"valid_from": {"status": "not_published"}},
+                       "sources": [1]}])
+    said = plain_text(v)
+    assert said == ('Purchasing (Normal) has no verified hours for any day. Its listing adds: '
+                    '"Normal: 8:30 a.m. to 4:30 p.m." [1]')
+    assert unsupported_by(said, v) == []
+
+
+def test_two_listings_of_one_days_hours_are_both_said_with_whether_it_is_open_now() -> None:
+    # The IT Help Desk's page lists walk-in and support hours: neither is picked.
+    def listing(hours: str, note: str) -> dict[str, Any]:
+        return {"subject": "IT Help Desk", "predicate": "hours_on", "status": "conflicting",
+                "day": "Tuesday", "date": "2026-11-03", "current": False,
+                "listed_open_now": {"state": "closed", "now": "1:18am"},
+                "applicability": "unverified",
+                "applicability_reason": "The page does not say which dates this schedule covers.",
+                "value": {"schedule": "IT Help Desk", "season": "Fall/Spring", "hours": None,
+                          "listed_hours": hours, "notes": [note]}, "sources": [1]}
+    v = view(derived_facts=[listing("8:00am-8:00pm", "Walk-in hours. 4th floor."),
+                            listing("8:30am-8:00pm", "Friday 8:30 AM - 6:00 PM. Support.")])
+    said = plain_text(v)
+    assert said == (
+        "By its listed hours, IT Help Desk is closed now (1:18am). The page lists different IT "
+        "Help Desk (Fall/Spring) hours for Tuesday, November 3. One listing: 8:00am-8:00pm. The "
+        'page adds: "Walk-in hours. 4th floor." Another listing: 8:30am-8:00pm. The page adds: '
+        '"Friday 8:30 AM - 6:00 PM. Support." [1]\n\n'
+        "The page does not say which dates this schedule covers. [1]")
+    assert unsupported_by(said, v) == []
+    # From two pages, each is said with its own page's mark; a different schedule is named.
+    other = {**listing("8:30am-4:30pm", "x"), "sources": [2], "listed_open_now": {
+        "state": "open", "now": "1:18am"}, "value": {"schedule": "IT Help Desk (Summer)",
+                                                     "hours": None,
+                                                     "listed_hours": "8:30am-4:30pm"}}
+    assert plain_text(view(derived_facts=[listing("8:00am-8:00pm", "Walk-in hours."),
+                                          other])) == (
+        "The pages list different IT Help Desk hours for Tuesday, November 3. One page, for IT "
+        'Help Desk (Fall/Spring): 8:00am-8:00pm. [1] The page adds: "Walk-in hours." [1] Another '
+        "page, for IT Help Desk (Summer): 8:30am-4:30pm. [2]\n\n"
+        "The page does not say which dates this schedule covers. [1][2]")
+
+
+def test_rooms_a_page_gives_differently_are_both_said_with_no_winner() -> None:
+    v = view(facts=[
+        {"subject": "Degree Completion", "predicate": "email", "value": "dc@example.edu",
+         "sources": [1]},
+        {"subject": "Degree Completion", "predicate": "offices", "status": "conflicting",
+         "value": [{"label": "Director", "location": "ASB-435"}], "sources": [1]},
+        {"subject": "Degree Completion", "predicate": "offices", "status": "conflicting",
+         "value": ["ASB-424"], "sources": [1]}])
+    said = plain_text(v)
+    assert said == (
+        "Degree Completion email: dc@example.edu. The page lists more than one room for Degree "
+        "Completion. Director: ASB-435. Degree Completion is in ASB-424. [1]")
+    assert unsupported_by(said, v) == []
+
+
+def test_special_hours_for_published_dates_are_said_with_those_dates() -> None:
+    # Dunkin's Saturday hours for two weekends: a venue's dated rows are exceptions to its week.
+    def weekend(sources: list[int]) -> dict[str, Any]:
+        return {"subject": "Dunkin'", "predicate": "hours", "current": False, "value": {
+            "schedule": "Dunkin'", "days": [{"day": "Friday", "hours": None},
+                                            {"day": "Saturday", "hours": "09:00 AM - 01:30 PM"}],
+            "notes": []}, "sources": sources}
+    dated = {**view(), "asked": {"intent": "hours", "offices": ["Dunkin'"], "fields": ["hours"],
+                                 "asOf": "2026-11-03T01:21:16-05:00"},
+             "facts": [{"subject": "Dunkin'", "predicate": "hours", "value": {
+                 "schedule": "Dunkin'", "days": [{"day": "Saturday", "hours": "Closed"}]},
+                 "sources": [1]}, weekend([2, 3])],
+             "missing": [{"subject": "Dunkin'", "predicate": "hours",
+                          "reason": "partially_unknown_schedule", "schedule": "Dunkin'",
+                          "status": "unknown", "details": "No verified hours are published.",
+                          "days": ["Friday"], "source_statements": [], "sources": [n]}
+                         for n in (2, 3)],
+             "sources": [{"n": 1, "title": "dining", "urls": ["https://example.edu/d/"]},
+                         {"n": 2, "title": "dining", "urls": ["https://example.edu/d/"],
+                          "validity": "future", "valid_from": "2026-11-06",
+                          "valid_until": "2026-11-07"},
+                         {"n": 3, "title": "dining", "urls": ["https://example.edu/d/"],
+                          "validity": "future", "valid_from": "2027-01-08",
+                          "valid_until": "2027-01-08"}]}
+    said = plain_text(dated)
+    assert said == (
+        "Dunkin' hours: Saturday: Closed. [1] Dunkin' hours for November 6 to November 7 and "
+        "January 8, 2027: Friday: not listed; Saturday: 09:00 AM - 01:30 PM. [2][3]")
+    assert unsupported_by(said, dated) == []
+    # A schedule that is not current for a reason the view does not give is not guessed at.
+    assert plain_text(view(facts=[weekend([1])])) is None
