@@ -312,7 +312,8 @@ def test_rooms_a_page_gives_differently_are_both_said_with_no_winner() -> None:
     said = plain_text(v)
     assert said == (
         "Degree Completion email: dc@example.edu. The page lists more than one room for Degree "
-        "Completion. Director: ASB-435. Degree Completion is in ASB-424. [1]")
+        "Completion. Degree Completion is in ASB-435 (Director). Degree Completion is in ASB-424. "
+        "[1]")
     assert unsupported_by(said, v) == []
 
 
@@ -347,3 +348,42 @@ def test_special_hours_for_published_dates_are_said_with_those_dates() -> None:
     assert unsupported_by(said, dated) == []
     # A schedule that is not current for a reason the view does not give is not guessed at.
     assert plain_text(view(facts=[weekend([1])])) is None
+
+
+def test_rooms_that_are_all_labelled_still_say_whose_rooms_they_are() -> None:
+    # 11-03 practice: "Main Office: C-209; ASB Office: ASB-513." never named the Career Center.
+    v = view(facts=[{"subject": "Career Center", "predicate": "offices", "value": [
+        {"label": "Main Office", "location": "C-209"},
+        {"label": "ASB Office", "location": "ASB-513"}], "sources": [1]}])
+    said = plain_text(v)
+    assert said == "Career Center is in C-209 (Main Office); ASB-513 (ASB Office). [1]"
+    assert unsupported_by(said, v) == []
+
+
+def test_a_meal_asked_of_a_venue_says_its_hours_whether_or_not_it_names_its_meals() -> None:
+    # 11-03 practice: lunch at a venue that posts one set of hours with no meal names was left
+    # to the evidence text. Its hours are said as they are, and no meal is said served or not.
+    unnamed = view(derived_facts=[{
+        "subject": "The Atrium", "predicate": "hours_on", "day": "Tuesday", "date": "2026-11-03",
+        "value": {"schedule": "The Atrium", "hours": "7:30am - 7:00pm", "meal_asked": "lunch",
+                  "meals_not_labelled": True,
+                  "periods": [{"opens": "7:30am", "closes": "7:00pm"}]},
+        "sources": [1]}])
+    said = plain_text(unnamed)
+    assert said == "The Atrium on Tuesday, November 3: 7:30am to 7:00pm. [1]"
+    assert unsupported_by(said, unnamed) == []
+    # Named meals that leave out the one asked: it is not listed, and the day's meals are said.
+    other = view(derived_facts=[{
+        "subject": "Birch Tree Inn", "predicate": "hours_on", "day": "Saturday",
+        "date": "2026-11-07",
+        "value": {"schedule": "Birch Tree Inn", "meal_asked": "Lunch", "meal_not_served": True,
+                  "hours": "Brunch: 10:00 AM - 02:00 PM; Dinner: 05:00 PM - 08:00 PM",
+                  "periods": [{"label": "Brunch", "opens": "10:00am", "closes": "2:00pm"},
+                              {"label": "Dinner", "opens": "5:00pm", "closes": "8:00pm"}]},
+        "sources": [1]}])
+    said = plain_text(other)
+    assert said == (
+        "Birch Tree Inn doesn't list lunch on Saturday, November 7. Brunch at Birch Tree Inn on "
+        "Saturday, November 7: 10:00am to 2:00pm. Dinner at Birch Tree Inn on Saturday, "
+        "November 7: 5:00pm to 8:00pm. [1]")
+    assert unsupported_by(said, other) == []
