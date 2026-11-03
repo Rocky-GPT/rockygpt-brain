@@ -27,6 +27,7 @@ from rockygpt_brain.answers import (
     phone_lines,
     readable_quote,
     render_facts,
+    tidy_evidence,
 )
 from rockygpt_brain.boundary import (
     CAPABILITY_AFTER_LOOKUP_MESSAGE,
@@ -1886,16 +1887,18 @@ class ChatEngine:
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
-                                  list[dict[str, Any]], list[dict[str, Any]]]:
+                                  list[dict[str, Any]], list[dict[str, Any]], str | None]:
         """The calendar events in the question's window and the clubs it names, read through the
-        shared reader (events.py), numbered after the evidence before them, and what code works
-        out from them (counts, food, the topic's other dates, a club's events); scores are the
-        event cards' meaning, when the index has them."""
+        shared reader (events.py), numbered after the evidence before them, what code works
+        out from them (counts, food, the topic's other dates, a club's events), and the events
+        in code's own words (events.topic_text); scores are the event cards' meaning, when the
+        index has them."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
         computed: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
+        said: str | None = None
 
         def read(dated: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             return self._event_values(dated, version, identity_hash, now)
@@ -1921,18 +1924,26 @@ class ChatEngine:
                                                  all_upcoming())
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
+            outside_values: list[dict[str, Any]] = []
             if matched is False:
                 window_ids = {v.get("_id") for v in values}
                 later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
                 found, again = events.rank_events(later, message, now, now + timedelta(days=366),
                                                   scores, all_upcoming(), by_share=True)
-                outside = numbered(found[:events.MAX_OUTSIDE], outside_window=True) \
-                    if again else []
+                outside_values = found[:events.MAX_OUTSIDE] if again else []
+                outside = numbered(outside_values, outside_window=True)
             words = events.asked_topic(message)
+            in_window = len(events.in_window(values, start, end))
+            valued = [{**line, "_value": value}
+                      for line, value in zip(chosen, ranked, strict=True)]
             computed = events.computed_answers(
-                label, start, end, len(events.in_window(values, start, end)),
-                [{**line, "_value": value} for line, value in zip(chosen, ranked, strict=True)],
-                matched, words, events.asks_food(message), outside, numbered_from + 1)
+                label, start, end, in_window, valued, matched, words, events.asks_food(message),
+                outside, numbered_from + 1)
+            said = events.topic_text(
+                label, start, end, in_window, valued, matched,
+                [{**line, "_value": value}
+                 for line, value in zip(outside, outside_values, strict=True)],
+                numbered_from + 1)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
                         **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
@@ -1949,7 +1960,90 @@ class ChatEngine:
                 sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
             computed = [*computed, *events.club_answers(
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
-        return calendar, clubs, sources, computed
+        return calendar, clubs, sources, computed, said
+
+    def _faculty_part(self, found: Sequence[dict[str, Any]], numbered_from: int,
+                      conveners_only: bool = False,
+                      ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
+        """The faculty of each subject the programs found name (at most three), every person the
+        catalog links to any level of it (EntityFacts.program_people), in code's own words: the
+        text, its sources numbered after `numbered_from` (each program's catalog page, then each
+        person's profile), and what was read, for the reply's check."""
+        version, identity_hash = self.facts.active_release()
+        programs = self.facts.identities(("program",))
+        cores = list(dict.fromkeys(academics.program_core(str(p["name"])) for p in found))[:3]
+        sources: list[dict[str, Any]] = []
+        texts: list[str] = []
+        listed: list[dict[str, Any]] = []
+        read: dict[str, dict[str, Any]] = {}
+        for core in cores:
+            levels = [p["id"] for p in programs
+                      if academics.program_core(str(p["name"])) == core][:12]
+            if not levels:
+                continue
+            linked = [p for p in self.facts.program_people(levels, version,
+                                                           identity_hash=identity_hash)
+                      if p["conveners"] or p["faculty"]]
+            for program in linked:
+                url = program.get("url")
+                given = next((s for s in sources if url and s["url"] == url), None)
+                if given is None and url:
+                    given = {"n": numbered_from + len(sources) + 1, "url": url,
+                             "title": f"{program['name']} in the college catalog"}
+                    sources.append(given)
+                program["n"] = given["n"] if given else None
+            if conveners_only:
+                linked = [p for p in linked if p["conveners"]]
+            wanted = list(dict.fromkeys(
+                pid for p in linked
+                for pid in [*p["conveners"], *([] if conveners_only else p["faculty"])]
+                if pid not in read))
+            for start in range(0, len(wanted), 6):
+                for facts in self.facts.get_person_facts(wanted[start:start + 6], version,
+                                                         identity_hash=identity_hash):
+                    entry = people_module.person_evidence(facts, 0)
+                    url = entry.get("profile_url")
+                    if url:
+                        entry["n"] = numbered_from + len(sources) + 1
+                        sources.append({"n": entry["n"], "url": url,
+                                        "title": entry.get("name")})
+                    else:
+                        entry["n"] = next((p["n"] for p in linked if p.get("n")), None)
+                    read[facts["entity"]["id"]] = entry
+            if not any(p.get("n") for p in linked):
+                continue
+            said = people_module.faculty_text(core, linked, {k: v for k, v in read.items()
+                                                             if v.get("n")}, conveners_only)
+            if said:
+                texts.append(said)
+                listed += [*linked, *(read[pid] for p in linked
+                                      for pid in [*p["conveners"], *p["faculty"]]
+                                      if pid in read)]
+        return ("\n\n".join(texts) if texts else None), sources, listed
+
+    def _calendar_part(self, message: str, kind: str, today: date, numbered_from: int,
+                       ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:
+        """Every academic calendar entry of the kind of date a question names, in the term it
+        asks about, in code's own words (academic_calendar.py), numbered after `numbered_from`;
+        nothing when the release has no calendar or no entry fits."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
+        except (EvidenceUnavailable, DatasetChanged):
+            return None, [], {}
+        term = academic_calendar.term_asked(message, calendar["terms"],
+                                            academic_calendar.term_spans(calendar["dates"]),
+                                            today)
+        if term is None:
+            return None, [], {}
+        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
+        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
+        if not url or not entries:
+            return None, [], {}
+        n = numbered_from + 1
+        return (academic_calendar.calendar_text(term, entries, n),
+                [{"n": n, "url": url, "title": f"{term['name']} academic calendar"}],
+                {"term": term, "entries": entries})
 
     def _clubs_by_words(self, clubs: list[dict[str, Any]], message: str,
                         sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2244,6 +2338,10 @@ class ChatEngine:
             trace["oneCall"] = {"fallback": code}
             return None
         seen: set[tuple[str, str]] = set()
+        # What code writes of the reply itself, placed before the model's words, which say only
+        # the rest (Dan 11-03: code writes as much of each answer as it can).
+        code_parts: list[str] = []
+        code_view: dict[str, Any] = {}
         computed: list[dict[str, Any]] = []
         academic: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
@@ -2279,6 +2377,20 @@ class ChatEngine:
                                                          turn.campus_now)
                     if listed is not None and (done := self._code_answer(turn, trace, *listed[:3],
                                                                          **listed[3])):
+                        return done
+                # A program's faculty asked as a list, or who leads it, and nothing more: every
+                # person the catalog links to the program (or its conveners), said by code.
+                if (programs and programs[0] and not named_people and earlier is None
+                        and (people_module.asks_faculty_list(latest)
+                             or people_module.asks_program_lead(latest))
+                        and not one_call.asks_more(latest)):
+                    with measure("List the faculty the catalog links"):
+                        said, found_sources, listed_people = await asyncio.to_thread(
+                            self._faculty_part, programs[0], 0,
+                            not people_module.asks_faculty_list(latest))
+                    if done := self._code_answer(turn, trace, said, found_sources,
+                                                 self.facts.active_release()[0],
+                                                 program_people=listed_people):
                         return done
                 if programs and not pick_catalog:
                     with measure("Read the programs named"):
@@ -2328,12 +2440,27 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, clubs, found_sources, calendar_facts = await asyncio.to_thread(
-                            self._read_calendar, latest, turn.campus_now, len(sources),
-                            event_scores)
+                        calendar, clubs, found_sources, calendar_facts, events_said = \
+                            await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
+                                                    len(sources), event_scores)
                     sources = [*sources, *found_sources]
                     computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
+                    # The events code chose, said by code; with nothing else asked, that is the
+                    # whole reply (11-03: the reply kept 2 of the 3 wellness events it was given).
+                    # When none matches the topic, the pages may still say when it is held (a
+                    # fair's season), and the model reads them for the rest.
+                    if events_said and earlier is None and not people_asked \
+                            and (calendar or {}).get("topic_matched") is not False \
+                            and not named_people and not (programs and any(programs)) \
+                            and not events.asks_clubs(latest) and not one_call.asks_more(latest):
+                        if done := self._code_answer(turn, trace, events_said, sources,
+                                                     dataset_version, calendar=calendar,
+                                                     computed=computed):
+                            return done
+                    if events_said:
+                        code_parts.append(events_said)
+                        code_view["calendar"] = calendar
                 if searchable:
                     assert index is not None
                     named = list(dict.fromkeys([*named, *one_call.card_offices(index, vectors)]))
@@ -2512,12 +2639,32 @@ class ChatEngine:
                 computed = [*computed, *one_call.dated_statements(
                     offices, turn.campus_now.date(), latest,
                     [str(p.get("name") or "") for p in people])]
+                if (programs and programs[0] and not named_people
+                        and (people_module.asks_faculty_list(latest)
+                             or people_module.asks_program_lead(latest))):
+                    with measure("List the faculty the catalog links"):
+                        said, found_sources, listed_people = await asyncio.to_thread(
+                            self._faculty_part, programs[0], len(sources),
+                            not people_module.asks_faculty_list(latest))
+                    if said:
+                        sources = [*sources, *found_sources]
+                        code_parts.append(said)
+                        code_view["program_people"] = listed_people
+                if (date_kind := academic_calendar.kind_named(latest)) is not None:
+                    with measure("Read the academic calendar's dates asked"):
+                        said, found_sources, dated = await asyncio.to_thread(
+                            self._calendar_part, latest, date_kind, turn.campus_now.date(),
+                            len(sources))
+                    if said:
+                        sources = [*sources, *found_sources]
+                        code_parts.insert(0, said)
+                        code_view["academic_calendar"] = dated
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
                     completion = await self.gateway.complete(
                         input=one_call.messages(latest, earlier if question != latest else None,
                                                 offices, turn.campus_now.date(), academic,
-                                                calendar, clubs, people, computed),
+                                                calendar, clubs, people, computed, code_parts),
                         tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -2550,7 +2697,7 @@ class ChatEngine:
                                                     earlier if question != latest else None,
                                                     [*offices, *more], turn.campus_now.date(),
                                                     academic, calendar, clubs, people,
-                                                    computed),
+                                                    computed, code_parts),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
                 if second is not None and second.name == "write_answer":
@@ -2562,23 +2709,28 @@ class ChatEngine:
                 # The first reply still stands; the second look only adds.
                 LOG.warning("brain_one_call_second_look_failed error=%s",
                             getattr(error, "code", type(error).__name__))
-        text, citations = one_call.reply(arguments, sources)
+        written = str(arguments.get("text") or "").strip()
+        text, citations = one_call.reply({"text": "\n\n".join([*code_parts, written])}, sources)
         if not text:
             return fallback("no_text")
         view = {"today": turn.campus_now.date().isoformat(), "offices": offices,
                 "programs": academic, "calendar": calendar, "clubs": clubs, "people": people,
-                "computed": computed,
+                "computed": computed, **({"code_written": code_view} if code_view else {}),
                 "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
         problems = unsupported_by(text, view)
         if problems:
             trace["oneCallProblems"] = problems[:5]
-            kept = one_call.without_unsupported(str(arguments.get("text") or ""),
-                                                lambda said: unsupported_by(said, view))
-            if kept is None:
+            kept = one_call.without_unsupported(written, lambda said: unsupported_by(said, view))
+            if kept is None and not code_parts:
                 trace["oneCallRejected"] = text[:3000]  # For the inspector: what was refused.
                 return fallback("not_in_the_evidence")
-            trace["oneCallDropped"] = kept[1]
-            text, citations = one_call.reply({**arguments, "text": kept[0]}, sources)
+            # What code wrote stands alone when none of the model's words can be kept.
+            trace["oneCallDropped"] = kept[1] if kept is not None else [written]
+            text, citations = one_call.reply(
+                {"text": "\n\n".join([*code_parts, kept[0] if kept is not None else ""])
+                 .strip()}, sources)
+        if code_parts:
+            trace["codeParts"] = len(code_parts)
         # The every-word check, report only: what it would cut, for measuring before it cuts.
         calendar_events = (calendar or {}).get("events") or []
         shared = " ".join([latest, *(o["office"] for o in offices),
@@ -3627,7 +3779,7 @@ class ChatEngine:
             trace["writer"] = {"used": False, "why": why, **({"problems": problems} if problems
                                                               else {}),
                                **({"error": error} if error else {})}
-            return replace(result, body={**result.body, "answer": code_text})
+            return replace(result, body={**result.body, "answer": tidy_evidence(code_text)})
 
         if not isinstance(view, dict) or not isinstance(packet, dict):
             return keep("no_view")

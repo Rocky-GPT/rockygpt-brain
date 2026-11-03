@@ -115,8 +115,13 @@ def _joined(sentences: list[str]) -> str:
     """Sentences one after another; one of several lines (a menu) starts on a line of its own."""
     text = ""
     for sentence in sentences:
-        text += ("" if not text else "\n\n" if "\n" in sentence else " ") + sentence
+        # A page section quoted is a paragraph of its own.
+        apart = "\n" in sentence or _QUOTED_SECTION.search(sentence)
+        text += ("" if not text else "\n\n" if apart else " ") + sentence
     return text
+
+
+_QUOTED_SECTION = re.compile(r"^.{1,120}?'s page (?:\"[^\"]*\" )?says: \"")
 
 
 class _Reply:
@@ -127,6 +132,9 @@ class _Reply:
         self.days_said: set[tuple[str, str]] = set()
         self.dates_note: str | None = None
         self.dates_sources: list[int] = []
+        # A page section two subjects share (Public Safety's emergency and non-emergency lines
+        # link the same pages) is said once.
+        self.sections_said: set[tuple[str, str]] = set()
 
     def say(self, subject: str, sentence: str, sources: list[int]) -> None:
         said = self.subjects.setdefault(subject, {})
@@ -638,11 +646,44 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
                   sources)
     elif key == "prefers_email" and value is True:
         reply.say(subject, f"{subject} says it prefers email.", sources)
+    elif key == "procedures":
+        if not isinstance(value, dict) or not isinstance(value.get("text"), str) \
+                or set(value) - {"heading", "page", "text", "text_cut"}:
+            raise CannotSay
+        heading = " ".join(str(value.get("heading") or "").split()).rstrip(":")
+        said = (heading, " ".join(value["text"].split()))
+        if said in reply.sections_said or not said[1]:
+            return
+        reply.sections_said.add(said)
+        excerpt, cut = _excerpt(said[1])
+        reply.say(subject, (f'{subject}\'s page "{literal(heading)}" says: ' if heading
+                            else f"{subject}'s page says: ")
+                  + f'"{literal(excerpt)}"' + (" (more on its page)" if cut
+                                                or value.get("text_cut") else ""),
+                  sources)
     elif key == "menu" and isinstance(value, dict):
         for sentence in (_board(subject, value) if "board" in value else _menu(subject, value)):
             reply.say(subject, sentence, sources)
     else:
         raise CannotSay
+
+
+# A page section is said in its own words, up to the end of the sentence that passes this many
+# characters, and the rest is left on its page.
+SECTION_CHARS = 500
+
+
+def _excerpt(text: str) -> tuple[str, bool]:
+    """The section's words up to the end of a sentence past SECTION_CHARS, and whether any were
+    left out."""
+    if len(text) <= SECTION_CHARS:
+        return text, False
+    end = re.search(r"[.!?](?=\s+[A-Z(\"“])", text[SECTION_CHARS:])
+    if end is None or end.end() > SECTION_CHARS:
+        cut = text[:SECTION_CHARS * 2].rsplit(" ", 1)[0]
+        return (cut + "…", True) if len(cut) < len(text) else (text, False)
+    stop = SECTION_CHARS + end.end()
+    return text[:stop], stop < len(text)
 
 
 def _conflicts(reply: _Reply, facts: list[Any]) -> list[Any]:
