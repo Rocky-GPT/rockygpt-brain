@@ -21,7 +21,7 @@ _ASKS = (
     ("offices", re.compile(r"\b(?:where|located|location|room|building)\b")),
     ("hours", re.compile(r"\b(?:hours|open|opens|close|closes|closing|closed)\b")),
     ("menu", re.compile(r"\b(?:menu|menus|serving|serve|serves|breakfast|brunch|lunch|dinner|"
-                        r"late night)\b")),
+                        r"late night|food|foods|eat|price|prices|cost|costs|sell|sells)\b")),
     ("contact", re.compile(r"\b(?:contact|reach)\b")),
 )
 _MEALS = ("late night", "breakfast", "brunch", "lunch", "dinner")
@@ -36,7 +36,7 @@ a an the is are what whats when where how do does did can could i me my for of a
 there please ramapo college office offices right now today tonight tomorrow s time number numbers
 phone phones telephone email e mail address hours open opens close closes closing closed contact
 reach located location room building menu menus serving serve serves breakfast brunch lunch dinner
-late night fax call get find and its their
+late night fax call get find and its their food foods eat price prices cost costs sell sells
 who help with
 """.split())
 
@@ -65,6 +65,9 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
                     continue
                 if key := tuple(_words(str(name))):
                     names.setdefault(key, set()).add((kind, str(entry["name"])))
+                    if key[0] == "the" and len(key) > 1:
+                        # "Atrium menu" names The Atrium: "the" is no part of what it is called.
+                        names.setdefault(key[1:], set()).add((kind, str(entry["name"])))
     # Every place a name is said, the longest first; a name inside a longer one is not a name.
     spans: list[tuple[int, int, set[tuple[str, str]]]] = []
     for key, owners in names.items():

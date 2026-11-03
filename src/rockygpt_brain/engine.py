@@ -431,7 +431,7 @@ INCOMPLETE_TEXT = "I found these details, but couldn't complete the rest of your
 AMBIGUOUS_TEXT = "Which office do you mean: {names}?"
 AMBIGUOUS_MORE_TEXT = " There are additional matches; a more specific name will help."
 # "The cafe" names no venue: the one venue that publishes a menu is read, and that is said.
-ONLY_MENU_TEXT = "{venue} is the only campus dining venue that publishes a menu."
+ONLY_MENU_TEXT = "{venue} is the only campus dining venue that publishes a daily menu."
 # A topic is a site with no office behind it; its own page names the offices that handle it.
 TOPIC_ONE_TEXT = "For {topic}, its page sends you to {office}."
 TOPIC_SOME_TEXT = ("For {topic}, its page sends you to these offices: {names}. "

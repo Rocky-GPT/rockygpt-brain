@@ -94,7 +94,7 @@ give the page for the rest.
   the meal's other items: say them too when the student also asked what is on the menu
   (whole_menu_asked is true).
   only_menu_venue means the student named a kind of place (the cafe), not this venue: say first
-  that it is the only campus dining venue that publishes a menu.
+  that it is the only campus dining venue that publishes a daily menu.
   on_other_dates is when a
   food the date's menu lacks is served: say it.
 - A derived fact with predicate departures is the posted shuttle timetable worked out for its

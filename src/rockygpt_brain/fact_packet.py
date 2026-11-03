@@ -455,10 +455,13 @@ class _Builder:
             if fact["predicate"] == "menu" and isinstance(menu, dict) and menu.get(
                     "nutrients_unlisted"):
                 # "High protein": the rows carry calories only, so no item is said to match.
+                listed = ("The menu board lists each item's price and calories"
+                          if "board" in menu else
+                          "The dining service's menu lists each item's calories, portion and "
+                          "diet and allergen labels")
                 self.notices.append({"type": "nutrients_unlisted", "subject": entity,
                                      "approved_text": (
-                                         "The dining service's menu lists each item's calories, "
-                                         "portion and diet and allergen labels; it does not list "
+                                         f"{listed}; it does not list "
                                          f"{' or '.join(menu['nutrients_unlisted'])}.")})
             if fact["predicate"] == "menu" and isinstance(menu, dict) and menu.get(
                     "allergens_unlabelled"):
