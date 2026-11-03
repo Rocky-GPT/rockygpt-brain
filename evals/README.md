@@ -28,3 +28,8 @@ Automatic source-membership and expected-text checks are limited regression
 checks. They cannot establish semantic support for arbitrary generated prose.
 Review unseen real-model conversations independently before making release claims;
 report all failures and any incomplete coverage, not just one combined score.
+
+The blind question sets from October and November 2026 (`blind-*`, 73 folders) moved to
+`rockygpt-evals/brain-blind-sets-2026-10/` on 2026-11-03, so every question set lives in one
+repository. Ask any set with the workspace's one runner, `./rocky bulk file <folder> --brain <port>
+--out <file>` (or `--prod`).
