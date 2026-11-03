@@ -191,7 +191,9 @@ RULES = (
     "its members play sports or study politics. A club's own meeting or social is the club's "
     "kind. An office's or academic department's own directory entry has no kind. A listing that "
     "only reserves, holds, blocks or locks out a room or stage, or is for staff only, has no "
-    "kind, even when the room is a theater.")
+    "kind, even when the room is a theater. Use only the listing's own words, never what you may "
+    "know about the club or college: a listing whose name and words don't say what it is or does "
+    "has no kind.")
 
 # The rules and the list as the model reads them. A change to either gives every card its kinds
 # again (the cache is keyed by this version), so a reworded rule or kind never keeps old picks.
