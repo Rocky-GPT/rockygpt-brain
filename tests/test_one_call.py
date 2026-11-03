@@ -245,6 +245,15 @@ def test_a_dated_change_on_a_page_is_judged_against_today() -> None:
         'passed, so this is in effect now.',
         'A page says "Starting January 5, 2027 parking forms move online" [5]: January 5, 2027 '
         'is still to come, so this is not in effect yet.']
+    # A session that starts on a date, or a row of a table of dates, is no change (11-03: a
+    # refund table read as "August 26, 2026 has passed, so this is in effect now").
+    table = [{"sections": [{"n": 7, "text": "7 week class session beginning August 26, 2026 "
+                                            "100 % Refund: August 28, 2026 50 % Refund: "
+                                            "September 2, 2026"},
+                           # A change that starts on a date still is one.
+                           {"n": 8, "text": "Beginning August 26, 2026 refund requests are "
+                                            "online only."}]}]
+    assert [f["n"] for f in dated_statements(table, today, "do i get my refund money back")] == [8]
 
 
 def test_grouped_marks_cite_every_source_they_name() -> None:
@@ -373,7 +382,10 @@ def test_a_reply_that_says_call_911_also_gives_public_safetys_published_line() -
     text = result.body["answer"]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
     body, sources = text.split("\n\nSources: ")
-    assert body.startswith("If the student is in danger right now, call 911. [2]\n\n" + HELP_TEXT)
+    # "Who do I contact?": the cited office's contacts come next, written by code, then the line.
+    assert body.startswith("If the student is in danger right now, call 911. [2]\n\n"
+                           "**Center for Reading and Writing**: ")
+    assert result.trace["codeParts"] == 1 and "\n\n" + HELP_TEXT in body
     assert "**Public Safety \\(Emergency\\)**: \\(201\\) 555-6666." in body
     assert "https://example.edu/publicsafety" in body and sources.startswith("[2](")
     assert "https://example.edu/publicsafety" in {c["url"] for c in result.body["citations"]}

@@ -648,7 +648,7 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         reply.say(subject, f"{subject} says it prefers email.", sources)
     elif key == "procedures":
         if not isinstance(value, dict) or not isinstance(value.get("text"), str) \
-                or set(value) - {"heading", "page", "text", "text_cut"}:
+                or set(value) - {"heading", "page", "text", "text_cut", "page_updated", "old_page"}:
             raise CannotSay
         heading = " ".join(str(value.get("heading") or "").split()).rstrip(":")
         said = (heading, " ".join(value["text"].split()))
@@ -659,13 +659,26 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         reply.say(subject, (f'{subject}\'s page "{literal(heading)}" says: ' if heading
                             else f"{subject}'s page says: ")
                   + f'"{literal(excerpt)}"' + (" (more on its page)" if cut
-                                                or value.get("text_cut") else ""),
+                                                or value.get("text_cut") else "")
+                  + _old_page(value),
                   sources)
     elif key == "menu" and isinstance(value, dict):
         for sentence in (_board(subject, value) if "board" in value else _menu(subject, value)):
             reply.say(subject, sentence, sources)
     else:
         raise CannotSay
+
+
+def _old_page(value: dict[str, Any]) -> str:
+    """For a section of a page the college has not changed in years: when it last changed, so the
+    student can weigh it ("its page was last updated March 2021")."""
+    if not value.get("old_page") or not isinstance(value.get("page_updated"), str):
+        return ""
+    try:
+        updated = date.fromisoformat(value["page_updated"])
+    except ValueError:
+        raise CannotSay from None
+    return f" (its page was last updated {updated:%B} {updated.year})"
 
 
 # A page section is said in its own words, up to the end of the sentence that passes this many

@@ -1599,6 +1599,30 @@ MAX_SECTION_WORDS_CHARS = 3200
 PICK_MATCH_CHARS = 280
 # How far below today's a section about a term that is over ranks, by meaning.
 MEANING_PAST_TERM = 0.1
+# A page the college has not changed in this many years is old: its sections rank a little below a
+# newer page's (by meaning this far, by words at this share of their score), so when two pages
+# speak to the same thing the newer one comes first. Pages say when they last changed (their
+# article:modified_time); one that says nothing is not old.
+OLD_PAGE_YEARS = 3
+MEANING_OLD_PAGE = 0.05
+WORDS_OLD_PAGE = 0.75
+
+
+def page_updated(row: Mapping[str, Any]) -> date | None:
+    """The day a captured page says it was last changed, when it says so."""
+    changed = _instant(row.get("page_modified_at"))
+    return changed.astimezone(CAMPUS_TIMEZONE).date() if changed else None
+
+
+def old_page(updated: date | None, today: date) -> bool:
+    """Whether a page last changed on `updated` is OLD_PAGE_YEARS or more before today."""
+    if updated is None:
+        return False
+    try:
+        cutoff = today.replace(year=today.year - OLD_PAGE_YEARS)
+    except ValueError:  # February 29
+        cutoff = today.replace(year=today.year - OLD_PAGE_YEARS, day=28)
+    return updated <= cutoff
 
 
 # A term a page is about ("Spring 2026") and the month and day it ends: a section that names only
@@ -1879,12 +1903,14 @@ def procedures_property(
             today) or past_page(str(row.get("url") or ""), today) or past_heading(
             f"{unit['heading']} {unit.get('section', '')}", today) or past_dates(
             f"{unit['heading']} {unit['text'][:600]}", today)
+        old = old_page(page_updated(row), today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))
             if similarity is None:
                 continue
-            # A section for a term that is over ranks below today's.
-            score = similarity - (MEANING_PAST_TERM if over else 0.0)
+            # A section for a term that is over ranks below today's; an old page's below a newer's.
+            score = (similarity - (MEANING_PAST_TERM if over else 0.0)
+                     - (MEANING_OLD_PAGE if old else 0.0))
         else:
             in_heading, in_text = wanted & top, wanted & body
             if not in_heading and len(in_text) < 2:
@@ -1893,6 +1919,8 @@ def procedures_property(
             # A section for a term that is over ("Spring 2026 Check-Out") ranks below today's.
             if over:
                 score /= 2
+            if old:
+                score *= WORDS_OLD_PAGE
         scored.append((-score, row_index, index, row,
                        {**unit, **({"past_term": over} if over else {})}))
     best_entry: dict[int, float] = {}
@@ -1946,7 +1974,10 @@ def procedures_property(
         # (a policy's Procedure section opens with definitions; "Protests" comes later).
         match = (_cut(section["text"], max(0, at - MATCH_LEAD_CHARS), PICK_MATCH_CHARS) if at
                  else _passage(section["text"], wanted, weight, PICK_MATCH_CHARS))
+        updated = page_updated(row)
         value = {"heading": section["heading"], "page": url, "text": said,
+                 **({"page_updated": updated.isoformat()} if updated else {}),
+                 **({"old_page": True} if old_page(updated, today) else {}),
                  **({"text_cut": True} if said != section.get("said", section["text"]) else {}),
                  **({"section_words": own} if own else {}),
                  **({"page_words": around} if around and around != own else {}),

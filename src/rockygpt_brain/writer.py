@@ -147,6 +147,8 @@ give the page for the rest.
   one's steps, amounts, dates and conditions, in that order; one that only repeats an earlier one
   gets a sentence with its page. past_term means the section is for that term, which is over: say
   so, and never give its dates as coming up. term names the term or year it is for: say it.
+  page_updated is the day its page last changed: when two facts disagree, the one with the later
+  page_updated wins; say the older page differs in one sentence.
   section_words are the words of the page section its steps were written from, and the steps
   can leave things out: read them whole, and every rule, number, date, amount or contact in them
   that answers asked.wants is in the answer, also when the steps already say part of it (a rule
@@ -274,7 +276,10 @@ def unsupported_by(text: str, view: dict[str, Any]) -> list[str]:
             problems.append(f"an email address the facts do not hold: {email}")
     rest = _EMAIL.sub(" ", rest)
     for url in _URL.findall(rest):
-        if url.rstrip(".,;:") not in held:
+        # A trailing slash names the same page: ".../report-an-incident-form/" was refused when
+        # the page wrote ".../report-an-incident-form", and the whole reply with it (11-03).
+        bare = url.rstrip(".,;:").rstrip("/")
+        if bare not in held and f"{bare}/" not in held:
             problems.append(f"a web address the facts do not hold: {url}")
     rest = _URL.sub(" ", rest)
     for phone in _PHONE.findall(rest):
