@@ -90,18 +90,26 @@ def test_events_in_the_window_come_by_date_and_by_the_questions_topic() -> None:
     # A topic nothing in the window matches: the whole window, flagged as not matched.
     ranked, matched = rank_events(values, "any lacrosse", start, end)
     assert len(ranked) == 2 and matched is False
-    # A description's words count, and an event whose card's meaning is near the window's best
-    # above the floor matches a question that shares no word with it ("home game").
+    # A description's words count, and an event whose card's meaning stands out from every
+    # event card's matches a question that shares no word with it ("home game").
     fed = [{**event("Pizza Time", "24", 18, ["Social"]), "description": "Free pizza for all"},
            {**event("Women's Volleyball vs. Lehman", "24", 19, ["Athletics"]), "_id": "v"},
            {**event("Book Club", "24", 20, ["Social"]), "_id": "b"}]
     ranked, matched = rank_events(fed, "is there pizza this weekend", start, end)
     assert [v["title"] for v in ranked] == ["Pizza Time"] and matched is True
+    calendar = {f"e{n}": 0.28 + (n % 9) * 0.01 for n in range(40)}
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {**calendar, "v": 0.47, "b": 0.31})
+    assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"]
+    # The same score among a crowd of cards near it stands out from nothing (11-03 check set: a
+    # question about club fairs got a dozen unrelated events at 0.47-0.52).
+    crowd = {f"e{n}": 0.38 + (n % 12) * 0.01 for n in range(40)}
+    ranked, matched = rank_events(fed, "when is the next home game", start, end,
+                                  {**crowd, "v": 0.47, "b": 0.31})
+    assert matched is False
+    # Too few cards to tell a crowd from a match: none is found by meaning.
     ranked, matched = rank_events(fed, "when is the next home game", start, end,
                                   {"v": 0.47, "b": 0.31})
-    assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"]
-    ranked, matched = rank_events(fed, "when is the next home game", start, end,
-                                  {"v": 0.40, "b": 0.31})
     assert matched is False
 
 
@@ -173,12 +181,18 @@ def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
 
 
-def test_clubs_found_by_meaning_are_the_near_best_above_the_floor() -> None:
-    names = {f"c{n}": f"Club {n}" for n in range(12)}
-    scores = [(f"c{n}", 0.67 - n * 0.02) for n in range(12)]
-    # Within 0.08 of the best: five clubs.
+def test_clubs_found_by_meaning_stand_out_from_every_club_and_are_near_the_best() -> None:
+    names = {f"c{n}": f"Club {n}" for n in range(60)}
+    rest = [(f"c{n}", 0.30 + (n % 10) * 0.01) for n in range(5, 60)]
+    scores = [("c0", 0.62), ("c1", 0.58), ("c2", 0.55), ("c3", 0.52), ("c4", 0.44), *rest]
+    # Above the question's own bar (0.48 here) and within 0.08 of the best: three clubs.
     assert [c["name"] for c in clubs_by_meaning(scores, names)] == [
-        "Club 0", "Club 1", "Club 2", "Club 3", "Club 4"]
+        "Club 0", "Club 1", "Club 2"]
+    # A photography club the directory lacks: its nearest card (0.48) is only the top of a crowd
+    # of cards near it, and no club is given (11-03 check set: eight unrelated clubs).
+    crowd = sorted([(f"c{n}", 0.33 + (n % 16) * 0.01) for n in range(60)],
+                   key=lambda pair: -pair[1])
+    assert crowd[0][1] >= 0.48 and clubs_by_meaning(crowd, names) == []
     assert clubs_by_meaning([("c0", 0.31)], names) == []
 
 

@@ -16,7 +16,8 @@ import array
 import importlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+import statistics
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,34 @@ dot: Any = getattr(math, "sumprod", _dot)
 # The vectors file holds float32 values, DIMENSIONS per vector, each vector of length one.
 MEANING_SUFFIX, VECTORS_SUFFIX = ".meaning.json", ".meaning.f32"
 MATRIX_CHUNK = 4096  # Vectors widened to float32 at a time (8 MB at 512 dimensions).
+
+# A card found only by its meaning (a club or an event a question names no word of) counts when
+# it stands out from the other cards of its kind for that question. Every campus card shares
+# much of a campus question's meaning ("Ramapo College student club: ..."), and how much depends
+# on the question, so no fixed score tells a match from a crowd: on 11-03 a question about club
+# fairs scored 0.47-0.52 against a dozen unrelated events, above the old fixed floor of 0.44,
+# while "is there a play i can go see" scored 0.43 against the play itself. The bar is each
+# question's own: its median card's score plus STANDOUT spreads, a spread being the cards' median
+# distance from that median, scaled to a standard deviation. A big group of matching cards (every
+# Greek Life club, for a question about fraternities) barely moves a median, as it would a mean.
+# Tried on 86 fresh questions (11-03, each spread estimated there from the question's 90th
+# percentile): three spreads dropped every crowd of unrelated clubs and events and kept most of
+# those a person would list ("is there a cooking club": Culinary and Pastry Skills; the play). A
+# single near card can still pass ("is there a sailing club": S.A.I.L); a reply gives it only as
+# the nearest.
+STANDOUT, STANDOUT_MIN_CARDS = 3.0, 20
+_MAD_TO_SD = 1.4826
+
+
+def standout_bar(scores: Iterable[float], spreads: float = STANDOUT) -> float | None:
+    """The score a card must reach to stand out from all the cards of its kind for one question
+    (their median plus `spreads` spreads); None with too few cards to tell."""
+    values = sorted(scores)
+    if len(values) < STANDOUT_MIN_CARDS:
+        return None
+    median = statistics.median(values)
+    spread = statistics.median(abs(value - median) for value in values) * _MAD_TO_SD
+    return median + spreads * spread if spread > 0 else None
 
 
 @dataclass(frozen=True)

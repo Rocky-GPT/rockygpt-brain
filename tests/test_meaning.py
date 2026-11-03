@@ -6,7 +6,7 @@ from typing import Any
 from rockygpt_brain.engine import meaning_query
 from rockygpt_brain.provider import TurnBudget
 from rockygpt_brain.retrieval.entity_facts import procedures_property
-from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.retrieval.meaning import MeaningIndex, standout_bar
 from test_engine import (
     NOW,
     ScriptedGateway,
@@ -284,3 +284,24 @@ def test_an_index_stored_in_8_bits_ranks_as_the_float_index_does() -> None:
     assert stored.academic_scores([0, 0, 1], "program")[0][0] == "biology"
     # Stored again, it is the same bytes.
     assert stored.quantize() == (vectors, scales)
+
+
+def test_a_card_stands_out_from_its_kind_by_the_questions_own_bar() -> None:
+    # Each question's own bar: the median card plus three spreads. The same 0.47 stands out
+    # among cards at 0.28-0.36 and is one of the crowd among cards at 0.38-0.49.
+    quiet = [0.28 + (n % 9) * 0.01 for n in range(40)]
+    busy = [0.38 + (n % 12) * 0.01 for n in range(40)]
+    quiet_bar, busy_bar = standout_bar(quiet), standout_bar(busy)
+    assert quiet_bar is not None and busy_bar is not None
+    assert quiet_bar < 0.47 < busy_bar
+    # A big group of matching cards (every Greek Life club for "frats and sororities") does not
+    # lift the bar over itself, as a mean and standard deviation would.
+    greek = [0.60 + (n % 3) * 0.01 for n in range(12)]
+    rest = [0.36 + (n % 7) * 0.01 for n in range(48)]
+    bar = standout_bar([*greek, *rest])
+    assert bar is not None and bar < 0.60
+    mean = sum([*greek, *rest]) / 60
+    sd = (sum((x - mean) ** 2 for x in [*greek, *rest]) / 60) ** 0.5
+    assert mean + 3 * sd > 0.60
+    # Too few cards, or all alike, tell nothing.
+    assert standout_bar([0.5] * 10) is None and standout_bar([0.5] * 40) is None
