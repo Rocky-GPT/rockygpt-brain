@@ -145,6 +145,9 @@ def test_a_word_only_in_a_description_counts_when_the_cards_meaning_agrees() -> 
 def test_a_club_is_given_kinds_by_its_main_purpose() -> None:
     from rockygpt_brain.kinds import BY_KEY, KINDS_VERSION, RULES
     assert "main purpose" in RULES and "locks out a room" in RULES
+    # 11-03 run 10: "Trillium", a club entry with a name and no mission, was labelled LGBTQ+
+    # from the name alone; the college's pages say it is the literary magazine.
+    assert "only the listing's own words" in RULES
     # Esports and watch parties are no sports; politics is not every cause.
     assert "Not esports" in BY_KEY["athletics"].holds
     assert "activism" not in BY_KEY["civic"].named and "activism" in BY_KEY["advocacy"].named
