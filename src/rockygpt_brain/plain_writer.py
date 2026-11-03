@@ -51,7 +51,8 @@ MENU_ITEMS = 4
 # An office's phone lines said, its own first as published, then "and N more on its page" (the
 # Registrar lists eight, six of them staff members').
 PHONE_LINES = 4
-# A building's places are named up to this many, then "and N more" (the Student Center has 15).
+# A building's places beside where it is are named up to this many, then "and N more" (the
+# Student Center has 15). Asked what is in it, every one is named.
 PLACES_SAID = 8
 # A page section is said in its own words, up to the end of the sentence that passes this many
 # characters, and the rest is left on its page.
@@ -748,6 +749,22 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         reply.say(subject, f"{subject} website: {value}.", sources)
     elif key in _BUILDING_KEYS:
         _building(reply, subject, key, value, sources)
+    elif key == "building":
+        # Where an office is when its own records publish no room: the building the graph
+        # places it in, and where the campus map shows that (11-03: the Bradley Center lounge).
+        if not isinstance(value, list) or not value or not all(
+                isinstance(b, dict) and isinstance(b.get("name"), str)
+                and isinstance(b.get("map"), str) and citation_url(b["map"]) for b in value):
+            raise CannotSay
+        if len(value) == 1:
+            reply.say(subject, f"{subject} is in {literal(value[0]['name'])}, which is on the "
+                               f"campus map: {value[0]['map']}.", sources)
+        else:
+            reply.say(subject, f"{subject} is in {_and([literal(b['name']) for b in value])}.",
+                      sources)
+            for b in value:
+                reply.say(subject, f"{literal(b['name'])} is on the campus map: {b['map']}.",
+                          sources)
     elif key in ("contact_note", "department", "name", "preferred_contact"):
         if not isinstance(value, str):
             raise CannotSay
@@ -842,9 +859,11 @@ def _building(reply: _Reply, subject: str, key: str, value: Any, sources: list[i
                                 "list their own." if reply.with_hours & set(names)
                                 else f"I don't have hours for {subject}."), [])
         if where:
-            shown = [literal(n) for n in names[:PLACES_SAID]]
-            if len(names) > PLACES_SAID:
-                shown.append(f"{_count(len(names) - PLACES_SAID)} more")
+            # Asked what is in it, every place is named; beside where it is, a few are.
+            cut = None if "places_in" in reply.fields else PLACES_SAID
+            shown = [literal(n) for n in names[:cut]]
+            if cut is not None and len(names) > cut:
+                shown.append(f"{_count(len(names) - cut)} more")
             reply.say(subject, f"Places in {subject} include {_and(shown)}.", sources)
 
 

@@ -298,6 +298,120 @@ def _source(row: dict[str, Any], now: datetime, on: date | None = None) -> dict[
     }
 
 
+def _map_row(snapshot: Snapshot, building: dict[str, Any]) -> dict[str, Any]:
+    """A building's one campus map record."""
+    rows = snapshot.record_reader(building, "buildings")
+    if len(rows) != 1:
+        raise EvidenceUnavailable("A building identity has no single map record.")
+    return rows[0]
+
+
+def _map_source(record: dict[str, Any], record_id: str, url: str | None, collection: str,
+                now: datetime) -> dict[str, Any]:
+    """A campus map record as a source. The campus map publishes no freshness promise of its
+    own: its seed's is used."""
+    source = _source({**record, "id": record_id, "canonical_url": url,
+                      "freshness_sla_hours": record.get("freshness_sla_hours")
+                      or CAMPUS_MAP_FRESHNESS_HOURS}, now)
+    source.update(collection=collection, source_record_keys=[record["source_record_key"]],
+                  record_ids=[record["id"]])
+    return source
+
+
+def _namesake(place: dict[str, Any], building: dict[str, Any]) -> bool:
+    """A place of the building's own name (a residence hall's office, the school a building is
+    named for) is the building, not a place in it."""
+    return _said(place["name"]) in {_said(name) for name in [building["name"],
+                                                              *building["aliases"]]}
+
+
+def _placed(snapshot: Snapshot, place: dict[str, Any], building: dict[str, Any],
+            row: dict[str, Any], sources: dict[str, dict[str, Any]],
+            now: datetime) -> tuple[list[str], bool]:
+    """What puts a place in a building (its located_at link to it), as the ids of the sources
+    that say so, each added to `sources`: the campus map's own entry for the place, an official
+    page a person reviewed, the map's building of the place's name, or the place's own published
+    room among the building's room numbers. No ids: nothing citable placed it there. The flag
+    says a reviewed page did. `row` is the building's map record (_map_row)."""
+    evidence = [e for r in place.get("relationships") or []
+                if isinstance(r, dict) and r.get("type") == "located_at"
+                and r.get("target_entity_id") == building["id"]
+                for e in r.get("evidence") or [] if isinstance(e, dict)]
+    map_url = _url(row.get("source_url"))
+    ids: list[str] = []
+    reviewed = False
+    for e in evidence:
+        collection, page = e.get("collection"), _url(e.get("source_url"))
+        if collection == "map_places":
+            # The campus map's own entry for the place puts it in this building.
+            for mapped in snapshot.record_reader(place, "map_places"):
+                if mapped.get("source_record_key") == e.get("source_record_key"):
+                    sid = str(mapped["id"])
+                    sources.setdefault(sid, _map_source(
+                        mapped, sid, _url(mapped.get("source_url")), "map_places", now))
+                    ids.append(sid)
+        elif collection == "buildings" and e.get("field") == "reviewed_locations" and page:
+            # An official page a person reviewed as placing it here (the campus-hours page's
+            # "Library in the Peter P. Mercer Learning Commons").
+            sid = f"{row['id']}:reviewed:{page}"
+            sources.setdefault(sid, _map_source(row, sid, page, "buildings", now))
+            ids.append(sid)
+            reviewed = True
+        elif collection == "buildings" and page and page == map_url:
+            # The map's building of its own name.
+            sources.setdefault(row["id"], _map_source(row, row["id"], map_url, "buildings", now))
+            ids.append(row["id"])
+    if not ids and any(e.get("collection") == "contacts" for e in evidence):
+        # Its own published room ("SC-120") is in the building's room numbers.
+        for contact in snapshot.contact_reader(place):
+            own = _source(contact, now)
+            if own["citation_urls"]:
+                sources.setdefault(own["id"], own)
+                ids.append(own["id"])
+                break
+    return list(dict.fromkeys(ids)), reviewed
+
+
+def building_property(snapshot: Snapshot, place: dict[str, Any],
+                      now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """The buildings the graph places an office or venue in (its located_at links), each with
+    where the campus map shows it, as one known "building" property and its sources: what
+    placed it there (_placed) and the building's map record. None when nothing citable does.
+    A building of the place's own name is the place itself (_namesake), not where it is."""
+    targets = {r.get("target_entity_id") for r in place.get("relationships") or []
+               if isinstance(r, dict) and r.get("type") == "located_at"}
+    sources: dict[str, dict[str, Any]] = {}
+    said: list[dict[str, Any]] = []
+    cited: list[str] = []
+    for building in snapshot.entities:
+        if building["id"] not in targets or building["kind"] != "building" \
+                or _namesake(place, building):
+            continue
+        rows = snapshot.record_reader(building, "buildings")
+        if len(rows) != 1:
+            continue  # No single map record: nothing says where the building is.
+        row = rows[0]
+        ids, _ = _placed(snapshot, place, building, row, sources, now)
+        map_url = _url(row.get("source_url"))
+        if not ids or not map_url:
+            continue
+        sources.setdefault(row["id"], _map_source(row, row["id"], map_url, "buildings", now))
+        said.append({"name": building["name"], "map": map_url})
+        cited.extend([*ids, row["id"]])
+    if not said:
+        return None
+    cited = list(dict.fromkeys(cited))
+    value = _json_safe(said)
+    assertions = [{"id": f"{place['id']}:building:{n}", "source_id": sid, "field": "building",
+                   "raw_value": None, "value": value, "caveats": []}
+                  for n, sid in enumerate(cited)]
+    return ({"key": "building", "label": "Building", "category": "contact", "status": "known",
+             "values": [{"value": value, "assertion_ids": [a["id"] for a in assertions],
+                         "source_ids": cited}],
+             "assertions": assertions},
+            [sources[sid] for sid in cited])
+
+
 def _disjoint(left: dict[str, Any], right: dict[str, Any]) -> bool:
     # Explicit complete intervals only. Unknown boundaries never establish separation.
     a, b = left.get("valid_from"), left.get("valid_until")
@@ -2804,6 +2918,17 @@ class EntityFacts:
                             )
             if not rows and not venue:
                 caveats.append("No original contact evidence is published for this office.")
+            # Where it is, when its own records publish no room (none read, or its pages list
+            # none): the building the graph places it in, cited to what placed it there (11-03
+            # practice: "where is the Bradley Center?" said the lounge had no location, though
+            # the campus map puts it in the Bill Bradley Sports and Recreation Center).
+            room = next((n for n, prop in enumerate(properties) if prop["key"] == "offices"), None)
+            if (room is not None and properties[room]["status"] in {"unknown", "not_published"}
+                    and not properties[room]["values"] and not properties[room].get("issues")
+                    and (placement := building_property(snapshot, entity, now)) is not None):
+                properties[room], placed_by = placement
+                held = {source["id"] for source in sources}
+                sources.extend(source for source in placed_by if source["id"] not in held)
             return {
                 "schema_version": 4,
                 "mapping_version": "entity-facts-6",
@@ -2977,25 +3102,10 @@ class EntityFacts:
                              if e["id"] == entity_id and e["kind"] == "building"), None)
             if building is None:
                 raise UnknownEntity("No building has that canonical identity.")
-            rows = snapshot.record_reader(building, "buildings")
-            if len(rows) != 1:
-                raise EvidenceUnavailable("A building identity has no single map record.")
-            row = rows[0]
+            row = _map_row(snapshot, building)
             map_url = _url(row.get("source_url"))
-
-            def map_source(record: dict[str, Any], record_id: str, url: str | None,
-                           collection: str) -> dict[str, Any]:
-                # The campus map publishes no freshness promise of its own: its seed's is used.
-                source = _source({**record, "id": record_id, "canonical_url": url,
-                                  "freshness_sla_hours": record.get("freshness_sla_hours")
-                                  or CAMPUS_MAP_FRESHNESS_HOURS}, now)
-                source.update(collection=collection,
-                              source_record_keys=[record["source_record_key"]],
-                              record_ids=[record["id"]])
-                return source
-
             sources: dict[str, dict[str, Any]] = {}
-            sources[row["id"]] = map_source(row, row["id"], map_url, "buildings")
+            sources[row["id"]] = _map_source(row, row["id"], map_url, "buildings", now)
             properties: list[dict[str, Any]] = []
 
             def known(key: str, label: str, value: Any, source_ids: list[str]) -> None:
@@ -3016,48 +3126,12 @@ class EntityFacts:
             if prefixes:
                 known("room_prefixes", "Room numbers", prefixes, [row["id"]])
             places: list[tuple[dict[str, Any], bool, list[str]]] = []
-            namesakes = {_said(name) for name in [building["name"], *building["aliases"]]}
             for place in snapshot.entities:
-                if place["kind"] not in BUILDING_PLACE_KINDS or _said(place["name"]) in namesakes:
+                if place["kind"] not in BUILDING_PLACE_KINDS or _namesake(place, building):
                     # A place of the building's own name (a residence hall's office, the
                     # school a building is named for) is the building, not a place in it.
                     continue
-                evidence = [e for r in place.get("relationships") or []
-                            if isinstance(r, dict) and r.get("type") == "located_at"
-                            and r.get("target_entity_id") == entity_id
-                            for e in r.get("evidence") or [] if isinstance(e, dict)]
-                if not evidence:
-                    continue
-                ids: list[str] = []
-                reviewed = False
-                for e in evidence:
-                    collection, page = e.get("collection"), _url(e.get("source_url"))
-                    if collection == "map_places":
-                        # The campus map's own entry for the place puts it in this building.
-                        for mapped in snapshot.record_reader(place, "map_places"):
-                            if mapped.get("source_record_key") == e.get("source_record_key"):
-                                sid = str(mapped["id"])
-                                sources.setdefault(sid, map_source(
-                                    mapped, sid, _url(mapped.get("source_url")), "map_places"))
-                                ids.append(sid)
-                    elif (collection == "buildings" and e.get("field") == "reviewed_locations"
-                          and page):
-                        # An official page a person reviewed as placing it here (the
-                        # campus-hours page's "Library in the Peter P. Mercer Learning Commons").
-                        sid = f"{row['id']}:reviewed:{page}"
-                        sources.setdefault(sid, map_source(row, sid, page, "buildings"))
-                        ids.append(sid)
-                        reviewed = True
-                    elif collection == "buildings" and page and page == map_url:
-                        ids.append(row["id"])  # The map's building of its own name.
-                if not ids and any(e.get("collection") == "contacts" for e in evidence):
-                    # Its own published room ("SC-120") is in the building's room numbers.
-                    for contact in snapshot.contact_reader(place):
-                        own = _source(contact, now)
-                        if own["citation_urls"]:
-                            sources.setdefault(own["id"], own)
-                            ids.append(own["id"])
-                            break
+                ids, reviewed = _placed(snapshot, place, building, row, sources, now)
                 if not ids:
                     continue  # Nothing citable placed it here: it is not said.
                 places.append(({"name": place["name"], "kind": place["kind"]}, reviewed, ids))

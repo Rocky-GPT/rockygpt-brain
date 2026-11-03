@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from rockygpt_brain.router import code_route, places_named, shuttle_route
+from rockygpt_brain.router import asks_inside, code_route, places_named, shuttle_route
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
@@ -159,3 +159,17 @@ def test_what_is_in_a_building_is_its_places() -> None:
     assert building("what is open in the student center") == {
         "requests": [{"query": "Student Center (SC)", "fields": ["hours"]}]}
     assert route("what is in the registrar") is None
+
+
+def test_a_message_asks_what_is_in_the_building_it_names() -> None:
+    d = {"name": "Academic Building D", "also_called": []}
+    sc = {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"]}
+    assert asks_inside("what offices are in academic building d", d)
+    assert asks_inside("What's inside the Student Center?", sc)
+    assert asks_inside("which places are in the SC", sc)
+    # Where it is, its hours, or something more than what is in it, is not.
+    assert not asks_inside("Where is Academic Building D?", d)
+    assert not asks_inside("is the student center open on saturday", sc)
+    assert not asks_inside("what offices are in academic building d and when do they open", d)
+    # Another building named is not this one.
+    assert not asks_inside("what offices are in academic building d", sc)

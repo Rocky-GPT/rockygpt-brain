@@ -61,7 +61,7 @@ from rockygpt_brain.retrieval import (
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
-from rockygpt_brain.router import code_route, places_named, shuttle_route
+from rockygpt_brain.router import asks_inside, code_route, places_named, shuttle_route
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
     SPECIAL_TEXT,
@@ -1592,11 +1592,12 @@ class ChatEngine:
         return self._building_called(str(office.get("name", "")))
 
     def _building(self, request: OfficeRequest, building: dict[str, Any], graph: CampusGraph,
-                  as_of: datetime) -> OfficeResult:
+                  as_of: datetime, *, latest: str = "") -> OfficeResult:
         """A building named (11-03: "where da student center at"): where the campus map shows
         it, its room numbers and the places in it, as the graph publishes them. A building has no
         hours of its own: hours asked of it are its offices' and venues' own (hours_places), read
-        after it in the same round."""
+        after it in the same round. Asked what is in it (`latest`, the student's message), its
+        places are asked for too (places_in), so every one is named."""
         with measure("Open root · Ramapo"):
             graph.open("ramapo", [], as_of)
         with measure("Open Offices · read published directory"):
@@ -1613,8 +1614,11 @@ class ChatEngine:
             "dataset_version": graph.version, "identity_hash": graph.identity_hash,
             "as_of": as_of.isoformat(), "office": facts["entity"]["name"],
             "resolvedBy": "building"}
+        fields: list[str] = list(request.fields)
+        if asks_inside(latest, building) and "places_in" not in fields:
+            fields.append("places_in")
         part: dict[str, Any] = {
-            "kind": "office_facts", "query": request.query, "fields": list(request.fields),
+            "kind": "office_facts", "query": request.query, "fields": fields,
             "office": {"id": building["entity_id"], "name": facts["entity"]["name"],
                        "kind": "building"},
             "facts": facts}
@@ -1700,7 +1704,7 @@ class ChatEngine:
         building = None if exact_name_only or menu else self._building_named(request.query)
         if building is not None:
             try:
-                return self._building(request, building, graph, as_of)
+                return self._building(request, building, graph, as_of, latest=latest)
             except DatasetChanged:
                 raise
             except (EvidenceUnavailable, UnknownEntity) as error:

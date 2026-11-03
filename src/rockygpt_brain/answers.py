@@ -109,6 +109,11 @@ def _value_text(key: str, value: Any) -> str:
                          else literal(place) for place in value)
     if key == "room_prefixes" and isinstance(value, list):
         return ", ".join(literal(prefix) for prefix in value)
+    if key == "building" and isinstance(value, list):
+        # The buildings an office with no published room is in, with their campus map links.
+        return "; ".join(f"{literal(b['name'])} (campus map: {literal(b['map'])})"
+                         if isinstance(b, dict) and {"name", "map"} <= set(b) else literal(b)
+                         for b in value)
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return literal(value)
