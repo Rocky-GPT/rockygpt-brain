@@ -502,3 +502,39 @@ def phone_lines(facts: dict[str, Any]) -> Rendered:
     if not current:
         line += f" (as last read on {literal(str(first['collected_at'])[:10])})"
     return Rendered(line, list(citations.values()), True, current)
+
+
+# The evidence text as the inspector shows it carries what a student need not read: a phone as
+# its machine form (+12016846666), each value's every source by its collection's name
+# ("[campus-directory](...) [campus-directory](...)"), a reviewer's scope and check date, the
+# "How-to and policies:" label, and an office's section repeated under a second office.
+_MACHINE_PHONE = re.compile(r"(?<![\w+])\+1(\d{10})\b")
+_SOURCE_LINKS = re.compile(r"(?:\s*\[[a-z0-9-]+\]\((https://[^)\s]+)\))+")
+_SCOPE = re.compile(r"\. Scope: [^\n]*?(?=\. [A-Z]|\n|$)")
+_CHECKED = re.compile(r" \(checked \d{4}-\d{2}-\d{2}\)")
+_LINK_URL = re.compile(r"\((https://[^)\s]+)\)")
+_SEE = re.compile(r" \(see https://[^\s)]+\)")
+
+
+def tidy_evidence(text: str) -> str:
+    """Code's evidence text as a student reads it when no writer can say it: phones as
+    (201) 684-6666, one source link per line, no reviewer's notes, no "How-to and policies:"
+    label, and a line said once even when two offices share it. Nothing else is changed."""
+    seen: set[str] = set()
+    paragraphs = []
+    for paragraph in text.split("\n\n"):
+        line = _MACHINE_PHONE.sub(lambda m: us_phone(m.group(0)), paragraph)
+        line = _SOURCE_LINKS.sub(
+            lambda m: " [Source](" + _LINK_URL.findall(m.group(0))[0] + ")", line)
+        line = _SCOPE.sub("", _CHECKED.sub("", _SEE.sub("", line)))
+        line = re.sub(r"^How-to and policies: ", "", line)
+        key = re.sub(r" \[Source\]\([^)]*\)", "", line).strip()
+        if not key.startswith("**") and key in seen:
+            continue
+        seen.add(key)
+        paragraphs.append(line)
+    # A heading left with nothing under it is dropped.
+    kept = [p for k, p in enumerate(paragraphs)
+            if not (p.startswith("**") and (k + 1 == len(paragraphs)
+                                            or paragraphs[k + 1].startswith("**")))]
+    return "\n\n".join(kept)

@@ -202,3 +202,42 @@ def test_code_says_every_event_it_chose_for_a_topic_and_none_when_none_matches()
     # "What shows up on my transcript" asks about no show.
     assert not events.asks_events("what shows up on my transcript if i withdraw")
     assert events.asks_events("any shows this weekend")
+
+
+def test_an_offices_page_sections_are_said_by_code_once_in_their_own_words() -> None:
+    from rockygpt_brain.plain_writer import plain_text
+    section = {"heading": "How to Report an Incident", "page": "https://x.edu/report/",
+               "text": "Call (201) 684-6666. " + "Give details. " * 60}
+    view = {"facts": [
+        {"subject": "Public Safety", "predicate": "phones",
+         "value": [{"number": "+12016846666"}], "sources": [1]},
+        {"subject": "Public Safety", "predicate": "procedures", "value": section,
+         "sources": [2]},
+        {"subject": "Public Safety (Emergency)", "predicate": "procedures", "value": section,
+         "sources": [2]}]}
+    said = plain_text(view)
+    assert said is not None
+    assert said.startswith("Public Safety phone: (201) 684-6666. [1]\n\n"
+                           'Public Safety\'s page "How to Report an Incident" says: "Call (201) '
+                           '684-6666. Give details.')
+    assert said.endswith('Give details." (more on its page) [2]')
+    assert said.count("How to Report an Incident") == 1  # Shared by both lines: said once.
+
+
+def test_evidence_text_shown_without_a_writer_is_tidied_for_a_student() -> None:
+    from rockygpt_brain.answers import tidy_evidence
+    raw = ("**Health Services**\n\n"
+           "Phones: +12016847536 [campus-directory](https://a.edu/1) "
+           "[campus-directory](https://a.edu/2)\n\n"
+           "Fax: not published on the reviewed official pages (checked 2026-10-25) "
+           "[office-pages](https://a.edu/3). Scope: the office's own pages\n\n"
+           "How-to and policies: Hours: Open daily. (see https://a.edu/4) "
+           "[office-pages](https://a.edu/4)\n\n"
+           "**Counseling**\n\n"
+           "How-to and policies: Hours: Open daily. (see https://a.edu/5) "
+           "[office-pages](https://a.edu/5)")
+    assert tidy_evidence(raw) == (
+        "**Health Services**\n\n"
+        "Phones: (201) 684-7536 [Source](https://a.edu/1)\n\n"
+        "Fax: not published on the reviewed official pages [Source](https://a.edu/3)\n\n"
+        "Hours: Open daily. [Source](https://a.edu/4)")

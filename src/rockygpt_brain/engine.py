@@ -27,6 +27,7 @@ from rockygpt_brain.answers import (
     phone_lines,
     readable_quote,
     render_facts,
+    tidy_evidence,
 )
 from rockygpt_brain.boundary import (
     CAPABILITY_AFTER_LOOKUP_MESSAGE,
@@ -3778,7 +3779,7 @@ class ChatEngine:
             trace["writer"] = {"used": False, "why": why, **({"problems": problems} if problems
                                                               else {}),
                                **({"error": error} if error else {})}
-            return replace(result, body={**result.body, "answer": code_text})
+            return replace(result, body={**result.body, "answer": tidy_evidence(code_text)})
 
         if not isinstance(view, dict) or not isinstance(packet, dict):
             return keep("no_view")
