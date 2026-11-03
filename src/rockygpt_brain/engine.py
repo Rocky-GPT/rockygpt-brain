@@ -3460,7 +3460,8 @@ class ChatEngine:
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
         if floor_situation is not None and self.output == "written":
-            result = await self._beside_emergency(turn, request, trace, floor_situation)
+            result = await self._beside_emergency(turn, request, trace, floor_situation,
+                                                  read=True)
         else:
             result = await self._answer(turn, request, trace, floor_situation)
         read = trace.get("read")
@@ -3619,7 +3620,7 @@ class ChatEngine:
         a read that found nothing to say."""
         if reading.question:
             return None
-        lead = triage.SOCIAL_LEADS.get(reading.social)
+        lead = triage.social_lead(reading.social, reading.needs)
         if reading.needs:
             kind = triage.SUPPORT_TEXTS[reading.needs[0]]
             said = f"{lead} {kind}" if lead else kind
@@ -3655,7 +3656,7 @@ class ChatEngine:
     def _read_lead(self, turn: Turn, reading: triage.Reading) -> str:
         """Code's few words before a campus answer: a hello back, what RockyGPT can't do of what
         was asked, and one kind sentence for a problem the student shared."""
-        said = [triage.SOCIAL_LEADS.get(reading.social, "")]
+        said = [triage.social_lead(reading.social, reading.needs) or ""]
         if reading.limit == "clock":
             said.append(CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT)))
         elif reading.limit == "off_topic":
@@ -3729,14 +3730,22 @@ class ChatEngine:
 
     async def _beside_emergency(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
                                 situation: str, *, question: str | None = None,
-                                started: float | None = None) -> ChatResult:
+                                started: float | None = None, read: bool = False) -> ChatResult:
         """The phrase floor's emergency text and campus numbers first, then the student's own
         question answered the way any question is (Dan 10-20: crisis first, then policy). 11-03:
         the question beside "broke into my car ... not 911" went down the old lookup path and came
         out as raw evidence ("+12016847432"). A failed answer, or one that is itself an emergency
-        reply, is returned as it is, and the floor's own reply stands."""
-        result = await self._campus_answer(turn, request, trace, question=question,
-                                           started=started)
+        reply, is returned as it is, and the floor's own reply stands.
+
+        `read` is for the floor's own message: it is read first like any other, so a feeling it
+        shares gets its kind words and offices and its question is asked in clean words (11-03
+        check set: "my parents are gonna kill me" over a failed midterm got the emergency text
+        and nothing for the exam). The read can add an emergency, never take the floor's away."""
+        if read and self.read_first and situation != "self_harm":
+            result = await self._answer(turn, request, trace)
+        else:
+            result = await self._campus_answer(turn, request, trace, question=question,
+                                               started=started)
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result

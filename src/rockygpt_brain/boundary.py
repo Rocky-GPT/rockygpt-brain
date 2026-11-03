@@ -206,6 +206,20 @@ _ASKS_A_PROCESS = re.compile(
     r"(?:my )?rooms?|room change|(?:report|file) (?:a |an |it|this|him|her|them))\b")
 
 
+# "My parents are gonna kill me" is most often a figure of speech, and a real threat is worded the
+# same way, so words alone can't tell them apart. The danger text still comes first, and the
+# message is also read and answered beside it (11-03 check set: a failed midterm got only the
+# emergency reply, with no help for the exam). Anything else that names a danger (a weapon, an
+# attack, being followed) keeps the floor's reply alone.
+_KILL_ME = re.compile(r"\b(gonna|going to|will|wants to|want to) kill (me|us)\b")
+
+
+def _only_a_threat_to_kill(text: str) -> bool:
+    """Whether "going to kill me" is the only danger a message names."""
+    rest = _KILL_ME.sub(" ", text)
+    return bool(_KILL_ME.search(text)) and not any(p.search(rest) for p in _DANGER["danger"])
+
+
 def plain(text: str) -> str:
     """Lower case, no accents, apostrophes or invisible characters, punctuation as spaces."""
     text = re.sub(r"['`´ʹʻʼˈ’‘′‛＇]", "", text)
@@ -235,4 +249,6 @@ def check(turn: Turn) -> BoundaryResult:
         return CONTINUE
     situation = kinds.pop() if len(kinds) == 1 else "other"
     also = situation != "self_harm" and bool(_ASKS_A_PROCESS.search(text))
+    if situation == "danger" and _only_a_threat_to_kill(text):
+        also = True
     return BoundaryResult("safety", safety_text(situation), situation, also_answer=also)

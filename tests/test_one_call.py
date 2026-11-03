@@ -55,6 +55,12 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     assert not routes_here("when is the next shuttle to the train station")
     assert not routes_here("registrar email")
     assert not routes_here("library hours")
+    # "Where's" is "where is" (11-03 check set: the read's "Where's the ...?" went to the how-to
+    # pages, while "where is" goes to the lookups).
+    for where in ("Where's the Science Center?", "wheres the science center",
+                  "where’s the science center", "where is the science center"):
+        assert not routes_here(where), where
+    assert routes_here("where's the form to declare a minor")
     # What a place or office is, only its own pages say (11-02: "The name is Birch Tree Inn.").
     assert routes_here("What is the Birch Tree Inn?")
     assert routes_here("what does the office of specialized services do")
