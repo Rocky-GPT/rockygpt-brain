@@ -158,10 +158,34 @@ def test_breakfast_is_the_boards_breakfast_sections_in_full() -> None:
 
 def test_a_meal_the_board_does_not_name_says_so_and_lists_the_board() -> None:
     value = board("dinner")
-    assert value["meal_not_on_board"] == "dinner" and len(value["sections"]) == 6
+    assert value["meal_not_on_board"] == "dinner" and len(value["sections"]) == 4
     result, _ = ask("Atrium dinner menu")
     assert result.body["answer"].startswith(
         "The Atrium's menu board doesn't list a separate dinner menu.")
+
+
+def test_a_meal_the_board_does_not_name_leaves_out_another_meals_sections() -> None:
+    # 11-03 practice: "wats for lunch at the atrium today" was given the board's breakfast
+    # sandwiches and sides beside its lunch food.
+    value = board("lunch")
+    assert value["meal_not_on_board"] == "lunch" and value["meals_left_out"] == ["breakfast"]
+    assert [s["section"] for s in value["sections"]] == [
+        "Burgers and Sandwiches", "Specialty Sandwiches", "Build Your Own Entree", "Sides"]
+    result, _ = ask("What's for lunch at the Atrium?")
+    answer = result.body["answer"]
+    assert answer.startswith(
+        "The Atrium's menu board doesn't list a separate lunch menu. It lists 11 items besides "
+        "its breakfast sections. Some of each section, with prices:\n- The Grill, Burgers and "
+        "Sandwiches: Hamburger ($8.99),")
+    assert "Steak & Eggs" not in answer and "Hash Brown" not in answer
+    # Brunch is breakfast and lunch, and a section served all day is every meal's.
+    assert "meals_left_out" not in board("brunch")
+    rows = [{**row, "section": "Breakfast served all day"} if row["section"] == "Breakfast"
+            else row for row in board_rows()]
+    found = menu_board_property(rows, document_rows(), TUESDAY_10AM, "lunch", None)
+    assert found is not None
+    sections = [s["section"] for s in found[0]["values"][0]["value"]["sections"]]
+    assert sections[0] == "Breakfast served all day" and "Breakfast sides" not in sections
 
 
 def test_a_named_food_gets_its_prices_calories_and_allergens() -> None:

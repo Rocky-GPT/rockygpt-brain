@@ -422,3 +422,45 @@ def test_a_shared_problem_gets_one_kind_sentence_not_two_sorries() -> None:
     # Upset about a practical problem with no need shared keeps its short word back.
     assert triage.social_lead("upset", []) == triage.SOCIAL_LEADS["upset"]
     assert triage.social_lead("greeting", ["lonely"]) == "Hi!"
+
+
+def test_needs_are_said_in_one_order_whatever_order_the_read_gives_them() -> None:
+    # 11-03 practice: "i think im gonna fail orgo" was read once as school trouble then stress and
+    # once the other way round, so one reply led with grades and the other with stress.
+    assert sorted(triage.NEED_ORDER) == sorted(triage.NEEDS)
+    fields = {"social": "none", "danger": "none", "limit": "none", "question": ""}
+    for needs in (["stress_or_sadness", "school_trouble"], ["school_trouble", "stress_or_sadness"]):
+        reading = triage.reading_of({**fields, "needs": needs}, "i think im gonna fail orgo")
+        assert reading is not None and reading.needs == ("school_trouble", "stress_or_sadness")
+    result = ask(ScriptedGateway(read(needs=["stress_or_sadness", "lonely"])), "i miss home")
+    assert result.body["answer"].startswith(triage.SUPPORT_TEXTS["lonely"])
+
+
+@pytest.mark.parametrize(("asked", "kept"), [
+    ("My suitemate keeps eating my food and won't talk to me about it.", False),
+    ("I think I'm going to fail organic chemistry.", False),
+    ("What can I do about a suitemate who eats my food?", True),
+    ("How do I switch rooms", True),
+    ("I need a tutor for calculus.", True),
+    ("I really want a new roommate.", True),
+    ("Tell me where Residence Life is.", True),
+])
+def test_beside_a_problem_shared_only_a_question_that_asks_is_a_campus_question(
+        asked: str, kept: bool) -> None:
+    fields = {"social": "none", "danger": "none", "needs": ["roommate_trouble"], "limit": "none"}
+    reading = triage.reading_of({**fields, "question": asked}, f"ugh {asked.casefold()}")
+    assert reading is not None and reading.question == (asked if kept else ""), asked
+    # With no problem shared, the question is the campus question however it is put.
+    plain = triage.reading_of({**fields, "needs": [], "question": "Library hours."},
+                              "libary hours")
+    assert plain is not None and plain.question == "Library hours."
+
+
+def test_a_problem_told_back_as_the_question_gets_codes_kind_reply() -> None:
+    # 11-03 practice: the suitemate problem, given back as the question, was answered with every
+    # contact of three offices instead of the kind sentence and the offices for it.
+    gateway = ScriptedGateway(read(needs=["lonely"],
+                                   question="I have no one to sit with at lunch."))
+    result = ask(gateway, "i have no one to sit with at lunch")
+    assert result.body["answer"].startswith(triage.SUPPORT_TEXTS["lonely"])
+    assert result.trace is not None and result.trace["decidedBy"] == "read"

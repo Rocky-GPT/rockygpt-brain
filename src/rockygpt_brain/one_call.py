@@ -535,6 +535,36 @@ def statements(text: str) -> list[str]:
     return pieces[:-1]
 
 
+# Words that do not change what a statement says when only they differ ("movie and film events",
+# "movie or film events"), and the citation marks, which say where, not what.
+_SAME_SAYING = frozenset("a an the and or".split())
+_MARKS = re.compile(r"\[\d+(?:\s*[,–-]\s*\d+)*\]")
+
+
+def _said_words(statement: str) -> frozenset[str]:
+    return frozenset(re.findall(r"[a-z0-9]+", _MARKS.sub(" ", statement.casefold()))) - _SAME_SAYING
+
+
+def without_repeats(text: str, already: Sequence[str]) -> tuple[str, list[str]]:
+    """The model's text without the statements that say again what code already wrote before it,
+    and those statements: a statement repeats one of code's when every word of it, citation marks
+    and a few small words aside, is in that one statement (11-03 practice: a film question's
+    answer came twice, code's list and then the model's copy of it). What code wrote is the
+    answer to what it covers, so its own words are the ones that stay."""
+    said = [_said_words(piece) for part in already for piece in statements(part) if piece.strip()]
+    kept: list[str] = []
+    dropped: list[str] = []
+    for piece in statements(text):
+        words = _said_words(piece) if piece.strip() else frozenset()
+        if words and any(words <= other for other in said):
+            dropped.append(piece.strip())
+            if kept and kept[-1] == " ":
+                kept.pop()
+            continue
+        kept.append(piece)
+    return re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip(), dropped
+
+
 def without_unsupported(text: str, check: Any) -> tuple[str, list[str]] | None:
     """The reply with each statement `check` finds a problem in removed, and the removed ones;
     None when more than MAX_DROPPED statements (or more than MAX_DROPPED_SHARE of the text)

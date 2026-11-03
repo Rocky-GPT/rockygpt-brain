@@ -1502,6 +1502,23 @@ _BOARD_MARKS = {"Marked vegan (VG) on the board.": "vegan",
                 "Marked vegetarian (V) on the board.": "vegetarian"}
 # A filter that keeps more board items than a reply can say in full lists them by name and price.
 MAX_BOARD_DETAILED = 8
+# The meals a board section may be named for. Brunch is breakfast and lunch, so neither is
+# another meal than brunch; a section served all day is every meal's.
+_BOARD_MEALS = ("breakfast", "brunch", "lunch", "dinner", "late night")
+_SAME_MEALS = {"brunch": ("breakfast", "lunch"), "breakfast": ("brunch",), "lunch": ("brunch",)}
+_ALL_DAY = re.compile(r"\ball[ -]day\b")
+
+
+def _other_meal(section: str, asked: str) -> str | None:
+    """The meal a board section is named for when it is not the meal asked ("Breakfast sides" when
+    lunch is asked), by the section's own words; None for a section named for no meal, for the meal
+    asked, or served all day."""
+    words = " ".join(section.casefold().split())
+    if _ALL_DAY.search(words):
+        return None
+    return next((meal for meal in _BOARD_MEALS
+                 if meal != asked and meal not in _SAME_MEALS.get(asked, ())
+                 and re.search(rf"\b{meal}\b", words)), None)
 
 
 def _board_allergens(text: Any) -> list[str]:
@@ -1585,7 +1602,8 @@ def menu_board_property(
 
     The board is not dated: its items stand while the dining site links the file they were read
     from (the build publishes them only then), and it names no lunch or dinner. A meal asked is
-    the board's sections that name it ("Breakfast"); a board with none says so and is read whole.
+    the board's sections that name it ("Breakfast"); a board with none says so and is read
+    without the sections it names for another meal (no breakfast sandwiches for lunch).
     Filters keep the items a student asks about: foods by name, station, section, description or
     option; vegan or vegetarian by the board's own marks; allergens by what an item says it
     contains, where the board lists that at all. None when the rows are not a readable board."""
@@ -1618,6 +1636,15 @@ def menu_board_property(
             value["meal_asked"] = " ".join(meal.split())
         else:
             value["meal_not_on_board"] = " ".join(meal.split())
+            # 11-03 practice: "wats for lunch at the atrium today" was given the board's
+            # breakfast sandwiches and sides beside its lunch food.
+            others = {id(r): _other_meal(str(clean(r.get("section")) or ""), asked)
+                      for r in ordered}
+            kept_rows = [r for r in ordered if others[id(r)] is None]
+            if kept_rows and len(kept_rows) < len(ordered):
+                picked = kept_rows
+                value["meals_left_out"] = list(dict.fromkeys(
+                    meal_named for meal_named in others.values() if meal_named))
     query = dict(query or {})
     nutrients = [w for w in query.get("contains") or [] if set(w.casefold().split()) & _NUTRIENTS]
     if nutrients:

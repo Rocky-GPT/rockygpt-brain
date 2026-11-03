@@ -3116,6 +3116,12 @@ class ChatEngine:
                 LOG.warning("brain_one_call_second_look_failed error=%s",
                             getattr(error, "code", type(error).__name__))
         written = str(arguments.get("text") or "").strip()
+        if code_parts and written:
+            # The model is asked to write only what code's parts leave out; what it says again
+            # is not said twice.
+            written, repeated = one_call.without_repeats(written, code_parts)
+            if repeated:
+                trace["oneCallRepeats"] = repeated[:5]
         # Who to go to: the contacts of the offices the reply sends the student to, as the
         # directory publishes them, written by code after the model's words.
         after: list[str] = []
