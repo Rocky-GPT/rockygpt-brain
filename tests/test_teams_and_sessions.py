@@ -149,6 +149,9 @@ def test_a_club_is_given_kinds_by_its_main_purpose() -> None:
     assert "Not esports" in BY_KEY["athletics"].holds
     assert "activism" not in BY_KEY["civic"].named and "activism" in BY_KEY["advocacy"].named
     assert "not abroad" in BY_KEY["abroad"].holds
+    # A club that makes animated work uses software, and is art (11-03 practice: "are there any
+    # stem clubs" listed the Animation Production Club).
+    assert "animation" in BY_KEY["arts"].holds and "Not art, music or film" in BY_KEY["tech"].holds
     assert len(KINDS_VERSION) == 16
 
 

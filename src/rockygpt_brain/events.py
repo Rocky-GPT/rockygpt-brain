@@ -10,6 +10,7 @@ window is answered in code's own words (listing_text); otherwise the model only 
 
 import math
 import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from datetime import date, datetime, time, timedelta
@@ -852,6 +853,22 @@ def club_category(found: Sequence[dict[str, Any]],
     if top in _GENERIC_CATEGORY or heads.count(top) * 2 < len(found):
         return []
     return [e for e in directory if head(e) == top]
+
+
+def of_shared_kind(found: Sequence[dict[str, Any]],
+                   kinds: Mapping[str, Sequence[str]] | None) -> list[dict[str, Any]]:
+    """The clubs found by meaning for one searched text that have the kind most of them share
+    (kinds.py), when three or more are found and most share one: a club near only in its words
+    is of another kind (11-03 practice: "is there a ballet club" found three dance clubs and the
+    Balkan Club, a cultural club whose card scored near theirs). All of them otherwise."""
+    if not kinds or len(found) < 3:
+        return list(found)
+    held = [set(kinds.get(str(club.get("id")), ())) for club in found]
+    counts = Counter(kind for kinds_held in held for kind in kinds_held)
+    shared = {kind for kind, n in counts.items() if n * 2 > len(found)}
+    if not shared:
+        return list(found)
+    return [club for club, kinds_held in zip(found, held, strict=True) if kinds_held & shared]
 
 
 def interests(message: str) -> list[str]:

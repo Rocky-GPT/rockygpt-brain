@@ -2641,12 +2641,15 @@ class ChatEngine:
                           numbered_from: int,
                           ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """The clubs whose cards best match each searched text's meaning (the question, and each
-        interest it lists), and every club of the category most of them share ("frats and
-        sororities" is all of Greek Life), read through the reader (events.club_category)."""
+        interest it lists), of the kind most of a text's clubs share (events.of_shared_kind),
+        and every club of the category most of them share ("frats and sororities" is all of
+        Greek Life), read through the reader (events.club_category)."""
         names = {e["id"]: str(e["name"]) for e in self.facts.identities(("club", "organization"))}
         found: dict[str, dict[str, Any]] = {}
         for vector in vectors:
-            for club in events.clubs_by_meaning(index.academic_scores(vector, "club"), names):
+            for club in events.of_shared_kind(
+                    events.clubs_by_meaning(index.academic_scores(vector, "club"), names),
+                    index.kinds):
                 found.setdefault(club["id"], club)
         if not found:
             return [], []
