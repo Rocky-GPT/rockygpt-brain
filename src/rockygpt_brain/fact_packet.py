@@ -240,6 +240,8 @@ class _Builder:
         # What the student wants to do or know, as the reading of the question put it for a
         # how-to lookup, so a writer leaves out a rule for another situation.
         self.wants: list[str] = []
+        # The rooms asked of a building by its room-number prefix ("Where is ASB 407?").
+        self.rooms: list[str] = []
         self.dataset: dict[str, Any] | None = None
 
     def _open_now(self, picked: dict[str, Any], asked_on: date) -> dict[str, Any]:
@@ -267,6 +269,9 @@ class _Builder:
             self.fields.extend(f for f in part["fields"] if f not in self.fields)
             if isinstance(part.get("about"), str) and part["about"] not in self.wants:
                 self.wants.append(part["about"])
+            for room in part.get("rooms") or []:
+                if isinstance(room, str) and room not in self.rooms:
+                    self.rooms.append(room)
         self.dataset = self.dataset or {"version": reader.get("dataset_version"),
                                         "identityHash": reader.get("identity_hash")}
         first_new = len(self.facts)
@@ -646,7 +651,8 @@ def build_packet(as_of: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
         "version": PACKET_VERSION,
         "request": {"intent": _intent(builder), "entities": list(builder.entities.values()),
                     "fields": builder.fields, "asOf": as_of, "dataset": builder.dataset,
-                    **({"wants": builder.wants} if builder.wants else {})},
+                    **({"wants": builder.wants} if builder.wants else {}),
+                    **({"rooms": builder.rooms} if builder.rooms else {})},
         "status": _status(builder),
         "facts": builder.facts,
         "derived_facts": builder.derived,

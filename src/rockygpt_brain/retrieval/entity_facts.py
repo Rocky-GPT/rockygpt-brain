@@ -3112,6 +3112,22 @@ class EntityFacts:
                      "aliases": list(e["aliases"])}
                     for e in snapshot.entities if e["kind"] in kinds]
 
+    def room_prefixes(self) -> dict[str, list[str]]:
+        """Each campus building's room-number prefixes as its one campus map record publishes
+        them, by the building's id, for discovery only: a room said by its prefix ("ASB 407")
+        names the building it is in (router.py)."""
+        with self.snapshot() as snapshot:
+            found: dict[str, list[str]] = {}
+            for building in snapshot.entities:
+                if building["kind"] != "building":
+                    continue
+                rows = snapshot.record_reader(building, "buildings")
+                prefixes = [p for p in (rows[0].get("room_prefixes") or [] if len(rows) == 1
+                                        else []) if isinstance(p, str) and p.strip()]
+                if prefixes:
+                    found[building["id"]] = prefixes
+            return found
+
     def get_building_facts(self, entity_id: str, dataset_version: str, *,
                            identity_hash: str | None = None,
                            as_of: datetime | None = None) -> dict[str, Any]:

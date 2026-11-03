@@ -2,7 +2,13 @@
 
 from typing import Any
 
-from rockygpt_brain.router import asks_inside, code_route, places_named, shuttle_route
+from rockygpt_brain.router import (
+    asks_inside,
+    code_route,
+    places_named,
+    rooms_said,
+    shuttle_route,
+)
 
 OFFICES: list[dict[str, Any]] = [
     {"name": "Registrar"}, {"name": "Library"}, {"name": "Counseling Center"},
@@ -173,3 +179,64 @@ def test_a_message_asks_what_is_in_the_building_it_names() -> None:
     assert not asks_inside("what offices are in academic building d and when do they open", d)
     # Another building named is not this one.
     assert not asks_inside("what offices are in academic building d", sc)
+
+
+ROOMED: list[dict[str, Any]] = [
+    {"name": "Anisfield School of Business (ASB)",
+     "also_called": ["ASB", "Anisfield School of Business"], "room_prefixes": ["ASB"]},
+    {"name": "Academic Building A", "also_called": [], "room_prefixes": ["A"]},
+    {"name": "Academic Building D", "also_called": [], "room_prefixes": ["D"]},
+    {"name": "Berrie Center", "also_called": [], "room_prefixes": ["BC"]},
+    {"name": "Student Center (SC)", "also_called": ["SC", "Student Center"],
+     "room_prefixes": ["SC"]},
+    {"name": "Peter P. Mercer Learning Commons", "also_called": ["Learning Commons"],
+     "room_prefixes": ["LC", "LIB", "LIBRARY"]}]
+# The business school's office is also called ASB, like its building.
+WITH_ASB = [*OFFICES, {"name": "Anisfield School of Business", "also_called": ["ASB"]}]
+
+
+def test_a_room_said_by_its_prefix_names_its_building_and_asks_where_it_is() -> None:
+    # 11-03 repeat test: "where tf is ASB 407?" got the business school's office (ASB-333) or a
+    # page of room diagrams, never the building whose room numbers start with ASB.
+    def room(message: str) -> str | None:
+        found = code_route(message, WITH_ASB, VENUES, ROOMED)
+        if found is None:
+            return None
+        assert [r["fields"] for r in found["requests"]] == [["offices"]]
+        return str(found["requests"][0]["query"])
+
+    for message in ("Where is ASB 407?", "where is asb-407", "How do I get to ASB407?",
+                    "ASB 407?", "Where is room ASB 407?"):
+        assert room(message) == "Anisfield School of Business (ASB)", message
+    for message in ("Where is D-224?", "where is d-224", "Where is D224?"):
+        assert room(message) == "Academic Building D", message
+    assert room("Where is room SC-219A?") == "Student Center (SC)"
+    assert room("where is LIBRARY 101") == "Peter P. Mercer Learning Commons"
+    # The prefix alone is still the office of that name, and a room is asked only where it is.
+    assert route_with_asb("Where is ASB?") == {"query": "Anisfield School of Business",
+                                                "fields": ["offices"]}
+    assert room("is ASB 407 open?") is None
+    assert room("Where is LC 101 and LC 102?") is None  # Two rooms are for the model.
+    assert places_named("ASB 407", WITH_ASB, VENUES, ROOMED) == [
+        {("building", "Anisfield School of Business (ASB)")}]
+    assert not asks_inside("what is in ASB 407", ROOMED[0])
+
+
+def route_with_asb(message: str) -> dict[str, Any] | None:
+    found = code_route(message, WITH_ASB, VENUES, ROOMED)
+    return found["requests"][0] if found else None
+
+
+def test_a_room_is_said_only_the_way_rooms_are_written() -> None:
+    asb, a, _, bc, sc, lc = ROOMED
+    assert rooms_said("where is asb 407 or ASB-210", asb) == ["ASB 407", "ASB-210"]
+    assert rooms_said("where is sc-219a", sc) == ["SC-219A"]
+    # Two letters or one are a prefix only in capitals or before a hyphen: "bc" is "because".
+    assert rooms_said("bc 20 people are going", bc) == []
+    assert rooms_said("where is sc 219", sc) == []
+    # "A" beginning a sentence is the article, and a room number is no time, date or "24/7".
+    assert rooms_said("A 300-level course", a) == []
+    assert rooms_said("Is there a 300 level course", a) == []
+    assert rooms_said("Where is A 204?", a) == ["A 204"]
+    assert rooms_said("is the library 24/7", lc) == []
+    assert rooms_said("meet at SC 12:30", sc) == []

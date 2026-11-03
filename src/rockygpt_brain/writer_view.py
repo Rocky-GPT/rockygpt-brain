@@ -163,7 +163,8 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
         "asked": {"intent": request["intent"],
                   "offices": [entity["name"] for entity in request["entities"]],
                   "fields": list(request["fields"]), "asOf": request["asOf"],
-                  **({"wants": list(request["wants"])} if request.get("wants") else {})},
+                  **({"wants": list(request["wants"])} if request.get("wants") else {}),
+                  **({"rooms": list(request["rooms"])} if request.get("rooms") else {})},
         "status": packet["status"],
     }
 

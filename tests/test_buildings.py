@@ -85,6 +85,18 @@ def test_where_a_building_is_is_its_map_its_room_numbers_and_the_places_in_it() 
         "[3](https://example.edu/registrar)")
 
 
+def test_where_a_room_is_is_the_building_its_number_starts_with() -> None:
+    # 11-03 repeat test: "where tf is ASB 407?" got the business school's office or a page of
+    # room diagrams. The room's prefix places it, and the campus map shows where that is.
+    result = ask("Where is SC 219?")
+    assert result.trace["decidedBy"] == "code"
+    assert lookups(result) == [("Student Center (SC)", "building", "ok")]
+    assert result.body["status"] == "answered"
+    assert result.body["answer"] == (
+        "SC 219 is in Student Center (SC), where room numbers start with SC. Student Center (SC) "
+        f"is on the campus map: [{MAP}]({MAP}). [1]\n\nSources: [1]({MAP})")
+
+
 def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
     result = ask("Is the Student Center open on Friday?")
     # The building, then each place in it that publishes hours (the lounge publishes none).
