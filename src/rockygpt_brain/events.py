@@ -594,8 +594,10 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
         worded = by_words(timed, share, meaning, scores, titled) if rest else set()
         # Meaning finds a single thing asked ("pet therapy"), never a whole kind: with a kind
-        # asked, its labels are the list.
-        near = set() if asked else near_in_meaning(
+        # asked, its labels are the list. A team's games are named by its sport, and a team
+        # question asks for the team: an NFL watch party was once the "closest event" to "is
+        # there a hockey team" (11-03 practice).
+        near = set() if asked or asks_team(message) else near_in_meaning(
             [v for v in timed if id(v) not in worded and not (food and food_mention(v))],
             meaning, scores)
         matching = []
@@ -984,8 +986,8 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
                  directory_size: int, kinds_said: str = "") -> list[dict[str, Any]]:
     """What code works out about the clubs a question asks for: each club found by its name
     as the directory lists it; the clubs of the kind asked (`kinds_said`, kinds.names), by what
-    their entries describe; for clubs found only by meaning, whether any has a word the
-    question asked for in its name (else they are only the nearest); or that the directory lists
+    their entries describe; for clubs found only by meaning, whether any is for what was asked
+    by its own entry (_says_asked; else they are only the nearest); or that the directory lists
     no club for what was asked."""
     words = topic_words(message) - _GENERIC_STEMS
     topic = said_words(message, words)
@@ -997,10 +999,10 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
         facts.append({"fact": f"By what their directory entries describe, {len(clubs)} of the "
                               f"directory's clubs are {kinds_said} clubs."})
     elif not by_name:
-        named = [c for c in clubs if words & _stems(str(c.get("name") or ""))]
-        if not named:
+        if not any(_says_asked(c, words) for c in clubs):
             facts.append({"fact": f"No club in the directory has {topic or 'the words asked'} in "
-                                  "its name; the clubs given are only the nearest by meaning."})
+                                  "its name or entry; the clubs given are only the nearest by "
+                                  "meaning."})
     if len(clubs) > MAX_CLUB_LINES:
         categories = sorted({str(c.get("category") or "") for c in clubs})
         facts.append({"fact": f"{len(clubs)} clubs are given, from the directory's "
@@ -1015,15 +1017,22 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
 MAX_CLUB_LINES = 6
 
 
+def _says_asked(club: Mapping[str, Any], words: AbstractSet[str]) -> bool:
+    """Whether a club is for what was asked by its own entry: its name has a word asked, or its
+    mission every one ("Geek and Nerd Culture", whose entry says it was the Sci Fi and Comic Book
+    Club, is a club for comic books)."""
+    return bool(words & _stems(str(club.get("name") or ""))
+                or (words and words <= _stems(str(club.get("mission") or ""))))
+
+
 def nearest_clubs_text(clubs: Sequence[dict[str, Any]], message: str) -> str | None:
-    """Whether a club exists, said by code when the directory has none named for what was asked
-    and only the nearest by meaning were found ("is there a club for comic books": the model once
-    answered "Yes", 11-03 practice). None when a club given has a word asked in its name, or
-    none was given (the directory page itself is no source to cite)."""
+    """Whether a club exists, said by code when no club given names what was asked in its name
+    or entry and they are only the nearest by meaning (the model has answered "Yes" from such
+    clubs). None when a club given is for what was asked by its own entry, or none was given
+    (the directory page itself is no source to cite)."""
     words = topic_words(message) - _GENERIC_STEMS
     said = said_words(message, words).split(", ")
-    if not clubs or not words or not said[0] \
-            or any(words & _stems(str(c.get("name") or "")) for c in clubs):
+    if not clubs or not words or not said[0] or any(_says_asked(c, words) for c in clubs):
         return None
     text = message.casefold()
     first = re.search(rf"\b{re.escape(said[0])}\b", text)
@@ -1034,8 +1043,8 @@ def nearest_clubs_text(clubs: Sequence[dict[str, Any]], message: str) -> str | N
     lines = "; ".join(f"{c.get('name')} ({c['category']}) [{c['n']}]" if c.get("category")
                       else f"{c.get('name')} [{c['n']}]" for c in shown)
     whose = "what its entry describes" if len(shown) == 1 else "what their entries describe"
-    return (f"The club directory lists no club named for {topic}. The nearest, by {whose}: "
-            f"{lines}.")
+    return (f"The club directory lists no club for {topic} by its name or entry. The nearest, "
+            f"by {whose}: {lines}.")
 
 
 # A question asking only what a club the directory names in full hosts next ("when does the
