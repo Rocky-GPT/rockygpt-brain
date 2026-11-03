@@ -189,8 +189,10 @@ loads it on its own thread for the active release and identity publication; unti
 when none is stored, questions are answered without it.
 
 The same build gives every event and club card its kinds (`src/rockygpt_brain/kinds.py`: art and
-crafts, cultural, sports, volunteering and 20 more), read once by the chat model and cached by the
-card's text in the job's cache (`kinds.json`), so a day's build pays only for new listings. A
+crafts, cultural, sports, volunteering and 21 more), read once by the chat model and cached by the
+card's text in the job's cache (`kinds.json`), so a day's build pays only for new listings. The
+model's rules (`RULES`: a club by its main purpose, a room booking has no kind) and the list
+are versioned together, so rewording either gives every card its kinds again. A
 question naming a kind ("any art events", "cultural clubs") lists every event or club of it; a
 question naming a member of a kind ("painting") is still matched on the listings' words. An index
 built before kinds has none, and kind questions are then answered as before.

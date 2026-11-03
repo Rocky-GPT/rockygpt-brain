@@ -36,6 +36,7 @@ from typing import Any
 
 from rockygpt_brain.academics import requisite_codes
 from rockygpt_brain.kinds import KINDS, KINDS_VERSION
+from rockygpt_brain.kinds import RULES as KINDS_RULES
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
 from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
@@ -53,16 +54,8 @@ QUESTIONS_SCHEMA = {"type": "object", "additionalProperties": False, "required":
                         "properties": {"n": {"type": "integer"},
                                        "questions": {"type": "array",
                                                      "items": {"type": "string"}}}}}}}
-KINDS_PROMPT = (
-    "You see listings from Ramapo College's campus calendar and club directory. For each, pick "
-    "the kinds below that a student asking for that kind of event or club would want it listed "
-    "for: what happens at the event, or what the club does and who it is for. Most listings have "
-    "one kind, some two or three, and some none (a residence hall's floor meeting, an office's "
-    "open hours). Judge by what happens, not by who hosts it or where: a club's own meeting or "
-    "social is the club's kind, but an event is not cultural because a cultural center hosts it, "
-    "nor theater because it is held in a theater. A listing that only books or closes a room, or "
-    "is for staff only, has no kind.\n\nKinds:\n"
-    + "\n".join(f"- {kind.key}: {kind.holds}" for kind in KINDS))
+KINDS_PROMPT = (KINDS_RULES + "\n\nKinds:\n"
+                + "\n".join(f"- {kind.key}: {kind.holds}" for kind in KINDS))
 KINDS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["items"],
                 "properties": {"items": {"type": "array", "items": {
                     "type": "object", "additionalProperties": False, "required": ["n", "kinds"],
