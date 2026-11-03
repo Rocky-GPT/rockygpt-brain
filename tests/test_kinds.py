@@ -9,13 +9,16 @@ import pytest
 
 from rockygpt_brain import kinds
 from rockygpt_brain.events import (
+    MAX_EVENTS,
     asked_kinds,
     asked_topic,
     asks_events,
     club_list_text,
     computed_answers,
+    match_totals,
     names_events,
     rank_events,
+    shown_events,
     topic_text,
 )
 
@@ -181,6 +184,8 @@ def test_the_reply_says_the_kind_and_how_many_events_of_it() -> None:
     assert ("By what their listings describe, the calendar lists 3 art and crafts events from "
             "Tuesday, November 3 to Tuesday, November 17 (of 5 events then).") in facts
     assert not any("whose listing names" in fact for fact in facts)
+    # Events of the kind asked are what was asked, never "only near it in meaning".
+    assert not any("near it in meaning" in fact for fact in facts)
     said = topic_text("the next 14 days", START, END, 5, lines, matched, (), 1,
                       kinds_said="art and crafts", only_kinds=True)
     assert said is not None and said.startswith(
@@ -192,6 +197,47 @@ def test_the_reply_says_the_kind_and_how_many_events_of_it() -> None:
     assert ("The calendar lists no art and crafts event from Tuesday, November 3 to Tuesday, "
             "November 17; it lists 5 other events then.") in none
     assert "No upcoming art and crafts event is on the whole calendar." in none
+
+
+def test_a_list_cut_short_says_how_many_match_and_gives_the_first_by_time() -> None:
+    # 11-03 practice: "any art events" said the calendar lists 15 art events when 16 were
+    # labelled art, because the count was taken after the list was cut to MAX_EVENTS.
+    many = [event(10 + k, f"Craft Night {k}", 3 + k % 14) for k in range(MAX_EVENTS + 2)]
+    calendar = [*many, event(4, "Trivia Night", 4, "Teams of four.")]
+    labelled = {v["_id"]: ("arts",) for v in many}
+    ranked, matched = rank_events(calendar, "any art or trivia events", START, END, None,
+                                  calendar, kinds=labelled)
+    assert matched is True and len(ranked) == MAX_EVENTS + 3
+    totals = match_totals(ranked)
+    assert totals == {"kind": MAX_EVENTS + 2, "words": 1}
+    shown = shown_events(ranked)
+    # The kind's events come first, each group in time order, so a group cut short is its
+    # earliest events; the trivia night, though earlier than most, is left for the count.
+    assert len(shown) == MAX_EVENTS and {v["_matched_by"] for v in shown} == {"kind"}
+    kind_days = sorted(v["starts_at"] for v in ranked if v["_matched_by"] == "kind")
+    assert [v["starts_at"] for v in shown] == kind_days[:MAX_EVENTS]
+    lines = lines_of(shown)
+    said = topic_text("the next 14 days", START, END, len(calendar), lines, matched, (), 1,
+                      kinds_said="art and crafts", totals=totals)
+    assert said is not None
+    assert said.startswith(f"The calendar lists {MAX_EVENTS + 2} art and crafts events in the "
+                           f"next 14 days")
+    assert f"(of {len(calendar)} events then); here are the first {MAX_EVENTS} by time [1]:" \
+        in said
+    assert said.endswith("The calendar also lists 1 more event then whose listing names what "
+                         "you asked [1].")
+    facts = [f["fact"] for f in computed_answers(
+        "the next 14 days", START, END, len(calendar), lines, matched, {"art", "trivia"}, False,
+        (), 1, asked="any art or trivia events", kinds_said="art and crafts", totals=totals)]
+    assert any(f"lists {MAX_EVENTS + 2} art and crafts events" in fact
+               and f"the first {MAX_EVENTS} in time order are given." in fact for fact in facts)
+    assert any(fact.startswith("The calendar lists 1 event whose listing names")
+               and "not given here (the calendar has it)" in fact for fact in facts)
+    # Nothing cut: the counts are the lines', and nothing is said about the first ones.
+    few = shown_events(ranked[:3])
+    assert match_totals(few) == {"kind": 3} and "first" not in str(topic_text(
+        "the next 14 days", START, END, 3, lines_of(few), True, (), 1,
+        kinds_said="art and crafts", totals=match_totals(few)))
 
 
 def test_clubs_of_a_kind_are_listed_by_code_each_by_name() -> None:

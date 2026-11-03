@@ -614,14 +614,14 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                 corpus: Sequence[dict[str, Any]] | None = None, by_share: bool = False,
                 kinds: Mapping[str, Sequence[str]] | None = None,
                 ) -> tuple[list[dict[str, Any]], bool | None]:
-    """The events in the window that have not ended, in time order, at most MAX_EVENTS: those
-    of the kind asked (asked_kinds; `kinds` is every labelled card's kinds by its "_id", when the
-    index has them), those sharing the question's other topic words with their title, tags,
-    organizer, location or description, and, for a question naming no kind, those whose card's
-    meaning (scores, every event card's by its "_id") stands out for the question
-    (near_in_meaning), when any are. Also whether the topic matched: None with no topic words,
-    False when none matched (the whole window is then given, and the reply says the calendar
-    lists nothing for the topic)."""
+    """Every event in the window that has not ended, in time order: those of the kind asked
+    (asked_kinds; `kinds` is every labelled card's kinds by its "_id", when the index has them),
+    those sharing the question's other topic words with their title, tags, organizer, location
+    or description, and, for a question naming no kind, those whose card's meaning (scores,
+    every event card's by its "_id") stands out for the question (near_in_meaning), when any
+    are. Also whether the topic matched: None with no topic words, False when none matched (the
+    whole window is then given, and the reply says the calendar lists nothing for the topic).
+    All of them, so a reply can say how many there are: shown_events picks the ones it gives."""
     timed = in_window(values, start, end)
     food = asks_food(message)
     words = asked_topic(message)
@@ -668,9 +668,32 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                     return 1.0 if id(value) in kinded else round(share.get(id(value), 0.0), 2)
                 top = max(on_topic(v) for v in matching)
                 matching = [v for v in matching if on_topic(v) == top]
-            return matching[:MAX_EVENTS], True
-        return timed[:MAX_EVENTS], False
-    return timed[:MAX_EVENTS], None
+            return matching, True
+        return timed, False
+    return timed, None
+
+
+# When a list must be cut, the events of the kind asked come first, then those whose listing
+# names the topic or mentions food, then those only near it in meaning.
+_MATCH_ORDER = {"kind": 0, "words": 1, "food": 1, "meaning": 2}
+
+
+def shown_events(ranked: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The events a reply gives of those ranked (rank_events, in time order), at most
+    MAX_EVENTS: grouped as the reply says them (match_totals' groups, the most on-topic first),
+    each group in time order, so a group cut short is that group's earliest events."""
+    return sorted(ranked, key=lambda v: _MATCH_ORDER.get(v.get("_matched_by") or "", 0)
+                  )[:MAX_EVENTS]
+
+
+def match_totals(ranked: Sequence[dict[str, Any]]) -> dict[str, int]:
+    """How many of the events ranked matched each way, before shown_events cuts any: "kind",
+    "words" (the listing names the topic or mentions food) and "meaning". A reply says these
+    counts, never the number it shows (11-03 practice: "any art events" said the calendar
+    lists 15 when 16 were labelled art, because the count was taken after the cut)."""
+    by = Counter("words" if v.get("_matched_by") == "food" else v.get("_matched_by")
+                 for v in ranked)
+    return {key: n for key, n in by.items() if key}
 
 
 # Food a listing mentions ("pizza", "snacks", "delicious food"): a question about food at events
@@ -889,7 +912,8 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                      events: Sequence[dict[str, Any]], matched: bool | None, words: set[str],
                      food: bool, outside: Sequence[dict[str, Any]] = (),
                      calendar_n: int | None = None, asked: str = "", kinds_said: str = "",
-                     only_kinds: bool = False) -> list[dict[str, Any]]:
+                     only_kinds: bool = False, totals: Mapping[str, int] | None = None,
+                     ) -> list[dict[str, Any]]:
     """What code works out from the calendar for the reply to state as it is: the window's
     dates; how many events it holds, how many are about the topic asked or that none is (and
     the topic's events outside the window); for a food question, which listings mention food
@@ -897,7 +921,8 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
     value under "_value"); `outside` the topic's lines after the window; `calendar_n` the
     calendar page's number, for the facts about the whole window; `asked` the question, whose
     own words the facts say; `kinds_said` the kinds asked (kinds.names), `only_kinds` when the
-    question asked nothing else."""
+    question asked nothing else; `totals` how many matched each way before the lines were cut
+    (match_totals), when more matched than are given."""
     span = (_day(start) if start.date() == end.date()
             else f"{_day(start)} to {_day(end)}")
     where = f"on {span}" if start.date() == end.date() else f"from {span}"
@@ -920,16 +945,21 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                 == "meaning"]
         about = (f"whose listing names {topic}" + (" or mentions food" if food else "")
                  if topic else "whose listing mentions food")
+        total = {"kind": len(kinded), "words": len(named), **(totals or {})}
         if kinded:
             facts.append({"fact": f"By what their listings describe, the calendar lists "
-                                  f"{len(kinded)} {kinds_said} event"
-                                  f"{'s' if len(kinded) != 1 else ''} {where} (of {in_window} "
-                                  "events then).", "n": calendar_n})
-        if named or not (near or kinded):
-            facts.append({"fact": f"The calendar lists {len(named)} event"
-                                  f"{'s' if len(named) != 1 else ''} {about} {where} (of "
-                                  f"{in_window} events then).", "n": calendar_n})
-        else:
+                                  f"{total['kind']} {kinds_said} event"
+                                  f"{'s' if total['kind'] != 1 else ''} {where} (of {in_window} "
+                                  f"events then){_given(len(kinded), total['kind'])}",
+                          "n": calendar_n})
+        if total["words"] or not (near or kinded):
+            facts.append({"fact": f"The calendar lists {total['words']} event"
+                                  f"{'s' if total['words'] != 1 else ''} {about} {where} (of "
+                                  f"{in_window} events then){_given(len(named), total['words'])}",
+                          "n": calendar_n})
+        elif near:
+            # Only when some are near in meaning: events of the kind asked are what was asked
+            # (11-03 practice: "any greek life events" was said to be only near matches).
             facts.append({"fact": f"No listing {where} holds most of what was asked ({topic}); "
                                   f"of the {in_window} events then, the ones below are only near "
                                   "it in meaning.", "n": calendar_n})
@@ -965,6 +995,14 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
         if not with_food and topic:
             facts.append({"fact": f"No event listing {where} mentions food.", "n": calendar_n})
     return facts
+
+
+def _given(shown: int, of: int) -> str:
+    """The end of a count's fact: which of them the reply gives, when not all."""
+    if shown >= of:
+        return "."
+    return (f"; the first {shown} in time order are given." if shown
+            else f"; not given here (the calendar has {'it' if of == 1 else 'them'}).")
 
 
 def _phrase(label: str, start: datetime, end: datetime) -> str:
@@ -1023,15 +1061,18 @@ def _event_lines(numbered: Sequence[tuple[int, dict[str, Any]]], start: datetime
 def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                lines: Sequence[dict[str, Any]], matched: bool | None,
                outside: Sequence[dict[str, Any]] = (), calendar_n: int = 1,
-               kinds_said: str = "", only_kinds: bool = False) -> str | None:
+               kinds_said: str = "", only_kinds: bool = False,
+               totals: Mapping[str, int] | None = None) -> str | None:
     """A calendar question's events in code's own words, every one code chose (11-03: the reply
     picked 2 of the 3 wellness events and said "three"): with no topic, the window's listing;
     with a topic, the events of the kind asked (`kinds_said`, kinds.names), then those whose
     listing matches it, then those only near it in meaning; with none matching, that the calendar
     lists none then, the topic's next later dates, and the window's events. `lines` are the
     window's chosen events (each with "n" and the published value under "_value"), `outside` the
-    topic's later ones; `only_kinds` when the question asked nothing but kinds. None when an
-    event has no title."""
+    topic's later ones; `only_kinds` when the question asked nothing but kinds; `totals` how many
+    matched each way before the lines were cut (match_totals): each group says its whole count,
+    and that the ones given are its first by time when not all are. None when an event has no
+    title."""
     if any(not (line.get("_value") or {}).get("title") for line in [*lines, *outside]):
         return None
     phrase = _phrase(label, start, end)
@@ -1054,17 +1095,28 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
         near = [line for line in lines
                 if (line.get("_value") or {}).get("_matched_by") == "meaning"]
         parts: list[str] = []
+        total = {"kind": len(kinded), "words": len(named), **(totals or {})}
+
+        def first(shown: int, of: int) -> str:
+            return f"; here are the first {shown} by time" if shown < of else ""
         if kinded:
-            parts += [f"The calendar lists {len(kinded)} {kinds_said} event"
-                      f"{'s' if len(kinded) != 1 else ''} {phrase} (of {in_window} events then) "
-                      f"{cal}:",
+            n = total["kind"]
+            parts += [f"The calendar lists {n} {kinds_said} event{'s' if n != 1 else ''} "
+                      f"{phrase} (of {in_window} events then){first(len(kinded), n)} {cal}:",
                       *said(kinded, start, end)]
+        n = total["words"]
         if named:
-            parts += [(f"The calendar lists {len(named)} event{'s' if len(named) != 1 else ''} "
-                       f"{phrase} that match{'es' if len(named) == 1 else ''} what you asked (of "
-                       f"{in_window} events then) {cal}:") if not kinded else
-                      "Also matching what you asked, by their listings' words:",
+            parts += [(f"The calendar lists {n} event{'s' if n != 1 else ''} {phrase} that "
+                       f"match{'es' if n == 1 else ''} what you asked (of {in_window} events "
+                       f"then){first(len(named), n)} {cal}:") if not kinded else
+                      "Also matching what you asked, by their listings' words"
+                      + (f" ({n} events, the first {len(named)} by time):" if len(named) < n
+                         else ":"),
                       *said(named, start, end)]
+        elif n:
+            parts.append(f"The calendar also lists {n} more event{'s' if n != 1 else ''} then "
+                         + ("whose listing names" if n == 1 else "whose listings name")
+                         + f" what you asked {cal}.")
         if near:
             parts += [("These are only near it in meaning, not named by their listings:"
                        if named else
