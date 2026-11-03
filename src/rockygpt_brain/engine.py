@@ -2114,19 +2114,12 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None, [], {}
-        term = academic_calendar.term_asked(message, calendar["terms"],
-                                            academic_calendar.term_spans(calendar["dates"]),
-                                            today)
-        if term is None:
-            return None, [], {}
-        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
-        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
-        if not url or not entries:
-            return None, [], {}
         n = numbered_from + 1
-        return (academic_calendar.calendar_text(term, entries, n),
-                [{"n": n, "url": url, "title": f"{term['name']} academic calendar"}],
-                {"term": term, "entries": entries})
+        found = academic_calendar.dates_said(message, kind, calendar, today, n)
+        if found is None:
+            return None, [], {}
+        said, url, facts = found
+        return said, [{"n": n, "url": url, "title": "Academic calendar"}], facts
 
     def _clubs_by_words(self, clubs: list[dict[str, Any]], message: str,
                         sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2885,19 +2878,13 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None
-        spans = academic_calendar.term_spans(calendar["dates"])
-        term = academic_calendar.term_asked(message, calendar["terms"], spans,
-                                            turn.campus_now.date())
-        if term is None:
+        found = academic_calendar.dates_said(message, kind, calendar, turn.campus_now.date())
+        if found is None:
             return None
-        entries = academic_calendar.entries_asked(message, kind, term, calendar["dates"])
-        url = term.get("source_url") or next((e.get("source_url") for e in entries), None)
-        if not url:
-            return None
-        return self._code_answer(
-            turn, trace, academic_calendar.calendar_text(term, entries),
-            [{"n": 1, "url": url, "title": f"{term['name']} academic calendar"}], version,
-            calendar={"term": term, "entries": entries})
+        said, url, facts = found
+        return self._code_answer(turn, trace, said,
+                                 [{"n": 1, "url": url, "title": "Academic calendar"}], version,
+                                 calendar=facts)
 
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str, **facts: Any,

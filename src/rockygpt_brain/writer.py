@@ -107,7 +107,10 @@ give the page for the rest.
   which says what was asked. For which all, say where the shuttle goes that day when stops_served
   is given, that there is service that day, its first and
   last departure and how many trips (first_leaves_campus, last_leaves_campus, trip_count), and
-  give each trip's time when trips lists them. times_not_asked means every trip is timed but the
+  give each trip's time when trips lists them. from_now means trips are only the next ones still
+  to come today: say they are the next, then how many more leave later today
+  (more_later_today), the last of them (last_later_today), and that the posted timetable has the
+  full day. times_not_asked means every trip is timed but the
   student did not ask for the times: never say times are not provided or not published. When
   none_left is true, say the last
   one left at last_left_at and give next_service (its date and first departure). When

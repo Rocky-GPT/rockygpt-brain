@@ -92,6 +92,7 @@ def test_a_read_is_checked_field_by_field_and_its_question_adds_no_number() -> N
     ({"limit": "off_topic"}, triage.LIMIT_TEXTS["off_topic"]),
     ({"limit": "my_records"}, triage.LIMIT_TEXTS["my_records"] + triage.LIMIT_ALONE["my_records"]),
     ({"social": "greeting", "limit": "homework"}, "Hi! " + triage.LIMIT_TEXTS["homework"]),
+    ({"social": "upset"}, triage.SOCIAL_TEXTS["upset"]),
 ])
 def test_a_message_with_no_campus_question_gets_codes_reply_from_the_read_alone(
         fields: dict[str, str], said: str) -> None:
@@ -225,6 +226,14 @@ def test_a_limit_with_a_campus_side_says_what_it_cant_do_then_answers_that() -> 
         f"{triage.LIMIT_TEXTS['do_it_for_me']}\n\nRegistrar email: published@example.edu. [1]"
         "\n\nSources: [1](https://example.edu/registrar)")
     assert result.trace is not None and result.trace["modelCalls"] == 1
+
+
+def test_a_passing_upset_gets_a_short_word_back_and_no_offices() -> None:
+    gateway = MeteredGateway(read(social="upset", question="What is the Registrar email?"))
+    result = ask(gateway, "ugh my form got rejected again, whats the registrar email")
+    assert result.body["answer"] == (
+        "Sorry to hear that!\n\nRegistrar email: published@example.edu. [1]\n\nSources: "
+        "[1](https://example.edu/registrar)")
 
 
 def test_the_model_answers_the_clean_question_not_the_slang() -> None:
