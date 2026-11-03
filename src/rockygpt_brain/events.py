@@ -78,6 +78,10 @@ _NOT_TOPIC = discovery_tokens(
     "people gonna get got early many much how should would could will want need know see find "
     "some good like also near tmrw tmr whos host hosting hosted packed crowded busy worth "
     "couple attend attending join joining interested have has had does did are was were "
+    # Words that say how good something is, not what it is (11-03 repeat test: "any cool
+    # events this week" was read as events about "cool", and "Clay it Cool" led the reply).
+    "cool interesting great awesome best exciting amazing nice neat chill dope epic fave "
+    "favorite favourite enjoyable entertaining "
     # Function words, which never say what an event is about ("is any of it free").
     "a an the and or but nor so yet if then than that this these those it its im you your "
     "he she they them their we us our of in at by with from into onto about over under out "
