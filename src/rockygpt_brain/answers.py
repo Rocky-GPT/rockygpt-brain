@@ -149,6 +149,11 @@ def _board_price(item: dict[str, Any]) -> str:
 def _board_text(value: dict[str, Any]) -> str:
     """A menu board as read from the venue's menu file: each section's items with their prices."""
     head = f"Menu board: {literal(value.get('board', ''))}"
+    filter_ = value.get("filter") or {}
+    if filter_.get("with_allergens") or filter_.get("without_allergens"):
+        # Most board items list no allergens: a filter on them says how many it could check.
+        head += (f". {value.get('allergens_listed')} of its {value.get('on_board')} items list "
+                 "allergens; the others cannot be checked")
     if value.get("filter") is not None and not value["sections"]:
         listed = ", ".join(literal(s) for s in value.get("stations_listed", []))
         return f"{head}. No item on the board matches" + (
@@ -164,6 +169,7 @@ def _board_text(value: dict[str, Any]) -> str:
                                  if item.get("marked") else "",
                                  f"contains {literal(item['contains'])}"
                                  if item.get("contains") else "") if n]
+            notes += [literal(o) for o in item.get("options_matched") or []]
             items.append(f"{text} ({'; '.join(notes)})" if notes else text)
         parts.append(f"{where}: {', '.join(items)}")
     return f"{head}. " + ". ".join(parts)
