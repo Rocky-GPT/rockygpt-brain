@@ -11,6 +11,13 @@ Run it through local-env.py brain (it reads BRAIN_OPENAI_API_KEY and BRAIN_OPENA
 prints them) after scripts/build_graph.py. It writes release-*.meaning.json and .meaning.f32 next
 to the active release file; the Brain uses them only for that release. Embeddings find units; they
 are never evidence.
+
+Each event and club card is also given its kinds (rockygpt_brain/kinds.py: art and crafts,
+cultural, sports...) by the chat model, cached by the card's text, so "any art events" lists every
+art event whatever its listing says. --kinds-only gives them to an index already built (an older
+release's, or a copy on a laptop) without embedding anything again:
+
+    python scripts/build_meaning_index.py --dir PUBLISHED_DIR --cache CACHE_DIR --kinds-only
 """
 
 import argparse
@@ -28,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from rockygpt_brain.academics import requisite_codes
+from rockygpt_brain.kinds import KINDS, KINDS_VERSION
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
 from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
@@ -45,6 +53,24 @@ QUESTIONS_SCHEMA = {"type": "object", "additionalProperties": False, "required":
                         "properties": {"n": {"type": "integer"},
                                        "questions": {"type": "array",
                                                      "items": {"type": "string"}}}}}}}
+KINDS_PROMPT = (
+    "You see listings from Ramapo College's campus calendar and club directory. For each, pick "
+    "the kinds below that a student asking for that kind of event or club would want it listed "
+    "for: what happens at the event, or what the club does and who it is for. Most listings have "
+    "one kind, some two or three, and some none (a residence hall's floor meeting, an office's "
+    "open hours). Judge by what happens, not by who hosts it or where: a club's own meeting or "
+    "social is the club's kind, but an event is not cultural because a cultural center hosts it, "
+    "nor theater because it is held in a theater. A listing that only books or closes a room, or "
+    "is for staff only, has no kind.\n\nKinds:\n"
+    + "\n".join(f"- {kind.key}: {kind.holds}" for kind in KINDS))
+KINDS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["items"],
+                "properties": {"items": {"type": "array", "items": {
+                    "type": "object", "additionalProperties": False, "required": ["n", "kinds"],
+                    "properties": {"n": {"type": "integer"},
+                                   "kinds": {"type": "array", "items": {
+                                       "type": "string",
+                                       "enum": [kind.key for kind in KINDS]}}}}}}}
+MAX_KINDS = 3
 
 
 def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -203,21 +229,7 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if course.get("description"):
                 card += f"\n{str(course['description'])[:400]}"
             cards.append((found["entity"]["id"], "course", card))
-    # Each club's or student organization's directory name, category and its own mission ("is
-    # there a club for anime", "cultural clubs", "service clubs").
-    # Only clubs with a club directory record have facts to read: a club node made from a
-    # ramapo.edu page alone (one the page says is no longer active) has no directory row, and its
-    # status is answered from the identity, not from a card.
-    listed = set(facts.club_directory_ids())
-    clubs = [e["id"] for e in facts.identities(("club", "organization")) if e["id"] in listed]
-    for start in range(0, len(clubs), 12):
-        for found in facts.get_club_facts(clubs[start:start + 12], version,
-                                          identity_hash=identity):
-            club = found["properties"][0]["values"][0]["value"]
-            cards.append((found["entity"]["id"], "club",
-                          f"Ramapo College student club: {club.get('name')}"
-                          + (f" ({club['category']})" if club.get("category") else "")
-                          + (f"\n{str(club['mission'])[:300]}" if club.get("mission") else "")))
+    cards += club_cards(facts, version, identity)
     # Each person's name, title, school and interests ("who researches machine learning").
     people = [e["id"] for e in facts.identities(("person",))]
     for start in range(0, len(people), 6):
@@ -234,9 +246,37 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if interests:
                 card += f"\nInterests and courses: {'; '.join(interests)[:500]}"
             cards.append((found["entity"]["id"], "person", card))
-    # Each calendar event's title, tags, host, place, admission and the start of its
-    # description ("free food this week", "the next home game", "guest speakers").
+    cards += event_cards(facts, version, identity)
+    return cards, {code: sorted(set(later)) for code, later in required_by.items()}, titles
+
+
+def club_cards(facts: GraphOnlyFacts, version: str,
+               identity: str) -> list[tuple[str, str, str]]:
+    """Each club's or student organization's directory name, category and its own mission ("is
+    there a club for anime", "cultural clubs", "service clubs"). Only clubs with a club directory
+    record have facts to read: a club node made from a ramapo.edu page alone (one the page says
+    is no longer active) has no directory row, and its status is answered from the identity, not
+    from a card."""
+    listed = set(facts.club_directory_ids())
+    clubs = [e["id"] for e in facts.identities(("club", "organization")) if e["id"] in listed]
+    cards: list[tuple[str, str, str]] = []
+    for start in range(0, len(clubs), 12):
+        for found in facts.get_club_facts(clubs[start:start + 12], version,
+                                          identity_hash=identity):
+            club = found["properties"][0]["values"][0]["value"]
+            cards.append((found["entity"]["id"], "club",
+                          f"Ramapo College student club: {club.get('name')}"
+                          + (f" ({club['category']})" if club.get("category") else "")
+                          + (f"\n{str(club['mission'])[:300]}" if club.get("mission") else "")))
+    return cards
+
+
+def event_cards(facts: GraphOnlyFacts, version: str,
+                identity: str) -> list[tuple[str, str, str]]:
+    """Each calendar event's title, tags, host, place, admission and the start of its
+    description ("free food this week", "the next home game", "guest speakers")."""
     events = [e["id"] for e in facts.identities(("event",))]
+    cards: list[tuple[str, str, str]] = []
     for start in range(0, len(events), 40):
         for found in facts.get_event_facts(events[start:start + 40], version,
                                            identity_hash=identity):
@@ -252,7 +292,88 @@ def academic_cards(facts: GraphOnlyFacts, version: str,
             if event.get("description"):
                 card += f"\n{str(event['description'])[:400]}"
             cards.append((found["entity"]["id"], "event", card))
-    return cards, {code: sorted(set(later)) for code, later in required_by.items()}, titles
+    return cards
+
+
+def label_kinds(cards: list[tuple[str, str, str]],
+                cache: dict[str, list[str]]) -> tuple[int, int]:
+    """Each event and club card's kinds (kinds.py), read by the chat model 25 cards at a time for
+    the cards not already in the cache, which is keyed by the list's version and the card's text
+    (a weekly event's dates share one card). Returns how many cards were read and how many of
+    those failed (they are read again by the next build)."""
+    due = list({_digest(KINDS_VERSION, card): card for _, kind, card in cards
+                if kind in ("event", "club") and _digest(KINDS_VERSION, card) not in cache
+                }.values())
+    batches = [due[k:k + 25] for k in range(0, len(due), 25)]
+
+    def read(batch: list[str]) -> dict[str, list[str]]:
+        try:
+            reply = _post("responses", {
+                "model": CHAT_MODEL, "store": False, "max_output_tokens": 4000,
+                "input": [{"role": "system", "content": KINDS_PROMPT},
+                          {"role": "user", "content": json.dumps(
+                              {"listings": [{"n": n, "listing": card}
+                                            for n, card in enumerate(batch)]},
+                              ensure_ascii=False)}],
+                "text": {"format": {"type": "json_schema", "name": "kinds",
+                                    "schema": KINDS_SCHEMA, "strict": True}}})
+            text = next((c["text"] for o in reply["output"] if o["type"] == "message"
+                         for c in o["content"] if c["type"] == "output_text"), "")
+            got = json.loads(text)["items"] if text else []
+        except (RuntimeError, ValueError, KeyError):
+            return {}
+        known = {kind.key for kind in KINDS}
+        return {_digest(KINDS_VERSION, batch[x["n"]]):
+                list(dict.fromkeys(k for k in x["kinds"] if k in known))[:MAX_KINDS]
+                for x in got if 0 <= x["n"] < len(batch)}
+
+    with ThreadPoolExecutor(8) as pool:
+        for found in pool.map(read, batches):
+            cache.update(found)
+    return len(due), sum(_digest(KINDS_VERSION, card) not in cache for card in due)
+
+
+def kinds_of(cards: list[tuple[str, str, str]],
+             cache: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Each event's and club's kinds by entity id, for the cards that have any."""
+    return {entity_id: cache[key] for entity_id, kind, card in cards
+            if kind in ("event", "club") and cache.get(key := _digest(KINDS_VERSION, card))}
+
+
+def load_kinds(cache_dir: Path) -> dict[str, list[str]]:
+    path = cache_dir / "kinds.json"
+    found: dict[str, list[str]] = json.loads(path.read_text()) if path.exists() else {}
+    return found
+
+
+def add_kinds(published: Path, cache_dir: Path) -> int:
+    """Give the index beside the active release its event and club kinds, nothing else changed:
+    for an index built before kinds, or a copy of production's on a laptop."""
+    pointer = json.loads((published / POINTER).read_text())
+    release_file = published / pointer["file"]
+    meta_path = release_file.with_suffix(MEANING_SUFFIX)
+    if not meta_path.is_file():
+        print("No meaning index beside the active release; build it first.", file=sys.stderr)
+        return 1
+    meta = json.loads(meta_path.read_text())
+    if (meta["dataset_version"], meta["identity_hash"]) != (pointer["dataset_version"],
+                                                            pointer["identity_hash"]):
+        print("The meaning index was built for another release.", file=sys.stderr)
+        return 1
+    facts = GraphOnlyFacts(published)
+    version, identity = facts.active_release()
+    cards = [*club_cards(facts, version, identity), *event_cards(facts, version, identity)]
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache = load_kinds(cache_dir)
+    read, failed = label_kinds(cards, cache)
+    (cache_dir / "kinds.json").write_text(json.dumps(cache, ensure_ascii=False))
+    meta["kinds"], meta["kinds_version"] = kinds_of(cards, cache), KINDS_VERSION
+    temporary = meta_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(meta))
+    os.replace(temporary, meta_path)
+    print(f"kinds for {version}: {len(meta['kinds'])} of {len(cards)} event and club cards "
+          f"have a kind ({read} cards read, {failed} failed)")
+    return 0 if not failed else 1
 
 
 def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]]) -> int:
@@ -339,10 +460,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the meaning index for the active release.")
     parser.add_argument("--dir", required=True, type=Path, help="the published graph directory")
     parser.add_argument("--cache", required=True, type=Path, help="embedding and question cache")
+    parser.add_argument("--kinds-only", action="store_true",
+                        help="only give the index already built its event and club kinds")
     args = parser.parse_args(argv)
     if not os.environ.get("BRAIN_OPENAI_API_KEY"):
         print("BRAIN_OPENAI_API_KEY is not set.", file=sys.stderr)
         return 2
+    if args.kinds_only:
+        return add_kinds(args.dir, args.cache)
     started = time.monotonic()
     pointer = json.loads((args.dir / POINTER).read_text())
     release_file = args.dir / pointer["file"]
@@ -357,6 +482,11 @@ def main(argv: list[str] | None = None) -> int:
                                        if questions_path.exists() else {})
     read = write_questions(units, questions)
     questions_path.write_text(json.dumps(questions, ensure_ascii=False))
+    kinds = load_kinds(args.cache)
+    # A card the model could not read gets its kinds at the next build; the day's index still
+    # goes out.
+    kinds_read, kinds_failed = label_kinds(academic, kinds)
+    (args.cache / "kinds.json").write_text(json.dumps(kinds, ensure_ascii=False))
     texts: list[tuple[int, str]] = []
     # Where each vector's text starts in its unit: 0 its opening, a piece's offset, -1 a question.
     offsets: list[int] = []
@@ -394,7 +524,8 @@ def main(argv: list[str] | None = None) -> int:
             "academic": [[entity_id, kind] for entity_id, kind, _ in academic],
             "required_by": required_by,
             "course_titles": course_titles,
-            "labels": [[_where(u["page"]), u["heading"]] for u in units]}
+            "labels": [[_where(u["page"]), u["heading"]] for u in units],
+            "kinds": kinds_of(academic, kinds), "kinds_version": KINDS_VERSION}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
               file=sys.stderr)
@@ -408,7 +539,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
           f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
-          f"({read} entries given questions, {embedded} texts embedded), "
+          f"({read} entries given questions, {embedded} texts embedded, {kinds_read} event and "
+          f"club cards given kinds, {kinds_failed} failed), "
           f"{time.monotonic() - started:.0f} s")
     return 0
 

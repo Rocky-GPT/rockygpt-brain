@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol, get_args
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call, triage
+from rockygpt_brain import kinds as kinds_module
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
     Rendered,
@@ -59,7 +60,7 @@ from rockygpt_brain.retrieval import (
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
-from rockygpt_brain.retrieval.entity_facts import discovery_tokens
+from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
 from rockygpt_brain.retrieval.meaning import MeaningIndex
 from rockygpt_brain.router import asks_inside, code_route, places_named, shuttle_route
 from rockygpt_brain.shuttle import (
@@ -2067,13 +2068,14 @@ class ChatEngine:
 
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
+                       kinds: Mapping[str, Sequence[str]] | None = None,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
                                   list[dict[str, Any]], list[dict[str, Any]], str | None]:
         """The calendar events in the question's window and the clubs it names, read through the
         shared reader (events.py), numbered after the evidence before them, what code works
         out from them (counts, food, the topic's other dates, a club's events), and the events
-        in code's own words (events.topic_text); scores are the event cards' meaning, when the
-        index has them."""
+        in code's own words (events.topic_text); scores are the event cards' meaning and kinds
+        their kinds (kinds.py), when the index has them."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
@@ -2102,7 +2104,12 @@ class ChatEngine:
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
-                                                 all_upcoming())
+                                                 all_upcoming(), kinds=kinds)
+            if matched is False and label == events.DEFAULT_LABEL:
+                # Nothing matches and no time was named: the next two weeks' other events say
+                # nothing about what was asked (11-03 practice: "any karaoke nights" was answered
+                # with a long list of unrelated events).
+                ranked = []
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
             outside_values: list[dict[str, Any]] = []
@@ -2110,36 +2117,49 @@ class ChatEngine:
                 window_ids = {v.get("_id") for v in values}
                 later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
                 found, again = events.rank_events(later, message, now, now + timedelta(days=366),
-                                                  scores, all_upcoming(), by_share=True)
+                                                  scores, all_upcoming(), by_share=True,
+                                                  kinds=kinds)
                 outside_values = found[:events.MAX_OUTSIDE] if again else []
                 outside = numbered(outside_values, outside_window=True)
             words = events.asked_topic(message)
+            asked_kinds, rest = (events.asked_kinds(message, words) if kinds and words
+                                 else (frozenset(), []))
+            kinds_said = kinds_module.names(asked_kinds)
             in_window = len(events.in_window(values, start, end))
             valued = [{**line, "_value": value}
                       for line, value in zip(chosen, ranked, strict=True)]
             computed = events.computed_answers(
                 label, start, end, in_window, valued, matched, words, events.asks_food(message),
-                outside, numbered_from + 1, asked=message)
+                outside, numbered_from + 1, asked=message, kinds_said=kinds_said,
+                only_kinds=bool(asked_kinds) and not rest)
             said = events.topic_text(
                 label, start, end, in_window, valued, matched,
                 [{**line, "_value": value}
                  for line, value in zip(outside, outside_values, strict=True)],
-                numbered_from + 1)
+                numbered_from + 1, kinds_said=kinds_said,
+                only_kinds=bool(asked_kinds) and not rest)
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
                         **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
+                        **({"kinds_asked": kinds_said} if kinds_said else {}),
                         "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
                                   message) if events.asks_clubs(message) else []
         if found:
             found = events.kind_members(found, self._club_directory())
-            for facts in self.facts.get_club_facts([c["id"] for c in found], version,
-                                                   identity_hash=identity_hash, as_of=now):
-                value = facts["properties"][0]["values"][0]["value"]
-                item = {"n": numbered_from + len(sources) + 1, **value}
-                clubs.append(item)
-                sources.append({"n": item["n"], "url": value.get("url"), "title": value["name"]})
+            # The reader takes MAX_CLUBS_READ clubs at a time; an umbrella entry stands for up to
+            # MAX_CATEGORY_CLUBS ("Honor Societies": 25 of 31, 11-03 practice, where reading them
+            # at once failed and the question fell to the slower model loop).
+            ids = [c["id"] for c in found]
+            for at in range(0, len(ids), MAX_CLUBS_READ):
+                for facts in self.facts.get_club_facts(ids[at:at + MAX_CLUBS_READ], version,
+                                                       identity_hash=identity_hash, as_of=now):
+                    value = facts["properties"][0]["values"][0]["value"]
+                    item = {"n": numbered_from + len(sources) + 1, **value}
+                    clubs.append(item)
+                    sources.append({"n": item["n"], "url": value.get("url"),
+                                    "title": value["name"]})
             computed = [*computed, *events.club_answers(
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
         return calendar, clubs, sources, computed, said
@@ -2544,6 +2564,27 @@ class ChatEngine:
             self._club_cache = (version, entries)
         return self._club_cache[1]
 
+    def _clubs_by_kind(self, index: MeaningIndex, message: str, numbered_from: int,
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str] | None:
+        """Every directory club of the kinds a question asks for and nothing else ("cultural
+        clubs", "is there a club for musicians"), numbered after the sources, at most
+        MAX_CATEGORY_CLUBS, with the kinds as a reply says them; None when the question asks
+        something besides kinds, or the index gives no club those kinds (then meaning finds
+        the nearest)."""
+        if not index.kinds:
+            return None
+        asked, rest = events.asked_kinds(message, events.asked_topic(message))
+        if not asked or rest:
+            return None
+        chosen = [entry for entry in self._club_directory()
+                  if asked & set(index.kinds.get(str(entry["id"]), ()))]
+        if not chosen:
+            return None
+        clubs = [{"n": numbered_from + k + 1, **{x: y for x, y in entry.items() if x != "id"}}
+                 for k, entry in enumerate(chosen[:events.MAX_CATEGORY_CLUBS])]
+        return (clubs, [{"n": c["n"], "url": c.get("url"), "title": c.get("name")} for c in clubs],
+                kinds_module.names(asked))
+
     def _clubs_by_meaning(self, index: MeaningIndex, vectors: Sequence[Sequence[float]],
                           numbered_from: int,
                           ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2712,7 +2753,8 @@ class ChatEngine:
                     with measure("Read the calendar and clubs"):
                         calendar, clubs, found_sources, calendar_facts, events_said = \
                             await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
-                                                    len(sources), event_scores)
+                                                    len(sources), event_scores,
+                                                    index.kinds if index is not None else None)
                     sources = [*sources, *found_sources]
                     computed = [*computed, *calendar_facts]
                     dataset_version = dataset_version or self.facts.active_release()[0]
@@ -2812,7 +2854,19 @@ class ChatEngine:
                             people, found_people = await asyncio.to_thread(
                                 self._read_people, found, len(sources))
                             sources = [*sources, *found_people]
-                    if calendar_asked and not clubs and events.asks_clubs(latest):
+                    kind_clubs = (self._clubs_by_kind(index, latest, len(sources))
+                                  if calendar_asked and not clubs and events.asks_clubs(latest)
+                                  and index is not None else None)
+                    if kind_clubs is not None:
+                        # A kind of club ("cultural clubs", "are there any religious clubs") is
+                        # every club of that kind, by the kinds given to each directory entry.
+                        clubs, club_sources, kinds_said = kind_clubs
+                        sources = [*sources, *club_sources]
+                        clubs = self._clubs_by_words(clubs, latest, sources)
+                        computed = [*computed, *events.club_answers(
+                            clubs, latest, False, len(self._club_directory()),
+                            kinds_said=kinds_said)]
+                    elif calendar_asked and not clubs and events.asks_clubs(latest):
                         # Each interest a question lists ("anime and community service") is
                         # searched on its own as well as the whole question.
                         interests = events.interests(latest)
@@ -3564,10 +3618,13 @@ class ChatEngine:
             why = "published_lookup"
         elif (reading.limit in ("off_topic", "prediction") and reading.danger == "none"
               and not triage.RESULT_WORDS.search(context.latest_message)
-              and events.asks_events(context.latest_message)):
+              and events.asks_events(context.latest_message)
+              and events.names_events(context.latest_message)):
             # What is coming up is the campus calendar's, which code reads: "any sports games
             # coming up" was once read as sports scores, "is there a semi formal coming up" as a
-            # prediction (11-03 practice). A game's result is neither.
+            # prediction (11-03 practice). A game's result is neither, and neither is a question
+            # naming only a time: "what's the weather this weekend" stays a prediction (11-03
+            # practice: corrected, it listed the weekend's events).
             corrected = replace(reading, limit="none",
                                 question=reading.question or context.latest_message.strip())
             why = "calendar_lookup"

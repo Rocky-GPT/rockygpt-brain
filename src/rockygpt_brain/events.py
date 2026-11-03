@@ -15,6 +15,7 @@ from collections.abc import Set as AbstractSet
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from rockygpt_brain.kinds import KINDS
 from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
 from rockygpt_brain.retrieval.meaning import standout_bar
@@ -39,7 +40,8 @@ _WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr|this 
                          r"sunday))\b")
 _OTHER_SUBJECT = re.compile(
     r"\b(?:menus?|eat|food|meals?|breakfast|brunch|lunch|dinner|dining|shuttles?|bus|buses|"
-    r"train|hours|open|opens|close|closes|closing|closed)\b")
+    r"train|hours|open|opens|close|closes|closing|closed|weather|forecast|rain|raining|rainy|"
+    r"snow|snowing|snowy|temperatures?)\b")
 _CLUB_WORDS = re.compile(
     r"\b(?:clubs?|organi[sz]ations?|orgs?|greek|sororit(?:y|ies)|fraternit(?:y|ies)|"
     r"student groups?|honor societ(?:y|ies))\b")
@@ -67,6 +69,13 @@ _NOT_TOPIC = discovery_tokens(
 
 # "What shows up on my transcript" and "does it show up" ask about no show.
 _NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b")
+
+
+def names_events(message: str) -> bool:
+    """Whether a question names events themselves ("games", "shows", "coming up"), not only a
+    time: "what's the weather this weekend" names a time and no event (11-03 practice: read as a
+    calendar question, it listed the weekend's events)."""
+    return bool(_EVENT_WORDS.search(_NOT_EVENT.sub(" ", message.casefold())))
 
 
 def asks_events(message: str) -> bool:
@@ -269,11 +278,27 @@ def topic_words(message: str) -> set[str]:
 def asked_topic(message: str) -> set[str]:
     """The topic words events are matched on; a food question's food words are matched on what
     each listing says instead (food_mention), and the words that set a later-term window
-    ("finals week", "before thanksgiving") say when, not what."""
+    ("finals week", "before thanksgiving") say when, not what. A word saying an event's form
+    or how it is liked (_FORM: "sessions", "meeting", "cool") counts only when nothing else is
+    asked: "any club meetings" asks for meetings, "any book clubs meeting" for book clubs."""
     text = message.casefold()
     food = _FOOD_ASK.findall(text)
-    return (topic_words(message) - (_stems(" ".join(food)) if food else set())
-            - _stems(" ".join(_LATER_TERM.findall(text))) - _stems(" ".join(_GENERIC_CLUB)))
+    words = (topic_words(message) - (_stems(" ".join(food)) if food else set())
+             - _stems(" ".join(_LATER_TERM.findall(text))) - _stems(" ".join(_GENERIC_CLUB)))
+    return (words - _FORM) or words
+
+
+# Words that say what form an event takes or how a student likes it, not what it is about: "any
+# yoga sessions" asks for yoga, "volunteer opportunities" for volunteering, "cool art stuff" for
+# art (11-03 practice: "any book clubs meeting" needed "meeting" in a listing, and the silent book
+# club, whose listing does not say it, was left out).
+_FORM = _stems(
+    "workshop workshops session sessions talk talks lecture lectures class classes "
+    "meeting meetings meet meets seminar seminars webinar webinars training trainings "
+    "panel panels presentation presentations discussion discussions gathering gatherings fair "
+    "fairs festival festivals celebration celebrations social socials mixer mixers opportunity "
+    "opportunities activity activities option options stuff related type types kind kinds sort "
+    "sorts day days series cool interesting exciting awesome cheap")
 
 
 # A listing titled "A vs. B" is a game, whatever words its description uses.
@@ -327,6 +352,75 @@ def alternatives(message: str, words: set[str]) -> list[set[str]]:
     parts = [words & topic_words(part)
              for part in re.split(r"\bor\b|,|/|\blike\b|\bsuch as\b", message.casefold())]
     return [words, *[p for p in parts if p and p != words]]
+
+
+# Each kind's names (kinds.py): its one-word names as written and in their plain form, and its
+# phrases word by word ("study abroad", "mental health", "game night"), which name it only where
+# the question says them in order.
+_KIND_NAMES = [(kind.key, frozenset(w for w in kind.named if " " not in w),
+                frozenset(_stem(w) for w in kind.named if " " not in w),
+                [tuple(_stem(w) for w in name.split()) for name in kind.named if " " in name])
+               for kind in KINDS]
+
+
+def _said(text: str) -> list[str]:
+    """A text's words in order, apostrophes dropped ("women's" is womens)."""
+    return re.findall(r"[^\W_]+", _APOSTROPHE.sub("", text.casefold()))
+
+
+def _kinds_named(said: Sequence[str], core: AbstractSet[str]) -> set[str]:
+    """The kinds whose names hold every word of `core` (plain forms), a phrase counting where
+    `said` (the words as written) holds it in order. A kind named by a phrase the question says
+    outranks one named word by word ("game nights" is games, "home games" sports), and one named
+    by the very words said outranks one named by their plain form ("gaming" is games, though its
+    plain form is a game's; "games" alone is sports and games)."""
+    stems = [_stem(w) for w in said]
+    found: set[str] = set()
+    phrased: set[str] = set()
+    exact: set[str] = set()
+    for key, written, single, phrases in _KIND_NAMES:
+        present = [p for p in phrases
+                   if any(tuple(stems[k:k + len(p)]) == p for k in range(len(stems) - len(p) + 1))]
+        by_phrase = set().union(*present)
+        if not core <= single | by_phrase:
+            continue
+        found.add(key)
+        if core & by_phrase:
+            phrased.add(key)
+        if all(word in by_phrase or any(w in written for w, st in zip(said, stems, strict=True)
+                                        if st == word) for word in core):
+            exact.add(key)
+    return phrased or exact or found
+
+
+def asked_kinds(message: str, words: set[str]) -> tuple[frozenset[str], list[set[str]]]:
+    """The kinds of event or club a question asks for (kinds.py), and the alternatives left for
+    the listings' own words (alternatives). A kind is asked when every topic word of the question,
+    or of each part of it ("art or music", "art and music"), is a name the kind goes by: "any art
+    events", "cultural clubs", "volunteer opportunities". A word naming no kind ("black culture",
+    "art shows", "painting") leaves its part to the words: kinds are never a member's ("painting"
+    is not art and crafts), and a kind beside another word is a narrower thing than the kind."""
+    parts = []
+    for text in re.split(r"\bor\b|\band\b|&|,|/|\blike\b|\bsuch as\b", message.casefold()):
+        if core := words & topic_words(text):
+            parts.append((_said(text), core))
+    if not parts:
+        return frozenset(), alternatives(message, words)
+    whole = _kinds_named(_said(message), set().union(*(core for _, core in parts)))
+    if whole:
+        return frozenset(whole), []
+    each = [_kinds_named(said, core) for said, core in parts]
+    if not any(each):
+        return frozenset(), alternatives(message, words)
+    if all(each):
+        return frozenset(set().union(*each)), []
+    # Some parts name kinds and some do not ("art or black history events"): the others are
+    # matched on the listings' words, as are any whole words the kinds leave.
+    named = set().union(*(core for (_, core), found in zip(parts, each, strict=True) if found))
+    rest = [alt for alt in alternatives(message, words) if not alt <= named]
+    rest += [core for (_, core), found in zip(parts, each, strict=True)
+             if not found and core not in rest]
+    return frozenset(set().union(*each)), rest
 
 
 def topic_share(values: Sequence[dict[str, Any]], words: set[str],
@@ -431,41 +525,56 @@ def in_window(values: Sequence[dict[str, Any]], start: datetime,
 def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                 end: datetime, scores: Mapping[str, float] | None = None,
                 corpus: Sequence[dict[str, Any]] | None = None, by_share: bool = False,
+                kinds: Mapping[str, Sequence[str]] | None = None,
                 ) -> tuple[list[dict[str, Any]], bool | None]:
     """The events in the window that have not ended, in time order, at most MAX_EVENTS: those
-    sharing the question's topic words with their title, tags, organizer, location or
-    description, and those whose card's meaning (scores, every event card's by its "_id") stands
-    out for the question (near_in_meaning), when any are. Also whether the topic matched: None
-    with no topic words, False when none matched (the whole window is then given, and the reply
-    says the calendar lists nothing for the topic)."""
+    of the kind asked (asked_kinds; `kinds` is every labelled card's kinds by its "_id", when the
+    index has them), those sharing the question's other topic words with their title, tags,
+    organizer, location or description, and, for a question naming no kind, those whose card's
+    meaning (scores, every event card's by its "_id") stands out for the question
+    (near_in_meaning), when any are. Also whether the topic matched: None with no topic words,
+    False when none matched (the whole window is then given, and the reply says the calendar
+    lists nothing for the topic)."""
     timed = in_window(values, start, end)
     food = asks_food(message)
     words = asked_topic(message)
     if words or food:
-        # Alternatives ("theater or dance performances") each match on their own.
+        # A kind ("any art events") is every listing of that kind, whatever words it uses
+        # (11-03 practice: "art" found only Cookie Art, while the ceramics, flower and mask
+        # nights were the art events); alternatives ("theater or trivia nights") each match on
+        # their own, the kinds' by kind and the others by the listings' words.
+        asked, rest = (asked_kinds(message, words) if kinds and words
+                       else (frozenset(), alternatives(message, words)))
+        kinded = {id(v) for v in timed
+                  if asked & set((kinds or {}).get(str(v.get("_id")), ()))}
         share: dict[int, float] = {}
-        for alternative in alternatives(message, words):
+        for alternative in rest:
             for key, part in topic_share(timed, alternative, corpus or values).items():
                 share[key] = max(share.get(key, 0.0), part)
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
-        worded = by_words(timed, share, meaning, scores)
-        near = near_in_meaning(
+        worded = by_words(timed, share, meaning, scores) if rest else set()
+        # Meaning finds a single thing asked ("pet therapy"), never a whole kind: with a kind
+        # asked, its labels are the list.
+        near = set() if asked else near_in_meaning(
             [v for v in timed if id(v) not in worded and not (food and food_mention(v))],
             meaning, scores)
         matching = []
         for value in timed:
-            # How each event matched, for the reply to say: its listing names the topic, it
-            # mentions food, or it is only near the topic in meaning.
-            by = ("words" if id(value) in worded
+            # How each event matched, for the reply to say: it is of the kind asked, its listing
+            # names the topic, it mentions food, or it is only near the topic in meaning.
+            by = ("kind" if id(value) in kinded
+                  else "words" if id(value) in worded
                   else "food" if food and food_mention(value)
                   else "meaning" if id(value) in near
                   else None)
             if by:
                 matching.append({**value, "_matched_by": by})
         if matching:
-            if by_share:  # Only the most on-topic, by time.
-                top = max(round(share.get(id(v), 0.0), 2) for v in matching)
-                matching = [v for v in matching if round(share.get(id(v), 0.0), 2) == top]
+            if by_share:  # Only the most on-topic, by time; an event of the kind asked is.
+                def on_topic(value: dict[str, Any]) -> float:
+                    return 1.0 if id(value) in kinded else round(share.get(id(value), 0.0), 2)
+                top = max(on_topic(v) for v in matching)
+                matching = [v for v in matching if on_topic(v) == top]
             return matching[:MAX_EVENTS], True
         return timed[:MAX_EVENTS], False
     return timed[:MAX_EVENTS], None
@@ -618,14 +727,16 @@ def _day(moment: datetime) -> str:
 def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                      events: Sequence[dict[str, Any]], matched: bool | None, words: set[str],
                      food: bool, outside: Sequence[dict[str, Any]] = (),
-                     calendar_n: int | None = None, asked: str = "") -> list[dict[str, Any]]:
+                     calendar_n: int | None = None, asked: str = "", kinds_said: str = "",
+                     only_kinds: bool = False) -> list[dict[str, Any]]:
     """What code works out from the calendar for the reply to state as it is: the window's
     dates; how many events it holds, how many are about the topic asked or that none is (and
     the topic's events outside the window); for a food question, which listings mention food
     and what they say. `events` are the window's lines given (with "n" and the published
     value under "_value"); `outside` the topic's lines after the window; `calendar_n` the
     calendar page's number, for the facts about the whole window; `asked` the question, whose
-    own words the facts say."""
+    own words the facts say; `kinds_said` the kinds asked (kinds.names), `only_kinds` when the
+    question asked nothing else."""
     span = (_day(start) if start.date() == end.date()
             else f"{_day(start)} to {_day(end)}")
     where = f"on {span}" if start.date() == end.date() else f"from {span}"
@@ -640,13 +751,20 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                               + (f"; the first {shown} in time order are given."
                                  if shown < in_window else "."), "n": calendar_n})
     elif matched:
+        kinded = [line for line in events if (line.get("_value") or {}).get("_matched_by")
+                  == "kind"]
         named = [line for line in events if (line.get("_value") or {}).get("_matched_by")
                  in ("words", "food")]
         near = [line for line in events if (line.get("_value") or {}).get("_matched_by")
                 == "meaning"]
         about = (f"whose listing names {topic}" + (" or mentions food" if food else "")
                  if topic else "whose listing mentions food")
-        if named or not near:
+        if kinded:
+            facts.append({"fact": f"By what their listings describe, the calendar lists "
+                                  f"{len(kinded)} {kinds_said} event"
+                                  f"{'s' if len(kinded) != 1 else ''} {where} (of {in_window} "
+                                  "events then).", "n": calendar_n})
+        if named or not (near or kinded):
             facts.append({"fact": f"The calendar lists {len(named)} event"
                                   f"{'s' if len(named) != 1 else ''} {about} {where} (of "
                                   f"{in_window} events then).", "n": calendar_n})
@@ -662,17 +780,21 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
     else:
         about = (f"about {topic}" if topic else "whose listing mentions food" if food
                  else "about what was asked")
-        facts.append({"fact": f"The calendar lists no event {about} {where}; it lists "
+        none, next_ones, never = (
+            (f"no {kinds_said} event", f"next {kinds_said} events",
+             f"No upcoming {kinds_said} event is on the whole calendar.") if only_kinds
+            else (f"no event {about}", f"next events {about}",
+                  f"No upcoming event on the whole calendar is {about}."))
+        facts.append({"fact": f"The calendar lists {none} {where}; it lists "
                               f"{in_window} other event{'s' if in_window != 1 else ''} then.",
                       "n": calendar_n})
         if outside:
-            facts.append({"fact": f"Outside {span}, the calendar's next events {about}, by date: "
+            facts.append({"fact": f"Outside {span}, the calendar's {next_ones}, by date: "
                                   + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
                                               for line in outside) + ".",
                           "n": outside[0]["n"]})
         else:
-            facts.append({"fact": f"No upcoming event on the whole calendar is {about}.",
-                          "n": calendar_n})
+            facts.append({"fact": never, "n": calendar_n})
     if food:
         with_food = [(line, said) for line in events
                      if (said := food_mention(line.get("_value") or {}))]
@@ -739,13 +861,16 @@ def _event_lines(numbered: Sequence[tuple[int, dict[str, Any]]], start: datetime
 
 def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                lines: Sequence[dict[str, Any]], matched: bool | None,
-               outside: Sequence[dict[str, Any]] = (), calendar_n: int = 1) -> str | None:
+               outside: Sequence[dict[str, Any]] = (), calendar_n: int = 1,
+               kinds_said: str = "", only_kinds: bool = False) -> str | None:
     """A calendar question's events in code's own words, every one code chose (11-03: the reply
     picked 2 of the 3 wellness events and said "three"): with no topic, the window's listing;
-    with a topic, the events whose listing matches it, then those only near it in meaning; with
-    none matching, that the calendar lists none then, the topic's next later dates, and the
-    window's events. `lines` are the window's chosen events (each with "n" and the published value
-    under "_value"), `outside` the topic's later ones. None when an event has no title."""
+    with a topic, the events of the kind asked (`kinds_said`, kinds.names), then those whose
+    listing matches it, then those only near it in meaning; with none matching, that the calendar
+    lists none then, the topic's next later dates, and the window's events. `lines` are the
+    window's chosen events (each with "n" and the published value under "_value"), `outside` the
+    topic's later ones; `only_kinds` when the question asked nothing but kinds. None when an
+    event has no title."""
     if any(not (line.get("_value") or {}).get("title") for line in [*lines, *outside]):
         return None
     phrase = _phrase(label, start, end)
@@ -761,15 +886,23 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                    else f" {cal}:"))
         return "\n\n".join([head, *said(lines, start, end)])
     if matched:
+        kinded = [line for line in lines
+                  if (line.get("_value") or {}).get("_matched_by") == "kind"]
         named = [line for line in lines
                  if (line.get("_value") or {}).get("_matched_by") in ("words", "food")]
         near = [line for line in lines
                 if (line.get("_value") or {}).get("_matched_by") == "meaning"]
         parts: list[str] = []
+        if kinded:
+            parts += [f"The calendar lists {len(kinded)} {kinds_said} event"
+                      f"{'s' if len(kinded) != 1 else ''} {phrase} (of {in_window} events then) "
+                      f"{cal}:",
+                      *said(kinded, start, end)]
         if named:
-            parts += [f"The calendar lists {len(named)} event{'s' if len(named) != 1 else ''} "
-                      f"{phrase} that match{'es' if len(named) == 1 else ''} what you asked (of "
-                      f"{in_window} events then) {cal}:",
+            parts += [(f"The calendar lists {len(named)} event{'s' if len(named) != 1 else ''} "
+                       f"{phrase} that match{'es' if len(named) == 1 else ''} what you asked (of "
+                       f"{in_window} events then) {cal}:") if not kinded else
+                      "Also matching what you asked, by their listings' words:",
                       *said(named, start, end)]
         if near:
             parts += [("These are only near it in meaning, not named by their listings:"
@@ -778,7 +911,8 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                        f"closest in meaning (of {in_window} events then) {cal}:"),
                       *said(near, start, end)]
         return "\n\n".join(parts) if parts else None
-    parts = [f"The calendar lists no event {phrase} that matches what you asked {cal}."]
+    parts = [f"The calendar lists no {kinds_said} events {phrase} {cal}." if only_kinds
+             else f"The calendar lists no event {phrase} that matches what you asked {cal}."]
     if outside:
         later = [line for line in outside if _starts(line["_value"]) is not None]
         if later:
@@ -807,9 +941,10 @@ def asks_club_events(message: str) -> bool:
 
 
 def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
-                 directory_size: int) -> list[dict[str, Any]]:
+                 directory_size: int, kinds_said: str = "") -> list[dict[str, Any]]:
     """What code works out about the clubs a question asks for: each club found by its name
-    as the directory lists it; for clubs found only by meaning, whether any has a word the
+    as the directory lists it; the clubs of the kind asked (`kinds_said`, kinds.names), by what
+    their entries describe; for clubs found only by meaning, whether any has a word the
     question asked for in its name (else they are only the nearest); or that the directory lists
     no club for what was asked."""
     words = topic_words(message) - _GENERIC_STEMS
@@ -818,7 +953,10 @@ def club_answers(clubs: Sequence[dict[str, Any]], message: str, by_name: bool,
         return [{"fact": f"The club directory ({directory_size} clubs and organizations) lists "
                          f"no club for {topic or 'what was asked'}."}]
     facts: list[dict[str, Any]] = []
-    if not by_name:
+    if kinds_said:
+        facts.append({"fact": f"By what their directory entries describe, {len(clubs)} of the "
+                              f"directory's clubs are {kinds_said} clubs."})
+    elif not by_name:
         named = [c for c in clubs if words & _stems(str(c.get("name") or ""))]
         if not named:
             facts.append({"fact": f"No club in the directory has {topic or 'the words asked'} in "

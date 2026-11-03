@@ -188,6 +188,15 @@ vectors (on 400 written questions it kept 99.5% of the float index's ten best un
 loads it on its own thread for the active release and identity publication; until it has, and
 when none is stored, questions are answered without it.
 
+The same build gives every event and club card its kinds (`src/rockygpt_brain/kinds.py`: art and
+crafts, cultural, sports, volunteering and 20 more), read once by the chat model and cached by the
+card's text in the job's cache (`kinds.json`), so a day's build pays only for new listings. A
+question naming a kind ("any art events", "cultural clubs") lists every event or club of it; a
+question naming a member of a kind ("painting") is still matched on the listings' words. An index
+built before kinds has none, and kind questions are then answered as before.
+`build_meaning_index.py --kinds-only` gives an index already built its kinds (a laptop's copy of
+production's, for testing).
+
 ## Fact Packet output (optional, off by default)
 
 The design is two steps with a hard wall between them: the Brain understands the question,
