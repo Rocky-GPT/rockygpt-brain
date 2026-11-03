@@ -814,10 +814,19 @@ _ALLERGY_WORDS = frozenset(
 
 # Where a shuttle stops: its stop description says where it picks up and where it does not go.
 _STOP_WORDS = frozenset("stop stops stopping go goes going pick picks pickup".split())
+# Where a shuttle is right now ("did I miss the bus or is it still coming", "is it late"): beside
+# timetable times, the scope notice says every time that they are not live and that delays are
+# not in them, so a part about it is already answered (11-03 repeat test: the model added "I don't
+# have verified information about that part" in some tries and not others).
+_LIVE_WORDS = frozenset(
+    "bus buses shuttle shuttles still coming come comes came miss missed late running run runs "
+    "delayed delay delays live real tracking track tracker arrive arrives arriving arrived yet "
+    "already gone left".split())
 
 
 def _asked_words(student_words: str | None, message: str, offices: set[str],
-                 menu_read: bool = False, stop_described: bool = False) -> str | None:
+                 menu_read: bool = False, stop_described: bool = False,
+                 shuttle_scoped: bool = False) -> str | None:
     """The student's own words that an unsupported part is about, or None when there are none.
 
     The model must give the words it cannot answer. Words that are not in the student's message, or
@@ -830,7 +839,8 @@ def _asked_words(student_words: str | None, message: str, offices: set[str],
         return None
     named = {word for name in offices for word in _words(name)}
     if all(word in _ANSWERABLE_WORDS or word in named
-           or (menu_read and word in _MENU_ANSWERABLE_WORDS) for word in said):
+           or (menu_read and word in _MENU_ANSWERABLE_WORDS)
+           or (shuttle_scoped and word in _LIVE_WORDS) for word in said):
         return None
     # Beside a menu, a part about allergies is answered: every item carries its allergen labels.
     if menu_read and set(said) & _ALLERGY_WORDS:
@@ -4600,17 +4610,30 @@ class ChatEngine:
                                   if prop["key"] == "menu" for value in prop["values"]
                                   if isinstance(value.get("value"), dict)
                                   for word in value["value"].get("filter", {}).get("contains", [])}
-                    stop_described = any(
-                        r.part and r.part.get("kind") == "shuttle_facts"
-                        and isinstance(r.part.get("answer"), dict)
-                        and (r.part["answer"].get("stop_description")
-                             or r.part["answer"].get("departs_from"))
-                        for r in results.values())
+                    shuttles = [r.part["answer"] for r in results.values()
+                                if r.part and r.part.get("kind") == "shuttle_facts"
+                                and isinstance(r.part.get("answer"), dict)]
+                    stop_described = any(answer.get("stop_description")
+                                         or answer.get("departs_from") for answer in shuttles)
+                    # A stop or route the timetable does not list is answered by code's sentence
+                    # that says so, with the ones it does list (11-03: "the next shuttle to
+                    # Mahwah station" added "I don't have verified information about that part"
+                    # in one try of five).
+                    unlisted = {str(answer[key]) for answer in shuttles
+                                for flag, key in (("stop_unknown", "asked"),
+                                                  ("route_unknown", "asked_route"))
+                                if answer.get(flag) and answer.get(key)}
+                    looked_up |= unlisted
+                    # Timetable times are said with the notice that they are not live.
+                    scoped = any(answer.get("trips") or answer.get("none_left")
+                                 or answer.get("none_after") or answer.get("service") == "none"
+                                 for answer in shuttles)
                     about = _asked_words(part.student_words, context.latest_message, looked_up,
-                                         menu_read, stop_described)
-                    if shown and about is None:
+                                         menu_read, stop_described, scoped)
+                    if about is None and (shown or unlisted):
                         # Office facts are above and nothing the student asked is unsupported: a
                         # contact note that mentions appointments is not a question about them.
+                        # Code's "no route called Night Owl" answers it too, though it finds none.
                         trace.setdefault("unsupported_dropped", []).append(part.student_words)
                         continue
                     if about:  # For the inspector: what the model said it could not answer.
