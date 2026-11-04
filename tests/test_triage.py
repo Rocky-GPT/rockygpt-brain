@@ -253,15 +253,20 @@ def test_a_passing_upset_gets_a_short_word_back_and_no_offices() -> None:
         "[1](https://example.edu/registrar)")
 
 
-def test_the_model_answers_the_clean_question_not_the_slang() -> None:
+def test_a_limits_campus_side_is_asked_after_the_students_own_words() -> None:
+    # 11-04 blind run: the campus side the read wrote in place of the message dropped what the
+    # student said ("can't register for spring classes" beside a hold). Code's lookups still get
+    # the read's words (the test before this one); anything else hears the student first.
     gateway = MeteredGateway(
         read(limit="do_it_for_me", question="Who handles transcripts?"), LOOKUP, finish())
     result = ask(gateway, "can u order my transcript 4 me")
     answer = result.body["answer"]
     assert answer.startswith(triage.LIMIT_TEXTS["do_it_for_me"] + "\n\n")
     assert "published@example.edu" in answer
-    assert latest_asked(gateway.inputs[1]) == "Who handles transcripts?"
+    assert latest_asked(gateway.inputs[1]) == (
+        "can u order my transcript 4 me. Who handles transcripts?")
     assert result.trace is not None and result.trace["modelCalls"] == 3
+    assert result.trace["read"]["asked"] == "own_words_then_campus_side"
 
 
 def test_a_follow_up_keeps_the_students_own_words() -> None:
@@ -597,3 +602,62 @@ def test_a_danger_one_read_finds_is_the_emergency_reply() -> None:
     result = ask(gateway, "i dont want to be here anymore. who handles transcripts", reads=3)
     assert result.body["answer"].startswith(SAFETY_TEXTS["self_harm"])
     assert len(gateway.inputs) == 3
+
+
+@pytest.mark.parametrize(("typed", "question", "keeps"), [
+    ("wen r finals", "When are finals?", True),
+    ("registrar email", "What is the Registrar's email?", True),
+    ("hey whats the registar phone #", "What is the Registrar phone number?", True),
+    ("hi! when does the gym open", "When does the gym open?", True),
+    ("calc tutoring", "Where is calculus tutoring?", True),
+    ("wen does winter brk start", "When does winter break start?", True),
+    ("how many classes do i need", "How many classes do I need?", True),
+    ("cant log into my email", "I cannot log into my email.", True),
+    # Words the student typed are left out: their situation, or a number.
+    ("im a junior in biology thinking about switching to nursing, who do i talk to",
+     "Who do I talk to about switching to nursing?", False),
+    ("is BIOL 204 4 credits", "Is BIOL 204 four credits?", False),
+    # A word the student never typed is added, or one they typed is changed.
+    ("library hours", "What are the library's hours this weekend?", False),
+    ("who do i call about my car", "Who do I call about my career?", False),
+    ("where do i catch the bus", "Where do I catch the business?", False),
+])
+def test_the_reads_question_is_used_only_when_it_keeps_every_word_typed(
+        typed: str, question: str, keeps: bool) -> None:
+    assert triage.keeps_words(typed, question) is keeps
+
+
+def test_a_clock_questions_clock_words_may_be_left_to_the_clock_line() -> None:
+    typed = "whats the date and when does the library close"
+    question = "When does the library close?"
+    assert not triage.keeps_words(typed, question)
+    assert triage.keeps_words(typed, question, triage.CLOCK_WORDS)
+
+
+def test_a_message_asking_more_than_the_reads_question_is_told_apart() -> None:
+    email = "What is the Registrar email?"
+    assert triage.asks_more("whats the registrar email and how do i get a transcript", email)
+    assert triage.asks_more("registrar email? hours?", email)
+    assert not triage.asks_more("ugh my form got rejected again, whats the registrar email", email)
+
+
+def test_what_a_first_message_is_asked_in() -> None:
+    asked = triage.asked
+    assert asked("wen r finals", triage.Reading(question="When are finals?")) == "When are finals?"
+    # The student's situation dropped: their own words.
+    assert asked("im a junior in biology thinking about switching to nursing, who do i talk to",
+                 triage.Reading(question="Who do I talk to about switching to nursing?")) is None
+    # A limit's campus side after the student's own words.
+    hold = "theres a hold on my account and i cant register for spring, how do i find out why"
+    assert asked(hold, triage.Reading(limit="my_records",
+                                      question="How do I find out why I have a hold?")) == (
+        f"{hold}. How do I find out why I have a hold?")
+    # Homework's request is the part not answered, and code's emergency text answers the rest.
+    tutoring = "Where can I get tutoring in chemistry?"
+    assert asked("do my chem homework", triage.Reading(limit="homework", question=tutoring)) == (
+        tutoring)
+    assert asked("my roommate wont wake up and idk who handles transcripts",
+                 triage.Reading(danger="medical", question="Who handles transcripts?")) == (
+        "Who handles transcripts?")
+    assert asked("thanks!", triage.Reading(social="thanks")) is None
+

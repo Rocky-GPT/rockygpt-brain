@@ -642,6 +642,9 @@ def published_offices(listing: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 # The sections a how-to answer says, chosen by a model from the candidates code ranked.
 PICKED_PROCEDURES = 6
+# The best sections by meaning of a lookup the student's question asked them for are kept
+# whatever the pick says; the pick only adds (11-04: code decides what it can, AI adds).
+CORE_PROCEDURES = 2
 # A pick that thinks harder (BRAIN_OPENAI_DECIDE_EFFORT) needs longer; past it the ranked are kept.
 PICK_SECONDS = float(os.environ.get("BRAIN_PICK_SECONDS", "18"))
 PICK_TOOL: dict[str, Any] = {
@@ -706,6 +709,42 @@ def with_situation_procedures(requests: Sequence[Any], message: str) -> tuple[li
         if (isinstance(item, OfficeRequest) and "procedures" not in item.fields
                 and set(item.fields) <= _CONTACT_FIELDS
                 and len(asked - purpose_words(item.query)) >= least
+                and len(item.fields) < 10):
+            item = item.model_copy(update={"fields": [*item.fields, "procedures"],
+                                           "about": item.about or message.strip()[:160]})
+            added.add(n)
+        out.append(item)
+    return out, added
+
+
+# Who leads an office, and what it does, only its own pages say: the directory lists contacts,
+# and staff and leaders are no person records. Read for contact fields alone, the 11-04 blind run's
+# "Who is the provost and what does the provost's office do?" got name, department and website,
+# and "Who is the director of the Center for Health and Counseling Services? Also what's the phone
+# number" got name and phones, so neither reply could name anyone.
+_ASKS_WHO_LEADS = re.compile(
+    r"\b(?:who|whom|which|name of)\b.{0,80}?\b(?:directors?|deans?|chairs?|chairperson|heads?|"
+    r"coordinators?|managers?|provost|president|vice president|vp|chief|supervisors?|leaders?|"
+    r"leadership|registrar|in charge|runs?|leads?|oversees?|directs?|manages?)\b"
+    r"|\bwhat does\b.{0,80}?\b(?:do|handle|offer)\b", re.IGNORECASE | re.DOTALL)
+
+
+def asks_who_leads(message: str) -> bool:
+    """Whether a message asks who leads, runs or directs an office, or what an office does."""
+    return bool(_ASKS_WHO_LEADS.search(message))
+
+
+def with_leader_sections(requests: Sequence[Any], message: str) -> tuple[list[Any], set[int]]:
+    """An office read in a message asking who leads it or what it does also reads its own
+    pages' sections for the message (its staff or leadership section, its overview), whatever
+    fields the model asked for; the best of them by meaning are kept (_pick_procedures). Returns
+    the requests and the indexes of those it added sections to."""
+    if not asks_who_leads(message):
+        return list(requests), set()
+    out: list[Any] = []
+    added: set[int] = set()
+    for n, item in enumerate(requests):
+        if (isinstance(item, OfficeRequest) and "procedures" not in item.fields
                 and len(item.fields) < 10):
             item = item.model_copy(update={"fields": [*item.fields, "procedures"],
                                            "about": item.about or message.strip()[:160]})
@@ -2021,12 +2060,7 @@ class ChatEngine:
         named = self.facts.identities(("program", "course"))
         programs = [e for e in named if e.get("kind") == "program"]
         codes = {str(e["name"]): e for e in named if e.get("kind") == "course"}
-        # The words of an office the message names are not a program's short form: "the Student
-        # Accounts office hours" was read as Accounting and sent to the catalog (11-02).
-        for office in self.facts.identities(("office",)):
-            for name in [office["name"], *office.get("aliases", [])]:
-                if len(str(name).split()) >= 2:
-                    message = re.sub(rf"(?i)\b{re.escape(str(name))}\b", " ", message)
+        message = self._without_office_names(message)
         found = academics.find_programs(programs, message)
         by_name = {str(p["name"]): p for p in programs}
         if not found:
@@ -2053,6 +2087,28 @@ class ChatEngine:
                 index.course_titles, message, course_codes)
                 if i in by_id and by_id[i] not in courses]
         return found, academics.also_published(programs, found), courses
+
+    def _without_office_names(self, message: str) -> str:
+        """The message without the offices it names: their words are not a program's short form
+        ("the Student Accounts office hours" was read as Accounting and sent to the catalog,
+        11-02)."""
+        for office in self.facts.identities(("office",)):
+            for name in [office["name"], *office.get("aliases", [])]:
+                if len(str(name).split()) >= 2:
+                    message = re.sub(rf"(?i)\b{re.escape(str(name))}\b", " ", message)
+        return message
+
+    def _named_in_full(self, named: tuple[list[dict[str, Any]], list[str],
+                                          list[dict[str, Any]]], message: str,
+                       ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Of the programs and courses code found for a message (_programs_named), those it
+        names in full: programs by whole words (academics.named_in_full), courses by a typed
+        catalog code ("CMPS 361", not "calc 2"). The catalog pick can add to these, never
+        drop one."""
+        message = self._without_office_names(message)
+        typed = set(academics.course_codes(message, {str(c["name"]) for c in named[2]}))
+        return (academics.named_in_full(named[0], message),
+                [c for c in named[2] if str(c["name"]) in typed])
 
     def _plan_tracks(self) -> dict[str, str]:
         """Each recommended plan's name that has a track ("Law and Society/Criminal Justice")
@@ -3048,11 +3104,21 @@ class ChatEngine:
                         with measure("Pick the catalog programs and courses"):
                             picked = await self._pick_catalog(latest, index, vectors, programs,
                                                               budget)
+                        # What the student named in full is read whatever the pick says; the
+                        # pick only adds (11-04 blind run: it dropped the International
+                        # Business Minor code named in 4 of 5 tries).
+                        in_full: tuple[list[dict[str, Any]], list[dict[str, Any]]] = ([], [])
+                        if picked is not None and programs:
+                            in_full = await asyncio.to_thread(self._named_in_full, programs,
+                                                              latest)
+                            picked = catalog.with_named(picked, *in_full)
                         trace["catalogPick"] = (
                             {"programs": [p["name"] for p in picked["programs"]],
                              "courses": [c["name"] for c in picked["courses"]],
                              "find": picked["find"], "level": picked["level"],
-                             "track": picked["track"]} if picked is not None else None)
+                             "track": picked["track"],
+                             "namedInFull": [e["name"] for e in [*in_full[0], *in_full[1]]]}
+                            if picked is not None else None)
                     if picked is not None:
                         with measure("Read the catalog picks"):
                             academic, found_sources, dataset_version, picked_facts = \
@@ -3482,6 +3548,10 @@ class ChatEngine:
         for k, (rid, at, item, prop) in enumerate(asked):
             keep = (chosen.get(k, []) if chosen is not None
                     else list(range(min(PICKED_PROCEDURES, len(prop["values"])))))
+            # The best by meaning of what the student asked are kept whatever the pick says, so
+            # every try reads them; one read beside a situation stays the pick's to keep.
+            if meaning is not None and id(item) not in (situational or set()):
+                keep = [*range(min(CORE_PROCEDURES, len(prop["values"]))), *keep]
             results[rid] = keep_procedures(results[rid], keep,
                                            unasked=id(item) in (situational or set()))
             output[at]["rendered"] = results[rid].rendered.text
@@ -3829,7 +3899,8 @@ class ChatEngine:
         return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,
-                      trace: dict[str, Any], floor_situation: str | None = None) -> ChatResult:
+                      trace: dict[str, Any], floor_situation: str | None = None, *,
+                      beside_emergency: bool = False) -> ChatResult:
         """Read the message first (triage.py) when code does not already understand it: code
         writes the whole reply to anything that is not a campus question, and a campus question
         is answered in its clean words, after code's short lead and before the offices for a
@@ -3843,10 +3914,11 @@ class ChatEngine:
         if reading is None:
             return await self._campus_answer(turn, request, trace, started=started)
         reading = await self._read_checked(context, reading, trace)
-        # A follow-up keeps the conversation exactly as it is: the read fixes spelling only and
-        # never guesses what "it" or "that" means. A limit's own campus question has no "it".
-        question = (reading.question if not context.recent_messages
-                    or reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
+        question = await self._asked(context, reading, beside_emergency)
+        if isinstance(read := trace.get("read"), dict):
+            read["asked"] = ("own_words" if question is None
+                             else "read" if question == reading.question
+                             else "own_words_then_campus_side")
         if reading.danger != "none":
             return await self._read_emergency(turn, request, reading, trace, question, started)
         if (done := await self._read_reply(turn, context, reading, trace)) is not None:
@@ -3866,6 +3938,37 @@ class ChatEngine:
             result = await self._with_support(result, reading.needs, reading.limit)
         return result
 
+    async def _asked(self, context: Context, reading: triage.Reading,
+                     beside_emergency: bool) -> str | None:
+        """What the campus answer reads in place of the student's words, None meaning their own
+        words. A follow-up keeps the conversation exactly as it is: the read fixes spelling only
+        and never guesses what "it" or "that" means; a limit's own campus question has no "it".
+        Beside an emergency the read's question is asked: code's emergency text answers the rest.
+        A first message is asked in the read's words when they keep every word the student typed,
+        and a limit's campus side after the student's own words (triage.asked). The read's words
+        are also asked when they are a plain lookup code answers by itself (an office's or a
+        venue's contacts or hours, the shuttle) and the student asked nothing more: "ugh my form
+        got rejected again, whats the registrar email" needs only the email."""
+        if context.recent_messages:
+            return (reading.question
+                    if reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
+        if beside_emergency:
+            return reading.question or None
+        question = triage.asked(context.latest_message, reading)
+        if (reading.question and question != reading.question
+                and not triage.asks_more(context.latest_message, reading.question)
+                and await self._code_lookup(reading.question)):
+            return reading.question
+        return question
+
+    async def _code_lookup(self, question: str) -> bool:
+        """Whether a question is a plain lookup code answers by itself: one listed office, venue
+        or building ("Registrar phone number"), or the shuttle."""
+        _, offices, _, venues, _, _ = await self._lists()
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(question, offices, venues, buildings) is not None
+                or shuttle_route(question) is not None)
+
     async def _code_understands(self, context: Context) -> bool:
         """Whether code already understands the whole message, so it is not read first: one kind
         of academic calendar date asked plainly ("when are finals?"), a varsity team's coaches,
@@ -3881,10 +3984,7 @@ class ChatEngine:
             names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
             if names_a_team:
                 return True
-        _, offices, _, venues, _, _ = await self._lists()
-        buildings = await asyncio.to_thread(self._buildings)
-        return (code_route(latest, offices, venues, buildings) is not None
-                or shuttle_route(latest) is not None)
+        return await self._code_lookup(latest)
 
     async def _read_checked(self, context: Context, reading: triage.Reading,
                             trace: dict[str, Any]) -> triage.Reading:
@@ -3950,10 +4050,7 @@ class ChatEngine:
         place's hours or menu, the shuttle times, the calendar's events or dates."""
         if events.asks_events(question) or academic_calendar.kind_asked(question) is not None:
             return True
-        _, offices, _, venues, _, _ = await self._lists()
-        buildings = await asyncio.to_thread(self._buildings)
-        return (code_route(question, offices, venues, buildings) is not None
-                or shuttle_route(question) is not None)
+        return await self._code_lookup(question)
 
     async def _picks(self, messages: list[dict[str, Any]], budget: TurnBudget,
                      trace: dict[str, Any]) -> list[dict[str, Any] | None]:
@@ -4258,7 +4355,7 @@ class ChatEngine:
         check set: "my parents are gonna kill me" over a failed midterm got the emergency text
         and nothing for the exam). The read can add an emergency, never take the floor's away."""
         if read and self.read_first and situation != "self_harm":
-            result = await self._answer(turn, request, trace)
+            result = await self._answer(turn, request, trace, beside_emergency=True)
         else:
             result = await self._campus_answer(turn, request, trace, question=question,
                                                started=started)
@@ -4407,6 +4504,7 @@ class ChatEngine:
                         requests = with_asked_time(with_meal_hours(keep_named_day(
                             requests, context.latest_message, turn.campus_now.date())),
                             context.latest_message)
+                        requests, _ = with_leader_sections(requests, context.latest_message)
                         requests, situational = with_situation_procedures(
                             requests, context.latest_message)
                         attempts += len(requests)

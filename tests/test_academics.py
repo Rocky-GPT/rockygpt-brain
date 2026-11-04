@@ -667,3 +667,64 @@ def test_code_says_a_courses_requisites_and_facts_in_plain_sentences() -> None:
     from rockygpt_brain.one_call import messages
     given = json.loads(messages("q", None, [], NOW.date(), [item])[1]["content"])
     assert "_requisites" not in given["programs"][0]
+
+
+def test_only_programs_named_in_whole_words_are_read_whatever_the_pick() -> None:
+    # 11-04 blind run: "a business minor" named the two minors with Business in their names,
+    # and the catalog pick read four others instead in 4 of 5 tries. A short form stays a
+    # guess the pick can drop: "account" in "my student account" is not Accounting.
+    from rockygpt_brain.academics import named_in_full
+    programs = [{"id": f"b{n}", "name": name, "aliases": []} for n, name in enumerate([
+        "Business Analytics Minor", "International Business Minor", "Accounting BS",
+        "International Business BA", "Communication Arts BA"])]
+    by_name = {p["name"]: p for p in programs}
+    minors = [by_name["Business Analytics Minor"], by_name["International Business Minor"]]
+    assert names(named_in_full(minors, "how many credits for a business minor")) == [
+        "Business Analytics Minor", "International Business Minor"]
+    assert names(named_in_full([by_name["International Business BA"]],
+                               "what's in the international business major?")) == [
+        "International Business BA"]
+    assert names(named_in_full([by_name["Accounting BS"]], "i want to switch to accounting")) == [
+        "Accounting BS"]
+    assert named_in_full([by_name["Accounting BS"]], "how do i pay my student account") == []
+    assert named_in_full([by_name["Communication Arts BA"]], "comm arts classes") == []
+    # A published short name of the program's own is its name.
+    cs = {"id": "cs", "name": "Computer Science BS", "aliases": ["CS"]}
+    assert names(named_in_full([cs], "who is the cs convener")) == ["Computer Science BS"]
+
+
+def test_the_catalog_pick_adds_to_what_was_named_in_full_and_never_drops_it() -> None:
+    from rockygpt_brain.catalog import MAX_PICKED_PROGRAMS, with_named
+    named = [{"id": "ib", "name": "International Business Minor"}]
+    picked = [{"id": f"m{n}", "name": f"Minor {n}"} for n in range(MAX_PICKED_PROGRAMS)]
+    pick = {"programs": picked, "courses": [{"id": "c1", "name": "BUSI 101"}],
+            "find": ["programs_at_level"], "level": "minor", "track": None}
+    merged = with_named(pick, named, [{"id": "c1", "name": "BUSI 101"}])
+    assert names(merged["programs"]) == ["International Business Minor", "Minor 0", "Minor 1",
+                                         "Minor 2"]
+    assert merged["courses"] == [{"id": "c1", "name": "BUSI 101"}]
+    assert (merged["find"], merged["level"]) == (["programs_at_level"], "minor")
+    # More named than the pick's limit: every one is read.
+    many = [{"id": f"n{n}", "name": f"Named {n}"} for n in range(MAX_PICKED_PROGRAMS + 1)]
+    assert names(with_named(pick, many, [])["programs"]) == names(many)
+
+
+def test_the_engine_reads_a_program_named_in_full_when_the_pick_leaves_it_out() -> None:
+    facts = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[{"id": "ibm", "name": "International Business Minor", "kind": "program",
+                   "aliases": [], "links": []},
+                  {"id": "acct", "name": "Accounting BS", "kind": "program", "aliases": [],
+                   "links": []},
+                  {"id": "c1", "name": "BUSI 101", "kind": "course", "aliases": [],
+                   "links": []},
+                  {"id": "sa", "name": "Student Accounts", "kind": "office", "aliases": [],
+                   "links": []}],
+        contacts=[], now=lambda: NOW)
+    engine = ChatEngine(ScriptedGateway(), facts)
+    message = "what courses are in the international business minor besides BUSI 101?"
+    full, typed = engine._named_in_full(engine._programs_named(message), message)
+    assert names(full) == ["International Business Minor"] and names(typed) == ["BUSI 101"]
+    # "Accounts" of an office the message names is no program's word, whole or short.
+    message = "my student account at the Student Accounts office"
+    assert engine._named_in_full(engine._programs_named(message), message) == ([], [])

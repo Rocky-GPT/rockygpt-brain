@@ -394,17 +394,25 @@ def agreed_pick(picks: Sequence[Mapping[str, Any] | None], pool_size: int,
     return {"n": sorted(kept, key=lambda n: (-votes[n], place(n), n))}
 
 
+# The usual choice's first CORE_READ units (each part's best by meaning, interleaved) are read
+# whatever the pick says, so every try of a question reads the same core; the pick only adds from
+# the wider pool. 11-04 blind run: the agreed pick (6 sections at the median) differed between
+# tries of the same question for 37 of 48 questions, and it came first, so each try read
+# different pages and named different offices.
+CORE_READ = 6
+
+
 def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],
                 pool_scores: MeaningScores, pool: Sequence[tuple[str, str]],
                 arguments: dict[str, Any] | None) -> tuple[MeaningScores, list[tuple[str, str]]]:
-    """The picked sections first, then the usual best of each part, at most PICKED_READ; the
-    usual choice alone when nothing valid was picked."""
+    """The usual choice's first CORE_READ units, then the picked sections, then the rest of the
+    usual choice, at most PICKED_READ; the usual choice alone when nothing valid was picked."""
     scores, order = chosen_units(index, vectors)
     picked = [pool[n - 1] for n in (arguments or {}).get("n") or []
               if isinstance(n, int) and 1 <= n <= len(pool)][:PICKED]
     if not picked:
         return scores, order
-    final = list(dict.fromkeys([*picked, *order]))[:PICKED_READ]
+    final = list(dict.fromkeys([*order[:CORE_READ], *picked, *order[CORE_READ:]]))[:PICKED_READ]
     merged = MeaningScores({k: pool_scores.get(k, scores.get(k, 0.0)) for k in final})
     merged.at = {k: at for k in final
                  if (at := pool_scores.at.get(k, scores.at.get(k))) is not None}
