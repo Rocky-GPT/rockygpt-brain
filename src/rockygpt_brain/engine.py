@@ -3829,7 +3829,8 @@ class ChatEngine:
         return replace(result, trace=trace)
 
     async def _answer(self, turn: Turn, request: ChatRequest,
-                      trace: dict[str, Any], floor_situation: str | None = None) -> ChatResult:
+                      trace: dict[str, Any], floor_situation: str | None = None, *,
+                      beside_emergency: bool = False) -> ChatResult:
         """Read the message first (triage.py) when code does not already understand it: code
         writes the whole reply to anything that is not a campus question, and a campus question
         is answered in its clean words, after code's short lead and before the offices for a
@@ -3843,10 +3844,11 @@ class ChatEngine:
         if reading is None:
             return await self._campus_answer(turn, request, trace, started=started)
         reading = await self._read_checked(context, reading, trace)
-        # A follow-up keeps the conversation exactly as it is: the read fixes spelling only and
-        # never guesses what "it" or "that" means. A limit's own campus question has no "it".
-        question = (reading.question if not context.recent_messages
-                    or reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
+        question = await self._asked(context, reading, beside_emergency)
+        if isinstance(read := trace.get("read"), dict):
+            read["asked"] = ("own_words" if question is None
+                             else "read" if question == reading.question
+                             else "own_words_then_campus_side")
         if reading.danger != "none":
             return await self._read_emergency(turn, request, reading, trace, question, started)
         if (done := await self._read_reply(turn, context, reading, trace)) is not None:
@@ -3866,6 +3868,37 @@ class ChatEngine:
             result = await self._with_support(result, reading.needs, reading.limit)
         return result
 
+    async def _asked(self, context: Context, reading: triage.Reading,
+                     beside_emergency: bool) -> str | None:
+        """What the campus answer reads in place of the student's words, None meaning their own
+        words. A follow-up keeps the conversation exactly as it is: the read fixes spelling only
+        and never guesses what "it" or "that" means; a limit's own campus question has no "it".
+        Beside an emergency the read's question is asked: code's emergency text answers the rest.
+        A first message is asked in the read's words when they keep every word the student typed,
+        and a limit's campus side after the student's own words (triage.asked). The read's words
+        are also asked when they are a plain lookup code answers by itself (an office's or a
+        venue's contacts or hours, the shuttle) and the student asked nothing more: "ugh my form
+        got rejected again, whats the registrar email" needs only the email."""
+        if context.recent_messages:
+            return (reading.question
+                    if reading.question == triage.LIMIT_QUESTIONS.get(reading.limit) else None)
+        if beside_emergency:
+            return reading.question or None
+        question = triage.asked(context.latest_message, reading)
+        if (reading.question and question != reading.question
+                and not triage.asks_more(context.latest_message, reading.question)
+                and await self._code_lookup(reading.question)):
+            return reading.question
+        return question
+
+    async def _code_lookup(self, question: str) -> bool:
+        """Whether a question is a plain lookup code answers by itself: one listed office, venue
+        or building ("Registrar phone number"), or the shuttle."""
+        _, offices, _, venues, _, _ = await self._lists()
+        buildings = await asyncio.to_thread(self._buildings)
+        return (code_route(question, offices, venues, buildings) is not None
+                or shuttle_route(question) is not None)
+
     async def _code_understands(self, context: Context) -> bool:
         """Whether code already understands the whole message, so it is not read first: one kind
         of academic calendar date asked plainly ("when are finals?"), a varsity team's coaches,
@@ -3881,10 +3914,7 @@ class ChatEngine:
             names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
             if names_a_team:
                 return True
-        _, offices, _, venues, _, _ = await self._lists()
-        buildings = await asyncio.to_thread(self._buildings)
-        return (code_route(latest, offices, venues, buildings) is not None
-                or shuttle_route(latest) is not None)
+        return await self._code_lookup(latest)
 
     async def _read_checked(self, context: Context, reading: triage.Reading,
                             trace: dict[str, Any]) -> triage.Reading:
@@ -3950,10 +3980,7 @@ class ChatEngine:
         place's hours or menu, the shuttle times, the calendar's events or dates."""
         if events.asks_events(question) or academic_calendar.kind_asked(question) is not None:
             return True
-        _, offices, _, venues, _, _ = await self._lists()
-        buildings = await asyncio.to_thread(self._buildings)
-        return (code_route(question, offices, venues, buildings) is not None
-                or shuttle_route(question) is not None)
+        return await self._code_lookup(question)
 
     async def _picks(self, messages: list[dict[str, Any]], budget: TurnBudget,
                      trace: dict[str, Any]) -> list[dict[str, Any] | None]:
@@ -4258,7 +4285,7 @@ class ChatEngine:
         check set: "my parents are gonna kill me" over a failed midterm got the emergency text
         and nothing for the exam). The read can add an emergency, never take the floor's away."""
         if read and self.read_first and situation != "self_harm":
-            result = await self._answer(turn, request, trace)
+            result = await self._answer(turn, request, trace, beside_emergency=True)
         else:
             result = await self._campus_answer(turn, request, trace, question=question,
                                                started=started)
