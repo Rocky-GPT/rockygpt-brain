@@ -11,8 +11,8 @@ which reads the calendar pages.
 """
 
 import re
-from collections.abc import Sequence
-from datetime import date
+from collections.abc import Mapping, Sequence
+from datetime import date, timedelta
 from typing import Any
 
 from rockygpt_brain.plain_writer import literal
@@ -20,10 +20,23 @@ from rockygpt_brain.plain_writer import literal
 # The kind of date a question asks about, by its words; a question naming two kinds is the model's.
 _KINDS = (
     ("add_drop_deadline", re.compile(r"\badd\s*(?:/|and|or)?\s*drop\b|\bdrop (?:a |my )?class"
-                                     r"(?:es)?\b|\blast day to (?:add|drop)\b")),
+                                     r"(?:es)?\b|\blast day to (?:add|drop)\b|"
+                                     r"\badd(?:ing)? (?:a |an |another |one more |my )?"
+                                     r"(?:new )?(?:class|course)(?:es|s)?\b")),
     ("withdrawal_deadline", re.compile(r"\bwithdraw\w*\b")),
     ("tuition_refund_deadline", re.compile(r"\brefunds?\b")),
-    ("finals", re.compile(r"\bfinals?\b|\bfinal exam\w*\b|\bexam week\b")),
+    # Pass/fail, audit and incomplete: the calendar's grading option deadline ("can I still switch
+    # a class to audit" was told the deadline could not be checked, fix check 11-04); a degree
+    # audit is no grading option.
+    ("grading_option_deadline", re.compile(r"(?<!degree )\baudit(?:ing|ed)?\b|\bpass\s*/?\s*"
+                                           r"(?:fail|no credit)\b|\bp\s*/\s*(?:f|nc)\b|"
+                                           r"\bgrading options?\b|\bincomplete\b")),
+    # "Final" alone is the exams only when no other thing follows it: "my final grade" asks no
+    # exam dates (fix check 11-04: a grade appeal began with the finals schedule).
+    ("finals", re.compile(r"\bfinals\b|\bfinal exam\w*\b|\bexam week\b|\bfinal\b(?!\s+(?:grades?|"
+                          r"projects?|papers?|essays?|decisions?|determinations?|days?|steps?|"
+                          r"versions?|drafts?|answers?|say|word|year|semester|term|round|"
+                          r"transcripts?|averages?|scores?|gpa|presentations?|portfolios?))")),
     ("grades_due", re.compile(r"\bgrades? (?:are )?due\b")),
     ("break", re.compile(r"\bbreak\b|\bthanksgiving\b|\brecess\b")),
     ("classes_begin", re.compile(r"\b(?:classes|semester|term) (?:start|starts|begin|begins)\b|"
@@ -46,8 +59,17 @@ when is are was the a an what whats which day date dates last first of to for do
 my this next current semester term session year classes class course courses start starts begin
 begins end ends finish finishes over break finals final exam exams examinations week ramapo
 college at in on deadline deadlines due grades grade add drop withdraw withdrawal withdrawing from
-a refund refunds tuition thanksgiving spring winter summer fall autumn recess
+a refund refunds tuition thanksgiving spring winter summer fall autumn recess audit pass fail
+grading option options
 """.split())
+# Whether a date is still ahead, asked without "when" ("can I still add a class", "is it too
+# late to withdraw"): the date of that kind is what answers it, marked as passed or still to come.
+_STILL = re.compile(r"\bcan (?:i|we|you) still\b|\b(?:is it|am i|are we) (?:still )?(?:too late|in "
+                    r"time)\b|\btoo late\b|\bstill (?:able|possible|time|open)\b|\banymore\b|"
+                    r"\bmissed\b|\bin time\b")
+# A question about the term in session ("this semester") asks about it, even when its dates of
+# that kind have all passed.
+_THIS_TERM = re.compile(r"\b(?:this|current|the current)\s+(?:semester|term)\b")
 
 
 def kind_asked(message: str) -> str | None:
@@ -69,8 +91,9 @@ def kind_named(message: str) -> str | None:
     those dates first and the model the rest (11-03: the reply gave a page's 7-week dates and left
     out the calendar's full-semester Nov 6 deadline). None for no kind or two."""
     text = message.casefold().replace("’", "'")
-    if not re.search(r"\bwhen\b|\bwhat (?:day|date)\b|\blast day\b|\bdeadlines?\b|"
-                     r"\bdue date\b|\bby when\b|\bhow late\b|\buntil when\b", text):
+    if not (re.search(r"\bwhen\b|\bwhat (?:day|date)\b|\blast day\b|\bdeadlines?\b|"
+                      r"\bdue date\b|\bby when\b|\bhow late\b|\buntil when\b", text)
+            or _STILL.search(text)):
         return None
     found = [kind for kind, pattern in _KINDS if pattern.search(text)]
     return found[0] if len(found) == 1 else None
@@ -134,7 +157,21 @@ def entries_asked(message: str, kind: str, term: dict[str, Any],
                  and (not named or any(w in str(e.get("title")).casefold() for w in named))]
     else:
         found = [e for e in listed if e.get("kind") == kind]
+        if kind == "grading_option_deadline":
+            # The option asked: an audit question is not answered by the last day to request
+            # an incomplete, which is still weeks away when the audit deadline has passed.
+            options = [title for title, words in _GRADING_OPTIONS if words.search(message)]
+            chosen = [e for e in found
+                      if any(o in str(e.get("title")).casefold() for o in options)]
+            found = chosen if options else found
     return sorted(found, key=lambda e: (str(e.get("date")), str(e.get("title"))))
+
+
+# Each grading option by the word its calendar titles use and the words a question asks it with.
+_GRADING_OPTIONS = (("audit", re.compile(r"(?<!degree )\baudit", re.I)),
+                    ("pass/fail", re.compile(r"\bpass\s*/?\s*(?:fail|no credit)\b|\bp\s*/\s*"
+                                             r"(?:f|nc)\b", re.I)),
+                    ("incomplete", re.compile(r"\bincomplete\b", re.I)))
 
 
 def break_named(message: str) -> str | None:
@@ -187,6 +224,38 @@ def between_terms(season: str, terms: Sequence[dict[str, Any]],
     return ending, starting, [last, *between, first]
 
 
+def break_spans(calendar: Mapping[str, Any], today: date) -> list[tuple[str, date, date]]:
+    """Every break the academic calendar dates, as (name, first day, last day): its break and
+    holiday entries by their titles ("Thanksgiving Break"), and winter and summer break, which it
+    does not list by name, as the days between the semesters around them (between_terms): from
+    the day after the earlier one's last day of classes to the day before the later one's first.
+    An event question names a break by these (events.window)."""
+    terms, dates = calendar.get("terms") or [], calendar.get("dates") or []
+    spans: list[tuple[str, date, date]] = []
+    for entry in dates:
+        if entry.get("kind") not in ("break", "holiday"):
+            continue
+        try:
+            spans.append((str(entry.get("title") or ""), date.fromisoformat(str(entry["date"])),
+                          last_day(entry)))
+        except (KeyError, ValueError):
+            continue
+    term_days = term_spans(dates)
+    for season in _BETWEEN:
+        found = between_terms(season, terms, term_days, dates, today)
+        if found is None:
+            continue
+        bounds = found[2]
+        try:
+            first = last_day(bounds[0]) + timedelta(days=1)
+            last = date.fromisoformat(str(bounds[-1]["date"])) - timedelta(days=1)
+        except (KeyError, ValueError):
+            continue
+        if first <= last:
+            spans.append((f"{season.title()} Break", first, last))
+    return spans
+
+
 _MONTHS = {name: number for number, name in enumerate(
     ("january", "february", "march", "april", "may", "june", "july", "august", "september",
      "october", "november", "december"), start=1)}
@@ -228,7 +297,9 @@ def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
     terms, dates = calendar["terms"], calendar["dates"]
     spans = term_spans(dates)
     text = message.casefold()
-    named_term = bool(_TERM.search(text) or _NEXT.search(text))
+    named_term = bool(_TERM.search(text) or _NEXT.search(text) or _THIS_TERM.search(text))
+    # "Can I still ...": this term's date is the answer, passed or not, not the next term's.
+    still = bool(_STILL.search(text.replace("’", "'")))
     season = break_named(message) if kind == "break" else None
     if season in _BETWEEN and not named_term:
         found = between_terms(season, terms, spans, dates, today)
@@ -247,7 +318,8 @@ def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
     if term is None:
         return None
     entries = entries_asked(message, kind, term, dates)
-    if not named_term and not _PAST.search(text) and all(last_day(e) < today for e in entries):
+    if (not named_term and not still and not _PAST.search(text)
+            and all(last_day(e) < today for e in entries)):
         # Nothing of that kind still ahead in this term: the next term that lists one is asked.
         later = sorted((t for t in terms if t.get("name") in spans
                         and spans[str(t["name"])][0] > spans[str(term["name"])][0]),
@@ -268,7 +340,7 @@ def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
         lead = (f"The {literal(term['name'])} academic calendar doesn't list a {season} break "
                 f"[{n}].")
         said = "\n".join([f"{lead} The days with no classes it lists are:",
-                          *_lines(entries, today)]) if entries else lead
+                          *_lines(entries, today, str(term["name"]))]) if entries else lead
         return said, url, {"term": term, "entries": entries}
     url = _url_of([term], entries)
     listed = calendar_text(term, entries, n, today)
@@ -282,10 +354,21 @@ def _url_of(terms: Sequence[dict[str, Any]], entries: Sequence[dict[str, Any]]) 
                                       *(e.get("source_url") for e in entries)] if url), None)
 
 
-def _lines(entries: Sequence[dict[str, Any]], today: date | None) -> list[str]:
-    return [f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
-            f"{' (already passed)' if today is not None and last_day(e) < today else ''}"
-            for e in entries]
+def _lines(entries: Sequence[dict[str, Any]], today: date | None,
+           term: str | None = None) -> list[str]:
+    """Each entry with its day, title and time, whether it has passed, and the other term it is
+    also listed for: the Fall 2026 calendar lists the winter session's first dates, and "Last Day
+    to Request Pass/Fail and Audit Grade Option" on December 18 is the winter session's, though
+    it reads as the fall's (fix check 11-04)."""
+    lines = []
+    for e in entries:
+        others = [str(t) for t in e.get("terms") or [] if term is not None and str(t) != term]
+        lines.append(f"- {_day(str(e['date']))}: {literal(e['title'])}{_time(e.get('time'))}"
+                     + (f" (also on the {literal(' and '.join(others))} calendar)"
+                        if others else "")
+                     + (" (already passed)" if today is not None and last_day(e) < today
+                        else ""))
+    return lines
 
 
 def _day(value: str) -> str:
@@ -317,4 +400,4 @@ def calendar_text(term: dict[str, Any], entries: Sequence[dict[str, Any]],
     if not entries:
         return None
     return "\n".join([f"The {literal(term['name'])} academic calendar lists [{n}]:",
-                      *_lines(entries, today)])
+                      *_lines(entries, today, str(term["name"]))])

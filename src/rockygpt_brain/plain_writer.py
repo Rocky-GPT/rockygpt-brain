@@ -8,6 +8,7 @@ not, so the code's full evidence text is the answer instead of a guess.
 """
 
 import re
+from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Any
 
@@ -217,6 +218,20 @@ def _and(items: list[str]) -> str:
 
 
 _WEEK = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+# What a sentence says when it gives a value of each kind an absence may be said for.
+_KIND_SAID = {"email": re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),
+              "phones": re.compile(r"\(?\b\d{3}\)?[ .-]?\d{3}[ .-]\d{4}\b"),
+              "website": re.compile(r"https?://")}
+
+
+def _said_kind(reply: _Reply, subject: str, predicate: Any) -> bool:
+    """Whether a sentence already said for the subject gives a value of the kind an absence is
+    about (an email address, a phone number, a web address). A note published elsewhere is said
+    after the absences, as what another page gives, and does not count."""
+    pattern = _KIND_SAID.get(str(predicate))
+    return pattern is not None and any(pattern.search(sentence)
+                                       for sentence in reply.subjects.get(subject, {}))
 
 
 def _days(days: list[Any]) -> str:
@@ -495,21 +510,38 @@ def _phones(value: Any) -> str:
     return "; ".join(said)
 
 
+def room_parts(values: Sequence[Any]) -> tuple[list[str], list[tuple[str, str]], bool]:
+    """An office's published rooms in words: the plain ones ("C-209", and a building given with
+    its campus map link by the building's name), the labelled ones as (label, room) ("Main
+    Office", "C-209"), and whether any was in a shape code cannot say, which is never printed as
+    it is (fix check 11-04: "Office: {'label': 'Main Office', 'location': 'C-209'}" for the 19
+    offices whose rooms carry a label or a map link)."""
+    plain: list[str] = []
+    labelled: list[tuple[str, str]] = []
+    unsaid = False
+    for room in values:
+        if isinstance(room, str):
+            if room.strip():
+                plain.append(literal(room.strip()))
+        elif isinstance(room, dict) and set(room) <= {"location", "label"} and isinstance(
+                room.get("location"), str) and room["location"].strip():
+            (labelled.append((literal(room["label"]), literal(room["location"].strip())))
+             if room.get("label") else plain.append(literal(room["location"].strip())))
+        elif isinstance(room, dict) and set(room) <= {"name", "map"} and isinstance(
+                room.get("name"), str) and room["name"].strip():
+            plain.append(literal(room["name"].strip()))
+        else:
+            unsaid = True
+    return plain, labelled, unsaid
+
+
 def _rooms(value: Any) -> tuple[list[str], list[tuple[str, str]]]:
     """An office's rooms: the plain ones, and the labelled ones as (label, room)."""
     if not isinstance(value, list) or not value:
         raise CannotSay
-    plain: list[str] = []
-    labelled: list[tuple[str, str]] = []
-    for room in value:
-        if isinstance(room, str):
-            plain.append(literal(room))
-        elif isinstance(room, dict) and set(room) <= {"location", "label"} and isinstance(
-                room.get("location"), str):
-            (labelled.append((literal(room["label"]), literal(room["location"])))
-             if room.get("label") else plain.append(literal(room["location"])))
-        else:
-            raise CannotSay
+    plain, labelled, unsaid = room_parts(value)
+    if unsaid or not (plain or labelled):
+        raise CannotSay
     return plain, labelled
 
 
@@ -850,6 +882,10 @@ def _fact(reply: _Reply, fact: dict[str, Any]) -> None:
         if not isinstance(value, str):
             raise CannotSay
         if key == "contact_note" and not (value := _unsaid(reply, value)):
+            return
+        if key == "name" and literal(value).casefold() == subject.casefold():
+            # Its published name is the name every line already calls it by (fix check 11-04:
+            # "Title IX's published name is Title IX.").
             return
         reply.say(subject, {"contact_note": f"{subject}: {literal(value)}",
                             "department": f"{subject} is part of {literal(value)}.",
@@ -1197,6 +1233,11 @@ def _plain_text(view: dict[str, Any], quotes: tuple[int, int]) -> str | None:
             if thing is None or not isinstance(absence.get("checked_at"), str):
                 raise CannotSay
             subject = literal(absence["subject"])
+            if _said_kind(reply, subject, absence["predicate"]):
+                # A value of that kind is already said for it, from another field or page: "Title
+                # IX doesn't publish a general email address" beside titleix@ramapo.edu, read
+                # from its contact note, told the student there was none (fix check 11-04).
+                continue
             reply.say(subject, f"{subject} doesn't publish {thing} on its own pages (checked "
                                f"{_when(absence['checked_at'], year=True)}).",
                       absence.get("sources") or [])

@@ -359,3 +359,69 @@ def test_a_letter_standing_in_for_a_name_names_no_one() -> None:
     assert stand_in_fact(["Dr. X"]) == (
         "The question names no one: Dr. X is a letter standing in for a name, so no person in "
         "the directory may be said to be that person.")
+
+
+TITLES = {"PSYC 101": "INTRODUCTION TO PSYCHOLOGY", "PSYC 102": "PSYCHOLOGY OF LEARNING",
+          "CHEM 212": "ORGANIC CHEMISTRY I LECTURE", "CHEM 212L": "ORGANIC CHEMISTRY I LAB",
+          "CHEM 213": "ORGANIC CHEMISTRY II LECTURE", "CHEM 213L": "ORGANIC CHEMISTRY II LAB",
+          "BIOL 101": "INTRODUCTION TO BIOLOGY", "MATH 121": "CALCULUS I",
+          "PSYC 390": "INDEPENDENT STUDY IN PSYCHOLOGY"}
+
+
+def test_a_course_is_named_by_its_code_or_every_word_of_its_title() -> None:
+    from rockygpt_brain.people import asks_who_teaches, course_key, courses_named
+    assert course_key("ORGANIC CHEMISTRY II LECTURE") == (("organic", "chemistry"),
+                                                          frozenset({2}))
+    assert course_key("Organic Chemistry II (lec & lab)") == (("organic", "chemistry"),
+                                                              frozenset({2}))
+    assert course_key("Fundamentals of Chemistry I and II Lecture and Laboratory") == (
+        ("fundamentals", "chemistry"), frozenset({1, 2}))
+    assert course_key("MUSI 255 - MUSIC, HISTORY AND CULTURE (https://x.edu/a)") == (
+        ("music", "history", "culture"), frozenset())
+    assert courses_named("who teaches intro to psych", TITLES) == ["PSYC 101"]
+    assert courses_named("which professors teach organic chemistry 2", TITLES) == [
+        "CHEM 213", "CHEM 213L"]
+    assert courses_named("who teaches orgo chem", TITLES) == []  # "orgo" says no title word.
+    assert courses_named("who teaches psyc101", TITLES) == ["PSYC 101"]
+    assert courses_named("who teaches calc 1", TITLES) == ["MATH 121"]
+    assert courses_named("can i take calc", TITLES) == ["MATH 121"]  # "can i" is no Calculus I.
+    assert courses_named("who does independent study in psychology", TITLES) == []
+    assert asks_who_teaches("who teaches intro to psych")
+    assert asks_who_teaches("which professors teach organic chemistry 2")
+    assert not asks_who_teaches("what is intro to psych about")
+
+
+def test_who_teaches_a_course_is_every_profile_that_lists_it() -> None:
+    # Fix check 11-04: the writer listed all 12 psychology faculty for one course.
+    from rockygpt_brain.people import course_teachers, course_teachers_text
+    directory = [
+        {"name": "Naseem Choudhury", "title": "Professor", "email": "n@x.edu",
+         "courses": ["PSYC 101 - Introduction to Psychology"], "office": "G-273"},
+        {"name": "Ann Ishak", "courses": ["Introduction to Psychology"]},
+        {"name": "Old Prof", "school": "Social Science (Retired)", "courses": ["PSYC 101"]},
+        {"name": "Chem One", "courses": ["Organic Chemistry II (lec & lab)"]},
+        {"name": "Chem Two", "courses": ["Organic Chemistry I Lecture"]},
+        {"name": "Chem All", "courses": ["Organic Chemistry"]},
+        {"name": "Nobody", "courses": ["Psychology of Learning"]}]
+    psych = course_teachers(directory, ["PSYC 101"], TITLES)
+    assert [p["name"] for p in psych] == ["Naseem Choudhury", "Ann Ishak", "Old Prof"]
+    orgo = course_teachers(directory, ["CHEM 213", "CHEM 213L"], TITLES)
+    assert [p["name"] for p in orgo] == ["Chem One", "Chem All"]
+    people = [{**p, "n": k} for k, p in enumerate(psych, start=2)]
+    assert course_teachers_text(["PSYC 101"], TITLES, people, ["office"]) == (
+        "Faculty profiles that list PSYC 101 Introduction to Psychology among the courses they "
+        "teach:\n"
+        "- Naseem Choudhury, Professor, n@x.edu, office G-273 [2]\n"
+        "- Ann Ishak, no office listed [3]\n"
+        "- Old Prof, listed as retired in the directory, no office listed [4]\n"
+        "A profile lists the courses a professor teaches; it doesn't say who teaches which "
+        "section this term.")
+
+
+def test_in_residence_is_a_role_not_a_field() -> None:
+    # Fix check 11-04: "who is in charge of residence life" was read as the field of the
+    # directory's "Entrepreneur in Residence", and answered with the business school's dean.
+    from rockygpt_brain.people import fields_asked
+    directory = [{"title": "Entrepreneur in Residence"}, {"title": "Professor of Psychology"}]
+    assert fields_asked("who is in charge of residence life", directory) == set()
+    assert fields_asked("who is the psychology convener", directory) == {"psychology"}

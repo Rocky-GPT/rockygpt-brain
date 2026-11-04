@@ -12,7 +12,13 @@ from rockygpt_brain import events
 from rockygpt_brain.academic_calendar import kind_named
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
-from rockygpt_brain.people import asks_faculty_list, asks_program_lead, faculty_text
+from rockygpt_brain.people import (
+    asks_faculty_list,
+    asks_program_lead,
+    faculty_text,
+    fields_named,
+    without_field_asks,
+)
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from rockygpt_brain.turn import CAMPUS_TZ, intake
 from test_academic_calendar import TERMS, URL, entry
@@ -108,6 +114,20 @@ def test_the_faculty_are_said_once_each_conveners_first() -> None:
     assert faculty_text("Biology", programs, people, conveners_only=True) == (
         "The college catalog names the program convener of Biology (Biology BS, Biology Minor) "
         "[1]:\n- Emma Rainforth, program convener, Professor, r@x.edu [2]")
+    # The office, phone and hours asked are on the line, or said not to be listed (fix check
+    # 11-04: the reply said it had no office number, though the directory lists G-273).
+    people["rain"] = {**people["rain"], "office": "G-273", "phone": "(201) 684-7776"}
+    asks = fields_named("who is the convener and what is their email and office number")
+    assert faculty_text("Biology", programs, people, conveners_only=True, asks=asks) == (
+        "The college catalog names the program convener of Biology (Biology BS, Biology Minor) "
+        "[1]:\n- Emma Rainforth, program convener, Professor, r@x.edu, office G-273, "
+        "phone (201) 684-7776 [2]")
+    assert "no office hours listed" in str(faculty_text(
+        "Biology", programs, people, conveners_only=True, asks=["office_hours"]))
+    assert without_field_asks("who is the psychology convener and what is their email and "
+                              "office number") == "who is the psychology convener "
+    assert without_field_asks("who is the convener and how do i declare the major") == (
+        "who is the convener and how do i declare the major")
 
 
 def test_a_list_of_a_programs_faculty_is_written_by_code_with_no_model_call() -> None:
@@ -231,7 +251,7 @@ def test_evidence_text_shown_without_a_writer_is_tidied_for_a_student() -> None:
     raw = ("**Health Services**\n\n"
            "Phones: +12016847536 [campus-directory](https://a.edu/1) "
            "[campus-directory](https://a.edu/2)\n\n"
-           "Fax: not published on the reviewed official pages (checked 2026-10-25) "
+           "Fax: not listed on its pages (checked 2026-10-25) "
            "[office-pages](https://a.edu/3). Scope: the office's own pages\n\n"
            "How-to and policies: Hours: Open daily. (see https://a.edu/4) "
            "[office-pages](https://a.edu/4)\n\n"
@@ -241,5 +261,41 @@ def test_evidence_text_shown_without_a_writer_is_tidied_for_a_student() -> None:
     assert tidy_evidence(raw) == (
         "**Health Services**\n\n"
         "Phones: (201) 684-7536 [Source](https://a.edu/1)\n\n"
-        "Fax: not published on the reviewed official pages [Source](https://a.edu/3)\n\n"
+        "Fax: not listed on its pages [Source](https://a.edu/3)\n\n"
         "Hours: Open daily. [Source](https://a.edu/4)")
+
+
+def test_who_teaches_a_course_is_codes_list_of_the_profiles_that_list_it() -> None:
+    # Fix check 11-04: "who teaches intro to psych" listed all 12 psychology faculty, and a
+    # profile listing the course by its title alone was missed.
+    from test_meaning import MeaningFacts, index_of
+    people = [person("cho", "Naseem Choudhury", "Professor of Psychology"),
+              person("ish", "Shaziela Ishak", "Professor of Psychology"),
+              person("oth", "Other Prof", "Professor of Psychology")]
+    people[0][2]["profile"]["courses"] = ["PSYC 101 - Introduction to Psychology"]
+    people[1][2]["profile"]["courses"] = ["Introduction to Psychology"]
+    people[2][2]["profile"]["courses"] = ["Psychology of Learning"]
+    people[0][1]["office"] = "G-273"
+    entities = [p[0] for p in people]
+    entities += [{"id": f"course-{code}", "name": code, "kind": "course", "aliases": [],
+                  "links": []} for code in ("PSYC 101", "PSYC 102")]
+    service: Any = MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
+                                     entities=entities, contacts=[p[1] for p in people],
+                                     records={"faculty": [p[2] for p in people]},
+                                     now=lambda: NOW)
+    service.__class__ = MeaningFacts
+    service.index = index_of([("page", "0", ["x"], [[1, 0]])])
+    service.index.course_titles = {"course-PSYC 101": "INTRODUCTION TO PSYCHOLOGY",
+                                   "course-PSYC 102": "PSYCHOLOGY OF LEARNING"}
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    result = ask(service, gateway, "who teaches intro to psych? whats their office")
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert gateway.inputs == []
+    assert result.body["answer"].startswith(
+        "Faculty profiles that list PSYC 101 Introduction to Psychology among the courses they "
+        "teach:\n"
+        "- Naseem Choudhury, Professor of Psychology, cho@ramapo.edu, office G-273 [1]\n"
+        "- Shaziela Ishak, Professor of Psychology, ish@ramapo.edu, no office listed [2]\n"
+        "A profile lists the courses a professor teaches; it doesn't say who teaches which "
+        "section this term.")
+    assert "Other Prof" not in result.body["answer"]

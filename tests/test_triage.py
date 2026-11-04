@@ -661,3 +661,83 @@ def test_what_a_first_message_is_asked_in() -> None:
         "Who handles transcripts?")
     assert asked("thanks!", triage.Reading(social="thanks")) is None
 
+
+
+def test_a_rule_asked_as_if_is_no_prediction_and_no_record() -> None:
+    # Fix check 11-04: "if i drop a class and go part time will i lose my financial aid" began
+    # "I can't predict that.", though the aid rules answer it.
+    message = "if i drop a class and go part time will i lose my financial aid"
+    gateway = MeteredGateway(read(limit="prediction", question=(
+        "What are the financial aid requirements for part-time students?")), LOOKUP, finish())
+    result = ask(gateway, message)
+    assert result.trace is not None and result.trace["read"]["corrected"]["why"] == (
+        "rule_question")
+    assert not result.body["answer"].startswith(triage.LIMIT_TEXTS["prediction"])
+    assert latest_asked(gateway.inputs[1]) == message
+    # A guess no rule decides stays one.
+    kept = ask(MeteredGateway(read(limit="prediction", question="What are the admission "
+                                                                "requirements?"),
+                              LOOKUP, finish()), "if i apply with a 3.2 will i get in")
+    assert kept.body["answer"].startswith(triage.LIMIT_TEXTS["prediction"])
+    assert kept.trace is not None and "corrected" not in kept.trace["read"]
+    # A record read on a question naming nothing of the student's is a misread.
+    course = ask(MeteredGateway(read(limit="my_records", question="Who teaches Introduction to "
+                                                                  "Psychology?"),
+                                LOOKUP, finish()), "who teaches intro to psych")
+    assert course.trace is not None and course.trace["read"]["corrected"]["why"] == (
+        "no_own_record")
+    assert not course.body["answer"].startswith(triage.LIMIT_TEXTS["my_records"])
+    own = ask(MeteredGateway(read(limit="my_records", question="How do I check my GPA?"),
+                             LOOKUP, finish()), "whats my gpa")
+    assert own.body["answer"].startswith(triage.LIMIT_TEXTS["my_records"])
+
+
+@pytest.mark.parametrize(("need", "message", "dropped"), [
+    # Fix check 11-04: switching majors was read as thinking of leaving ("That's a big decision").
+    ("thinking_of_leaving", "im thinking about switching to psych. who is the convener",
+     "no_leaving_words"),
+    ("thinking_of_leaving", "im thinking about transferring out, who do i talk to", None),
+    ("thinking_of_leaving", "i want to take a semester off", None),
+    # A hypothetical shares no trouble ("one bad grade doesn't decide everything" was said).
+    ("school_trouble", "what happens if i take an incomplete and don't finish the work in time",
+     "hypothetical"),
+    ("school_trouble", "i failed orgo, what happens if i retake it", None),
+    ("school_trouble", "im failing calc what do i do", None),
+])
+def test_a_need_the_message_does_not_bear_out_is_dropped(need: str, message: str,
+                                                         dropped: str | None) -> None:
+    needs, why = triage.needs_checked((need,), message)
+    assert needs == (() if dropped else (need,))
+    assert why == ({need: dropped} if dropped else {})
+
+
+def test_a_dropped_need_says_no_kind_sentence_and_names_no_office() -> None:
+    message = "im thinking about switching to psych. who is the psychology convener"
+    gateway = MeteredGateway(read(needs=["thinking_of_leaving"], question=message),
+                             LOOKUP, finish())
+    result = ask(gateway, message)
+    assert result.trace is not None and result.trace["read"]["needsDropped"] == {
+        "thinking_of_leaving": "no_leaving_words"}
+    assert triage.SUPPORT_TEXTS["thinking_of_leaving"] not in result.body["answer"]
+
+
+def test_medical_advice_is_declined_only_when_it_is_asked() -> None:
+    # Fix check 11-04: "i broke my wrist and cant write for a few weeks. can OSS help me with
+    # notes and exams" began "I can't give medical advice".
+    hurt = "i broke my wrist and cant write for a few weeks. can OSS help me with notes and exams"
+    assert triage.support_text("health", hurt, "Can OSS help with notes and exams?") == (
+        triage.SUPPORT_TEXTS["health"])
+    assert triage.support_text("health", "can i take advil with antibiotics, and where is "
+                                         "health services", "Where is Health Services?") == (
+        triage.MEDICAL_ADVICE_TEXT)
+    # No campus question: the advice line is the reply, as before.
+    assert triage.support_text("health", "which medicine should i take for a cold", "") == (
+        triage.MEDICAL_ADVICE_TEXT)
+    assert triage.support_text("lonely", hurt, "x") == triage.SUPPORT_TEXTS["lonely"]
+    answer = ask(MeteredGateway(read(needs=["health"], question="Can OSS help with notes and "
+                                                                "exams?"), LOOKUP, finish()),
+                 hurt).body["answer"]
+    assert answer.startswith(triage.SUPPORT_TEXTS["health"])
+    assert triage.MEDICAL_ADVICE_TEXT not in answer
+    alone = ask(MeteredGateway(read(needs=["health"])), "which medicine should i take for a cold")
+    assert alone.body["answer"].startswith(triage.MEDICAL_ADVICE_TEXT)

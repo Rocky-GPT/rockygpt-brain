@@ -561,8 +561,7 @@ SUPPORT_TEXTS = {
                           "out next steps."),
     "roommate_trouble": ("Roommate problems are really common, and they can be worked out. Your "
                          "RA is a good first step."),
-    "health": ("I can't give medical advice, so please ask a doctor or pharmacist. If it's an "
-               "emergency, call 911."),
+    "health": "I'm sorry you're dealing with that, and I hope you feel better soon.",
     "alcohol_or_drugs": "Thanks for being honest about that. You don't have to figure it out "
                         "alone.",
     "money": "Money stress is really common, and you don't have to sort it out alone.",
@@ -574,6 +573,94 @@ SUPPORT_TEXTS = {
                        "help.",
     "disability": "You can ask for support with that.",
 }
+# A request for medical advice gets this instead of health's kind sentence. A student who says
+# they are hurt and asks a campus question was asked for no advice (fix check 11-04: "i broke my
+# wrist and cant write for a few weeks. can OSS help me with notes and exams" began "I can't give
+# medical advice, so please ask a doctor or pharmacist.").
+MEDICAL_ADVICE_TEXT = ("I can't give medical advice, so please ask a doctor or pharmacist. If it's "
+                       "an emergency, call 911.")
+# Words a request for medical advice is made with: a medicine, a dose, a symptom's meaning,
+# whether a treatment is safe. The list is wide on purpose: a word on it keeps the advice line.
+MEDICAL_ADVICE = re.compile(
+    r"\b(?:medicines?|medications?|meds|pills?|doses?|dosage|mg|advil|tylenol|ibuprofen|"
+    r"acetaminophen|aspirin|motrin|aleve|naproxen|nyquil|dayquil|benadryl|antibiotics?|"
+    r"antihistamines?|painkillers?|symptoms?|diagnos\w*|treat|treating|treatment|cure|"
+    r"remed(?:y|ies)|should i (?:take|see a doctor|go to the (?:er|hospital|emergency room))|"
+    r"can i take|safe to (?:take|mix|use|drink)|is (?:it|this|that) (?:normal|serious|safe|"
+    r"contagious|infected)|what (?:should|do) i (?:take|do about))\b", re.IGNORECASE)
+
+
+def support_text(need: str, message: str, question: str) -> str:
+    """The kind sentence for a need the read found: for health, the medical-advice line when no
+    campus question is asked or the message asks for advice, else health's kind sentence."""
+    if need == "health" and (not question or MEDICAL_ADVICE.search(message)):
+        return MEDICAL_ADVICE_TEXT
+    return SUPPORT_TEXTS[need]
+
+
+# A question about what would happen "if" ("what happens if I take an incomplete and don't
+# finish", "if I drop a class will I lose my aid") asks a rule the college publishes. It shares
+# no trouble the student has, and asks no record of theirs nor a guess (fix check 11-04: "if i
+# drop a class and go part time will i lose my financial aid" began "I can't predict that.", and
+# the incomplete question "That's stressful, but one bad grade doesn't decide everything.").
+HYPOTHETICAL = re.compile(r"\b(?:what happens|what would happen|what if|if (?:i|we|you|my|a "
+                          r"student|students|someone|they)|in case (?:i|we)|suppose|supposing|"
+                          r"say i)\b", re.IGNORECASE)
+# Trouble a student says they have now, which a hypothetical beside it does not undo ("I failed
+# orgo, what happens if I retake it"). Wide on purpose: a word on it keeps the read's need.
+TROUBLE_SAID = re.compile(r"\b(?:failed|flunked|failing|flunking|missed|behind|struggl\w*|"
+                          r"got an? [df]\b|probation|dismiss\w*|suspen\w*|kicked out|"
+                          r"overwhelm\w*|stress\w*|worried|scared)\b", re.IGNORECASE)
+# How a guess no rule decides is asked: being admitted or chosen, chances, a result, the
+# weather. A prediction read on a hypothetical with none of these asks what the rule is.
+CHANCE_WORDS = re.compile(r"\b(?:get(?:ting)? in|get(?:ting)? into|accept\w*|admit\w*|admission|"
+                          r"chances?|likely|likelihood|odds|probabl\w*|guarantee\w*|win\w*|won|"
+                          r"picked|chosen|selected|hired|weather|rain\w*|snow\w*|waitlist\w*|"
+                          r"wait list|approved|denied|rejected)\b", re.IGNORECASE)
+# Words a student names something of their own with. A my_records read on a message with none of
+# them asks no record of theirs (fix check 11-04: "who teaches intro to psych" was once read as
+# my_records). Wide on purpose: a word on it leaves the read as it was.
+OWN_WORDS = re.compile(r"\b(?:my|mine|me|i|i'm|im|i've|ive|am i|do i|did i|have i)\b",
+                       re.IGNORECASE)
+# Words a student says they may leave school with. A thinking_of_leaving read with none of them
+# is a misread (fix check 11-04: "im thinking about switching to psych" began "That's a big
+# decision" and listed the counseling center and financial aid). Wide on purpose.
+LEAVING_WORDS = re.compile(r"\b(?:leav\w*|left|drop\w*\s+out|dropout|quit\w*|transfer\w*|"
+                           r"withdraw\w*|absence|time off|semester off|year off|gap|stop\w*\s+out|"
+                           r"(?:come|coming|go|going) back|give up|giving up|done with)\b",
+                           re.IGNORECASE)
+
+
+def needs_checked(needs: Sequence[str], message: str) -> tuple[tuple[str, ...], dict[str, str]]:
+    """The needs the read found that the message bears out, and each one dropped with why:
+    thinking_of_leaving needs a word about leaving; school_trouble asked only as a hypothetical
+    ("what happens if I don't finish") is a rule question."""
+    kept, dropped = [], {}
+    for need in needs:
+        if need == "thinking_of_leaving" and not LEAVING_WORDS.search(message):
+            dropped[need] = "no_leaving_words"
+        elif (need == "school_trouble" and HYPOTHETICAL.search(message)
+              and not TROUBLE_SAID.search(message)):
+            dropped[need] = "hypothetical"
+        else:
+            kept.append(need)
+    return tuple(kept), dropped
+
+
+def limit_misread(limit: str, message: str) -> str | None:
+    """Why a my_records or prediction read is a misread, or None: a hypothetical asks a rule (a
+    prediction one only without words of chance), and my_records needs a word of the student's
+    own."""
+    if limit == "prediction" and HYPOTHETICAL.search(message) and not CHANCE_WORDS.search(message):
+        return "rule_question"
+    if limit == "my_records":
+        if not OWN_WORDS.search(message):
+            return "no_own_record"
+        if HYPOTHETICAL.search(message):
+            return "rule_question"
+    return None
+
+
 # A limit whose campus side is always one office's job, named after the answer the same way:
 # help writing an essay, statement or letter is the writing center's, whatever page the
 # student's words find (11-03 practice: "write my personal statement for the nursing program"

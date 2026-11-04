@@ -662,3 +662,72 @@ def test_a_program_named_in_full_is_read_when_the_catalog_pick_leaves_it_out() -
     assert result.trace is not None
     assert result.trace["catalogPick"]["namedInFull"] == ["Computer Science BS"]
     assert result.trace["catalogPick"]["programs"] == ["Computer Science BS"]
+
+
+def test_a_deadline_a_page_gives_is_said_to_have_passed_or_to_come() -> None:
+    from datetime import date
+
+    from rockygpt_brain.one_call import dated_statements
+    offices = [{"sections": [{"n": 2, "text": "Scholarship applications are due by February 15, "
+                                              "2026. The FAFSA priority deadline is March 1, "
+                                              "2027 for returning students."},
+                             {"n": 3, "text": "Housing deposits are due no later than 5/1/2026."}]}]
+    today = date(2026, 11, 4)
+    assert [f["fact"] for f in dated_statements(offices, today, "when are scholarship "
+                                                                "applications due")] == [
+        'A page says "Scholarship applications are due by February 15, 2026" [2]: February 15, '
+        "2026 has passed."]
+    assert [f["fact"] for f in dated_statements(offices, today, "what is the fafsa deadline")] == [
+        'A page says "The FAFSA priority deadline is March 1, 2027" [2]: March 1, 2027 is still '
+        "to come."]
+    # Only a deadline about what was asked: every deadline says "due" or "deadline".
+    assert dated_statements(offices, today, "when is the deadline") == []
+    assert [f["n"] for f in dated_statements(offices, today, "housing deposit due date")] == [3]
+
+
+def test_a_section_of_a_policy_brings_the_whole_policy_in_its_order() -> None:
+    # 11-04 blind run: each section of a policy was its own unit, at most two from one record, so
+    # a reply told probation and stopped before suspension and reinstatement.
+    from rockygpt_brain.one_call import MAX_POLICY_UNITS, with_policies
+    from rockygpt_brain.retrieval.meaning import (
+        MeaningIndex,
+        MeaningScores,
+        MeaningUnit,
+        policy_records,
+    )
+    standing = ["Undergraduate Academic Standing",
+                "Undergraduate Academic Standing: Academic Warning",
+                "Undergraduate Academic Standing: Academic Probation",
+                "Undergraduate Academic Standing: Academic Suspension",
+                "Undergraduate Academic Standing: Reinstatement following Academic Suspension"]
+    faq = ["Q: Can I appeal?", "Q: Who decides?"]
+    units = [MeaningUnit("pol", str(k), ("prov",)) for k in range(len(standing))]
+    units += [MeaningUnit("faq", str(k), ("reg",)) for k in range(len(faq))]
+    units += [MeaningUnit("other", "0", ("reg",))]
+    labels = {("pol", str(k)): ("policies", h) for k, h in enumerate(standing)}
+    labels |= {("faq", str(k)): ("registrar > faq", h) for k, h in enumerate(faq)}
+    labels[("other", "0")] = ("registrar", "Grades")
+    assert set(policy_records(units, labels)) == {"pol"}  # "Q: ..." is no policy.
+    index = MeaningIndex.__new__(MeaningIndex)
+    index.policies = policy_records(units, labels)
+    scores = MeaningScores({("pol", "2"): 0.8, ("other", "0"): 0.7, ("faq", "0"): 0.6})
+    scores.at = {("pol", "2"): 40}
+    merged, order = with_policies(index, (scores, list(scores)), leading=3)
+    assert order == [("pol", "0"), ("pol", "1"), ("pol", "2"), ("pol", "3"), ("pol", "4"),
+                     ("other", "0"), ("faq", "0")]
+    assert [merged[k] for k in order[:5]] == sorted((merged[k] for k in order[:5]), reverse=True)
+    assert merged.at == {("pol", "2"): 40}
+    # A policy unit read only to fill the list brings nothing; the sections added are limited,
+    # those after the chosen one first.
+    assert with_policies(index, (scores, list(scores)), leading=0)[1] == list(scores)
+    long = [f"Long Policy Name: Part {k}" for k in range(1, 15)]
+    units2 = [MeaningUnit("long", "0", ("prov",))] + [MeaningUnit("long", str(k), ("prov",))
+                                                      for k in range(1, 15)]
+    labels2 = {("long", "0"): ("p", "Long Policy Name")} | {
+        ("long", str(k)): ("p", h) for k, h in enumerate(long, start=1)}
+    index.policies = policy_records(units2, labels2)
+    chosen = MeaningScores({("long", "5"): 0.9})
+    chosen.at = {}
+    _, read = with_policies(index, (chosen, [("long", "5")]), leading=1)
+    assert len(read) == 1 + MAX_POLICY_UNITS
+    assert read == [("long", str(k)) for k in range(5, 14)]

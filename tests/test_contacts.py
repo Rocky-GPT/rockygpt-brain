@@ -140,3 +140,18 @@ def test_the_words_call_an_office_with_siblings_by_the_name_they_share() -> None
     # An office with no sibling keeps its own name.
     assert contacts.without_variant_names("Public Safety (Non-Emergency) [2]",
                                           [OFFICES[3]]) == "Public Safety (Non-Emergency) [2]"
+
+
+def test_labelled_rooms_and_map_buildings_are_said_in_words() -> None:
+    # Fix check 11-04: "Office: {'label': 'Main Office', 'location': 'C-209'}".
+    said = contacts.contact_text(
+        "Career Services", ["careers@ramapo.edu"], [[{"number": "+12016847440"}]],
+        [[{"label": "Main Office", "location": "C-209"},
+          {"label": "ASB Office", "location": "ASB-513"}]], 3)
+    assert said == ("**Career Services**: Phone: (201) 684-7440. Email: careers@ramapo.edu. "
+                    "Main Office: C-209; ASB Office: ASB-513. [3]")
+    assert contacts.contact_text(
+        "Athletics", [], [], [[{"name": "Bill Bradley Arena", "map": "https://x.edu/map"}]],
+        1) == "**Athletics**: Location: Bill Bradley Arena. [1]"
+    # A room in a shape code does not know is left out, never printed.
+    assert contacts.contact_text("X", [], [], [[{"room": "C-1"}]], 1) is None

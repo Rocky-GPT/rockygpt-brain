@@ -249,10 +249,12 @@ def person_evidence(facts: dict[str, Any], n: int, near_spelling: bool = False) 
 # the question names; and who leads a school or field by their directory titles.
 
 # Title words that say rank or role, not a field ("Associate Professor of Chemistry" is
-# chemistry), and common words a question uses for other things.
+# chemistry), and common words a question uses for other things. "In Residence" is a role
+# ("Entrepreneur in Residence"), not a field: fix check 11-04, "who is in charge of residence
+# life" was answered with the business school's dean.
 _NOT_FIELD = discovery_tokens(
     "professor associate assistant adjunct visiting distinguished emeritus emerita retired "
-    "interim lecturer instructor librarian senior teaching specialist fellow executive "
+    "residence interim lecturer instructor librarian senior teaching specialist fellow executive "
     "director dean chair convener coordinator coord supervisor secretary administrator "
     "the and of in for at he him she her they them it s d te glo master post program "
     "programs studies school college lab unit desk project projects series services system "
@@ -372,9 +374,15 @@ _CONTACT_FIELDS = ("email", "phone", "office")
 
 
 def _asked(message: str) -> list[tuple[str, str]]:
-    text = fold(message).casefold()
-    asked = [(key, label) for key, label, words in _ASKED_FIELDS if words.search(text)]
+    asked = [(key, label) for key, label, _ in _ASKED_FIELDS if key in fields_named(message)]
     return asked or [(key, label) for key, label, _ in _ASKED_FIELDS if key in _CONTACT_FIELDS]
+
+
+def fields_named(message: str) -> list[str]:
+    """The person fields a question names by its words ("what is their email and office
+    number" names email, phone and office), none by default."""
+    text = fold(message).casefold()
+    return [key for key, _, words in _ASKED_FIELDS if words.search(text)]
 
 
 def _value(value: Any) -> str:
@@ -670,6 +678,160 @@ def teachers(directory: Sequence[dict[str, Any]], message: str) -> list[dict[str
     return found[:MAX_TEACHERS]
 
 
+# Who teaches a course a question names, by its code or its catalog title ("who teaches intro
+# to psych", "which professors teach organic chemistry 2"): every faculty profile that lists the
+# course, by its code or by its title, is code's list. The writer once chose, and listed all 12
+# psychology faculty and all 7 chemistry faculty for one course each (fix check 11-04), and
+# named the profile listing BIOL 101 but not the one listing Introduction to Biology (11-04
+# blind run).
+_WHO_TEACHES = re.compile(
+    r"\b(?:who|which|what|any)\b[^?.!]*\b(?:teach(?:es|ing)?|taught|instructors?)\b"
+    r"|\b(?:professors?|profs?|teachers?|instructors?)\s+(?:for|of|in)\b"
+    r"|\bteach(?:es|ing)?\s+(?:the\s+)?[a-z]{3,4}\s?\d{3}\b")
+_COURSE_CODE = re.compile(r"\b([A-Z]{3,4})\s?-?\s?(\d{3})\b")
+_ASKED_CODE = re.compile(r"\b([a-z]{3,4})\s?-?\s?(\d{3})\b", re.IGNORECASE)
+# The number in a series a title ends with ("Calculus I", "Organic Chemistry II"); a profile's
+# "Calculus l" is Calculus I.
+_SERIES = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "l": 1}
+_TITLE_FILLER = frozenset("to of and the in for a an with on".split())
+# A question's words that ask who teaches, not which course ("who teaches intro to psych").
+_COURSE_ASK_WORDS = frozenset("""
+who whos who's whose teaches teach teaching taught professor professors prof profs instructor
+instructors teacher teachers faculty does do did is are was were at ramapo college class classes
+course courses which what any anyone someone best good great easiest easy hardest hard can could
+should would i me my we take taking took section sections this next last semester term usually
+normally currently right now here there it its that s
+""".split())
+_COURSE_PART = frozenset("lecture lab laboratory recitation".split())
+# Catalog titles that name no course of their own subject.
+_GENERIC_TITLE = re.compile(r"\b(?:transfer elective|independent study|special topics?|"
+                            r"internship|co-?op)\b", re.IGNORECASE)
+
+
+def asks_who_teaches(message: str) -> bool:
+    """Whether a question asks who teaches something ("who teaches intro to psych", "the
+    professors for calc 1")."""
+    return bool(_WHO_TEACHES.search(fold(message).casefold()))
+
+
+def course_key(title: str) -> tuple[tuple[str, ...], frozenset[int]]:
+    """A course title as its words and its numbers in a series, however a catalog or a profile
+    writes it: "ORGANIC CHEMISTRY II LECTURE", "Organic Chemistry II (lec & lab)" and "Organic
+    Chemistry II Lab" are all (("organic", "chemistry"), {2}); "Fundamentals of Chemistry I and
+    II Lecture and Laboratory" is (("fundamentals", "chemistry"), {1, 2}); "MUSI 255 - MUSIC,
+    HISTORY AND CULTURE (https://...)" is (("music", "history", "culture"), {})."""
+    text = re.sub(r"\(?https?://\S+\)?", " ", fold(title))
+    text = _COURSE_CODE.sub(" ", re.sub(r"\([^)]*\)", " ", text)).casefold()
+    text = re.sub(r"^\s*(?:undergraduate|graduate|for the [^:]{0,40})\s*:\s*", " ", text)
+    text = re.sub(r"-\s*(?:msac|mba)\b", " ", text.replace("&", " and "))
+    words = re.findall(r"[a-z0-9]+", text)
+    while words and words[-1] in _COURSE_PART | {"and"}:
+        words.pop()
+    numbers: set[int] = set()
+    while len(words) > 1:
+        last = words[-1]
+        if last in _SERIES or (last.isdigit() and len(last) == 1):
+            numbers.add(_SERIES.get(last) or int(last))
+            words.pop()
+        elif last == "and" and numbers and len(words) > 2 and (
+                words[-2] in _SERIES or (words[-2].isdigit() and len(words[-2]) == 1)):
+            words.pop()
+        else:
+            break
+    return tuple(w for w in words if w not in _TITLE_FILLER), frozenset(numbers)
+
+
+def courses_named(message: str, titles: dict[str, str]) -> list[str]:
+    """The catalog courses (code to title) a question names: by code ("PSYC 101", "psyc101");
+    else by a title whose every word it says, in full or by its first three letters or more
+    ("intro" for introduction, "chem" for chemistry), with the title's number in a series when
+    the question gives one ("2" or "II"); the titles with the most words said, every course with
+    such a title (a series asked without its number is the whole series)."""
+    codes = sorted({f"{a.upper()} {b}" for a, b in _ASKED_CODE.findall(message)} & set(titles))
+    if codes:
+        return codes
+    tokens = re.findall(r"[a-z0-9]+", fold(message).casefold())
+    words = [w for w in tokens if w not in _TITLE_FILLER and w not in _COURSE_ASK_WORDS]
+    # A number in a series follows the title's words ("chemistry 2", "calc i"); "can i" is not
+    # Calculus I.
+    numbers = {_SERIES.get(w) or int(w) for k, w in enumerate(tokens)
+               if k and (w in _SERIES or (w.isdigit() and len(w) == 1))
+               and tokens[k - 1] not in _TITLE_FILLER | _COURSE_ASK_WORDS}
+
+    def said(word: str) -> bool:
+        return any(q == word or (len(q) >= 3 and not q.isdigit() and word.startswith(q))
+                   for q in words)
+    best, chosen = 0, []
+    for code, title in titles.items():
+        base, series = course_key(title)
+        if not base or _GENERIC_TITLE.search(title) or not all(said(w) for w in base):
+            continue
+        if numbers and series and not series & numbers:
+            continue
+        if len(base) > best:
+            best, chosen = len(base), [code]
+        elif len(base) == best:
+            chosen.append(code)
+    return sorted(chosen)
+
+
+def course_teachers(directory: Sequence[dict[str, Any]], codes: Sequence[str],
+                    titles: dict[str, str]) -> list[dict[str, Any]]:
+    """Everyone whose faculty profile lists one of the courses, by its code or by its title (a
+    profile's title with no number in a series names the whole series), in the directory's
+    order; a retired listing is kept, and said as retired (course_teachers_text)."""
+    keys = {course_key(titles[code]) for code in codes if code in titles}
+    found = []
+    for entry in directory:
+        for course in entry.get("courses") or []:
+            text = str(course)
+            listed = {f"{a} {b}" for a, b in _COURSE_CODE.findall(text)}
+            base, series = course_key(text)
+            if listed & set(codes) or any(
+                    base == b and (not series or bool(series & n)) for b, n in keys if b):
+                found.append(entry)
+                break
+    return found
+
+
+def catalog_title(title: str) -> str:
+    """A catalog title in capitals as a title is written ("INTRODUCTION TO PSYCHOLOGY" is
+    "Introduction to Psychology", "ORGANIC CHEMISTRY II LECTURE" "Organic Chemistry II
+    Lecture")."""
+    words = title.split()
+    out = []
+    for k, word in enumerate(words):
+        low = word.casefold()
+        out.append(word.upper() if low.strip(":,") in _SERIES and low.strip(":,") != "l" else
+                   low if k and low in _TITLE_FILLER else word[:1].upper() + word[1:].casefold())
+    return " ".join(out)
+
+
+def course_teachers_text(codes: Sequence[str], titles: dict[str, str],
+                         people: Sequence[dict[str, Any]], asks: Sequence[str] = ()) -> str:
+    """Code's answer to who teaches the courses: each person whose profile lists one, with their
+    directory title and email and the fields asked [their profile], and that a profile lists the
+    courses a professor teaches, not this term's sections."""
+    named = "; ".join(f"{code} {literal(catalog_title(titles[code]))}" for code in codes)
+    if not people:
+        return f"No faculty profile lists {named} among its courses."
+    lines = [f"Faculty profiles that list {named} among the courses they teach:"]
+    for entry in people:
+        bits = [literal(str(entry.get("name") or ""))]
+        if entry.get("title"):
+            bits.append(literal(str(entry["title"])))
+        if ("retired" in str(entry.get("school") or "").casefold()
+                and "retired" not in str(entry.get("title") or "").casefold()):
+            bits.append("listed as retired in the directory")
+        if entry.get("email"):
+            bits.append(str(entry["email"]))
+        bits.extend(asked_bits(entry, asks))
+        lines.append("- " + ", ".join(b for b in bits if b) + f" [{entry['n']}]")
+    lines.append("A profile lists the courses a professor teaches; it doesn't say who teaches "
+                 "which section this term.")
+    return "\n".join(lines)
+
+
 def _plain_words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", fold(text).casefold().replace(".", ""))
 
@@ -716,14 +878,58 @@ def asks_faculty_list(message: str) -> bool:
         and not _ONE_PERSON.search(text)
 
 
+# Words of a clause that asks only how to reach or find the people asked about ("and what is
+# their email and office number", "and where can I find them").
+_FIELD_CLAUSE_WORDS = frozenset("""
+and also plus what whats what's is are their his her them him they where wheres where's can could
+do does would i find reach contact email e-mail emails phone phones number numbers office offices
+room rooms hours located location the a an info information details me to get in touch with go
+""".split())
+
+
+def without_field_asks(question: str) -> str:
+    """The question less each clause that asks only for the people's contact fields, which the
+    faculty lines give (faculty_text): "who is the psychology convener and what is their email
+    and office number" asks nothing more than the convener's line (fix check 11-04)."""
+    parts = re.split(r"(?=\b(?:and|also|plus)\b)", question)
+    kept = [parts[0]]
+    for part in parts[1:]:
+        words = re.findall(r"[a-z'’-]+", fold(part).casefold())
+        if not (words and set(words) <= _FIELD_CLAUSE_WORDS and fields_named(part)):
+            kept.append(part)
+    return "".join(kept)
+
+
+# What a faculty line adds when the question names it ("who is the psychology convener and what
+# is their email and office number"): the convener line gave the email only, and the reply then
+# said it had no office number, though G-273 is in her directory entry (fix check 11-04).
+_LINE_FIELDS = {"office": "office", "phone": "phone", "office_hours": "office hours"}
+
+
+def asked_bits(entry: dict[str, Any], asks: Sequence[str]) -> list[str]:
+    """The office, phone and office hours of a directory entry the question names (`asks`), each
+    as the directory gives it, or "no office listed" when it gives none."""
+    bits = []
+    for key, label in _LINE_FIELDS.items():
+        if key not in asks:
+            continue
+        value = entry.get(key)
+        shown = "; ".join(re.sub(r"^\s*office hours\s*:\s*", "", str(v), flags=re.I).strip()
+                          for v in (value if isinstance(value, list) else [value]) if v)
+        bits.append(f"{label} {literal(shown).rstrip('.')}" if shown else f"no {label} listed")
+    return bits
+
+
 def faculty_text(subject: str, programs: Sequence[dict[str, Any]],
-                 people: dict[str, dict[str, Any]], conveners_only: bool = False) -> str | None:
+                 people: dict[str, dict[str, Any]], conveners_only: bool = False,
+                 asks: Sequence[str] = ()) -> str | None:
     """Code's list of a subject's faculty, from the catalog's links (EntityFacts.program_people):
     how many the catalog lists [its page], then each person once, conveners first, with their
-    directory title and email [their profile, else the catalog page]. `programs` are the
-    subject's levels as read, each with its "n"; `people` each listed person's directory entry
-    by id, with its "n"; `conveners_only` lists only the conveners (who leads the program). None
-    when the catalog links no one."""
+    directory title and email, and the office, phone and office hours the question names (`asks`,
+    from fields_named) [their profile, else the catalog page]. `programs` are the subject's
+    levels as read, each with its "n"; `people` each listed person's directory entry by id, with
+    its "n"; `conveners_only` lists only the conveners (who leads the program). None when the
+    catalog links no one."""
     order: list[str] = []
     convener_of: dict[str, list[str]] = {}
     retired: set[str] = set()
@@ -760,6 +966,7 @@ def faculty_text(subject: str, programs: Sequence[dict[str, Any]],
             bits.append("listed as retired in the directory")
         if entry.get("email"):
             bits.append(str(entry["email"]))
+        bits.extend(asked_bits(entry, asks))
         lines.append("- " + ", ".join(b for b in bits if b) + f" [{entry['n']}]")
     return "\n".join([head, *lines])
 

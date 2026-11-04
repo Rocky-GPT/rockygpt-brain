@@ -114,6 +114,9 @@ _ServiceLabels = list[tuple[dict[str, Any], frozenset[str], frozenset[str]]]
 # inside the student and dev UIs' 60 s request timeout.
 TURN_SECONDS = 52.0
 CATALOG_URL = "https://catalog.ramapo.edu/programs"
+# At most this many catalog courses are named in one "who teaches" question (a series, a course
+# and its lab): more is a subject, which the profiles' own words answer (people.teachers).
+MAX_COURSES_TAUGHT = 6
 MAX_TOOL_ATTEMPTS = 8
 # A building's hours are its places' own: at most this many of its offices and venues are read.
 MAX_BUILDING_HOURS = 4
@@ -2307,7 +2310,7 @@ class ChatEngine:
         if events.asks_events(message):
             sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
                             "title": "Campus events calendar"})
-            start, end, label = events.window(message, now)
+            start, end, label = events.window(message, now, self._breaks(now.date()))
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
@@ -2454,12 +2457,13 @@ class ChatEngine:
         return ("\n".join(lines) if lines else None), sources, listed
 
     def _faculty_part(self, found: Sequence[dict[str, Any]], numbered_from: int,
-                      conveners_only: bool = False,
+                      conveners_only: bool = False, message: str = "",
                       ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
         """The faculty of each subject the programs found name (at most three), every person the
-        catalog links to any level of it (EntityFacts.program_people), in code's own words: the
-        text, its sources numbered after `numbered_from` (each program's catalog page, then each
-        person's profile), and what was read, for the reply's check."""
+        catalog links to any level of it (EntityFacts.program_people), in code's own words, with
+        the office, phone or office hours the message names: the text, its sources numbered after
+        `numbered_from` (each program's catalog page, then each person's profile), and what was
+        read, for the reply's check."""
         version, identity_hash = self.facts.active_release()
         programs = self.facts.identities(("program",))
         cores = list(dict.fromkeys(academics.program_core(str(p["name"])) for p in found))[:3]
@@ -2504,13 +2508,29 @@ class ChatEngine:
             if not any(p.get("n") for p in linked):
                 continue
             said = people_module.faculty_text(core, linked, {k: v for k, v in read.items()
-                                                             if v.get("n")}, conveners_only)
+                                                             if v.get("n")}, conveners_only,
+                                              people_module.fields_named(message))
             if said:
                 texts.append(said)
                 listed += [*linked, *(read[pid] for p in linked
                                       for pid in [*p["conveners"], *p["faculty"]]
                                       if pid in read)]
         return ("\n\n".join(texts) if texts else None), sources, listed
+
+    def _breaks(self, today: date) -> list[tuple[str, date, date]]:
+        """The breaks the release's academic calendar dates (academic_calendar.break_spans), for
+        an event question that names one ("anything going on over thanksgiving break"); none
+        when the release has no calendar."""
+        version, identity_hash = self.facts.active_release()
+
+        def read() -> list[tuple[str, date, date]]:
+            try:
+                calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
+            except (EvidenceUnavailable, DatasetChanged):
+                return []
+            return academic_calendar.break_spans(calendar, today)
+
+        return self._per_release("_breaks_cache", (version, today), read)
 
     def _calendar_part(self, message: str, kind: str, today: date, numbered_from: int,
                        ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:
@@ -2559,7 +2579,7 @@ class ChatEngine:
         own words (events.listing_text): the text, its sources (the calendar page is 1), the
         release, and the facts the reply's check holds it to."""
         version, identity_hash = self.facts.active_release()
-        start, end, label = events.window(message, now)
+        start, end, label = events.window(message, now, self._breaks(now.date()))
         dated = events.events_in(list(self.facts.identities(("event",))), start, end)
         timed = events.in_window(self._event_values(dated, version, identity_hash, now),
                                  start, end)
@@ -2689,6 +2709,43 @@ class ChatEngine:
             return entries
 
         return self._per_release("_directory_cache", version, read)
+
+    def _course_titles(self) -> dict[str, str]:
+        """Each catalog course's code and title ("PSYC 101": "INTRODUCTION TO PSYCHOLOGY"), from
+        the meaning index's titles, read once per release."""
+        version, _ = self.facts.active_release()
+
+        def read() -> dict[str, str]:
+            index = self.facts.meaning_index()
+            titles = index.course_titles if index is not None else {}
+            return {str(e["name"]): str(titles[str(e["id"])])
+                    for e in self.facts.identities(("course",)) if str(e["id"]) in titles}
+
+        return self._per_release("_course_titles_cache", version, read)
+
+    def _course_teachers(self, message: str, numbered_from: int,
+                         ) -> tuple[str, list[dict[str, Any]], dict[str, Any]] | None:
+        """Who teaches the courses a question names (people.courses_named): everyone whose
+        faculty profile lists one, by its code or by its title, in code's words, numbered after
+        `numbered_from`, with the sources and the facts said, for the check; None when it names
+        no course, or no profile lists it (the profiles' own words are then read as before)."""
+        titles = self._course_titles()
+        codes = people_module.courses_named(message, titles)
+        if not codes or len(codes) > MAX_COURSES_TAUGHT:
+            return None
+        found = [e for e in people_module.course_teachers(self._directory(), codes, titles)
+                 if e.get("profile_url")]
+        if not found:
+            return None
+        people = [{"n": numbered_from + k + 1,
+                   **{x: y for x, y in e.items() if x not in ("id", "n")}}
+                  for k, e in enumerate(found)]
+        sources = [{"n": p["n"], "url": p["profile_url"], "title": p.get("name")}
+                   for p in people]
+        text = people_module.course_teachers_text(codes, titles, people,
+                                                  people_module.fields_named(message))
+        return text, sources, {"courses": {code: titles[code] for code in codes},
+                               "people": people}
 
     def _people_listed(self, message: str, numbered_from: int,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2932,7 +2989,10 @@ class ChatEngine:
         # when the meaning index is published; the code-named programs are its hints.
         # A question code answers alone (one_call.code_kind): its facts are read by code and said
         # as code wrote them, with no pick and no writer.
-        kind = one_call.code_kind(latest, named_people, programs)
+        breaks = (await asyncio.to_thread(self._breaks, turn.campus_now.date())
+                  if events.asks_events(latest) else [])
+        kind = one_call.code_kind(latest, named_people, programs, breaks,
+                                  turn.campus_now.date())
         pick_catalog = bool(searchable and index is not None and index.academic and (
             (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
             and kind != "course")
@@ -2970,16 +3030,29 @@ class ChatEngine:
                                                  self.facts.active_release()[0],
                                                  offices=reached_facts):
                         return done
+                # Who teaches a course the question names, and nothing more: every faculty
+                # profile that lists it, said by code; not the whole program's faculty (fix check
+                # 11-04: "who teaches intro to psych" listed all 12 psychology faculty).
+                course_answer = (await asyncio.to_thread(self._course_teachers, latest, 0)
+                                 if people_module.asks_who_teaches(latest) and not named_people
+                                 else None)
+                if (course_answer is not None and earlier is None
+                        and not one_call.asks_more(people_module.without_field_asks(latest))):
+                    said, found_sources, taught_facts = course_answer
+                    if done := self._code_answer(turn, trace, said, found_sources,
+                                                 self.facts.active_release()[0], **taught_facts):
+                        return done
                 # A program's faculty asked as a list, or who leads it, and nothing more: every
                 # person the catalog links to the program (or its conveners), said by code.
                 if (programs and programs[0] and not named_people and earlier is None
+                        and course_answer is None
                         and (people_module.asks_faculty_list(latest)
                              or people_module.asks_program_lead(latest))
-                        and not one_call.asks_more(latest)):
+                        and not one_call.asks_more(people_module.without_field_asks(latest))):
                     with measure("List the faculty the catalog links"):
                         said, found_sources, listed_people = await asyncio.to_thread(
                             self._faculty_part, programs[0], 0,
-                            not people_module.asks_faculty_list(latest))
+                            not people_module.asks_faculty_list(latest), latest)
                     if done := self._code_answer(turn, trace, said, found_sources,
                                                  self.facts.active_release()[0],
                                                  program_people=listed_people):
@@ -3157,7 +3230,7 @@ class ChatEngine:
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
                     if (people_asked and index.academic and not stand_ins
-                            and people_module.asks_people_topic(latest)
+                            and course_answer is None and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
                         # Code first: the profiles whose own courses, interests or title hold
                         # what was asked; else the people cards nearest in meaning.
@@ -3287,13 +3360,24 @@ class ChatEngine:
                 computed = [*computed, *one_call.dated_statements(
                     offices, turn.campus_now.date(), latest,
                     [str(p.get("name") or "") for p in people])]
-                if (programs and programs[0] and not named_people
+                if course_answer is not None:
+                    # Who teaches the course named, as code's part; its program's faculty list is
+                    # not given beside it.
+                    with measure("List the faculty whose profiles list the course"):
+                        found_taught = await asyncio.to_thread(self._course_teachers, latest,
+                                                               len(sources))
+                    if found_taught is not None:
+                        said, found_sources, taught_facts = found_taught
+                        sources = [*sources, *found_sources]
+                        code_parts.append(said)
+                        code_view["course_teachers"] = taught_facts
+                elif (programs and programs[0] and not named_people
                         and (people_module.asks_faculty_list(latest)
                              or people_module.asks_program_lead(latest))):
                     with measure("List the faculty the catalog links"):
                         said, found_sources, listed_people = await asyncio.to_thread(
                             self._faculty_part, programs[0], len(sources),
-                            not people_module.asks_faculty_list(latest))
+                            not people_module.asks_faculty_list(latest), latest)
                     if said:
                         sources = [*sources, *found_sources]
                         code_parts.append(said)
@@ -3931,7 +4015,7 @@ class ChatEngine:
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result
-        lead = self._read_lead(turn, reading)
+        lead = self._read_lead(turn, reading, context.latest_message)
         if lead:
             result = replace(result, body={**result.body, "answer": f"{lead}\n\n{answer}"})
         if reading.needs or reading.limit in triage.LIMIT_OFFICES:
@@ -4031,6 +4115,17 @@ class ChatEngine:
             corrected = replace(reading, limit="none",
                                 question=reading.question or context.latest_message.strip())
             why = "calendar_lookup"
+        elif (reading.limit in ("my_records", "prediction") and reading.question
+              and reading.danger == "none"
+              and (misread := triage.limit_misread(reading.limit,
+                                                   context.latest_message)) is not None):
+            # "If I drop a class and go part time, will I lose my aid?" asks the rule, which the
+            # pages say, and "who teaches intro to psych" asks no record of the student's (fix
+            # check 11-04: replies began "I can't predict that." and "I can't see your personal
+            # records"). The student's own words are asked: the read's question for a limit is
+            # its campus side ("how to check it"), not what was asked.
+            corrected = replace(reading, limit="none", question=context.latest_message.strip())
+            why = misread
         elif (reading.limit == "opinion" and reading.question
               and not triage.CHOICE_WORDS.search(context.latest_message)):
             # A campus question asking no choice or judgment is no opinion (11-04 practice: "does
@@ -4039,11 +4134,21 @@ class ChatEngine:
             # students decide?"), so the student's own words are asked.
             corrected = replace(reading, limit="none", question=context.latest_message.strip())
             why = "no_choice_asked"
-        if corrected is None:
-            return reading
-        if isinstance(read, dict):
+        if corrected is not None and isinstance(read, dict):
             read["corrected"] = {"why": why, **corrected.as_trace()}
-        return corrected
+        checked = corrected or reading
+        # A need the message does not bear out is dropped on its own, whatever else was corrected
+        # (fix check 11-04: "im thinking about switching to psych" was read as thinking of
+        # leaving, and began "That's a big decision").
+        needs, dropped = triage.needs_checked(checked.needs, context.latest_message)
+        if dropped:
+            checked = replace(checked, needs=needs, question=(
+                checked.question or ("" if needs or checked.limit != "none"
+                                     or checked.social != "none"
+                                     else context.latest_message.strip())))
+            if isinstance(read, dict):
+                read["needsDropped"] = dropped
+        return checked
 
     async def _published(self, question: str) -> bool:
         """Whether a question asks what the college publishes for a day, which code looks up: a
@@ -4166,7 +4271,7 @@ class ChatEngine:
             return None
         lead = triage.social_lead(reading.social, reading.needs)
         if reading.needs:
-            kind = triage.SUPPORT_TEXTS[reading.needs[0]]
+            kind = triage.support_text(reading.needs[0], context.latest_message, reading.question)
             said = f"{lead} {kind}" if lead else kind
             reply = self._json(answered(turn, said, "answered"),
                                [{"kind": "support", "needs": list(reading.needs),
@@ -4197,9 +4302,9 @@ class ChatEngine:
         trace["decidedBy"] = "read"
         return self._json(answered(turn, text, status), [{**part, "approved_text": text}], turn)
 
-    def _read_lead(self, turn: Turn, reading: triage.Reading) -> str:
+    def _read_lead(self, turn: Turn, reading: triage.Reading, message: str = "") -> str:
         """Code's few words before a campus answer: a hello back, what RockyGPT can't do of what
-        was asked, and one kind sentence for a problem the student shared."""
+        was asked, and one kind sentence for a problem the student shared (in `message`)."""
         said = [triage.social_lead(reading.social, reading.needs) or ""]
         if reading.limit == "clock":
             said.append(CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT)))
@@ -4208,7 +4313,7 @@ class ChatEngine:
         else:
             said.append(triage.LIMIT_TEXTS.get(reading.limit, ""))
         if reading.needs:
-            said.append(triage.SUPPORT_TEXTS[reading.needs[0]])
+            said.append(triage.support_text(reading.needs[0], message, reading.question))
         return " ".join(s for s in said if s)
 
     async def _with_support(self, result: ChatResult, needs: Sequence[str],

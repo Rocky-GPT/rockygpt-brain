@@ -3,13 +3,16 @@ names (events.py), read through the shared reader."""
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.events import (
+    DEFAULT_LABEL,
+    _stems,
+    asked_topic,
     asks_clubs,
     asks_events,
     club_category,
@@ -288,7 +291,7 @@ def test_a_later_part_of_the_term_reads_the_rest_of_the_semester() -> None:
 
 
 def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
-    from rockygpt_brain.events import _stems, asked_topic, computed_answers
+    from rockygpt_brain.events import computed_answers
     # "is any of it free" asks about the whole weekend; "it" was once read as its topic.
     assert asked_topic("what's happening this weekend and is any of it free") == set()
     # "finals week" and "before thanksgiving" say when (the later-term window), not what.
@@ -309,17 +312,71 @@ def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
                                                  "pancakes", words)
 
 
+THANKSGIVING = [("Thanksgiving Break (No Classes)", date(2026, 11, 25), date(2026, 11, 29)),
+                ("Winter Break", date(2026, 12, 23), date(2027, 1, 19))]
+
+
 def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
     for plain in ("What events are happening this weekend?", "anything to do tonight?",
                   "What's going on Friday night?", "What can I do this weekend?",
-                  "Any events on Nov 12?", "events on 11/12", "what events are coming up"):
+                  "Any events on Nov 12?", "events on 11/12", "what events are coming up",
+                  "events in December", "what's happening on campus in december"):
         assert plain_window(plain), plain
     for more in ("Are there any parties this weekend?", "free events this weekend",
                  "What's happening today and tomorrow?", "anything fun this weekend? also is "
                  "there a chess club", "Who is hosting events tonight?",
-                 "What's for dinner at the Birch tonight?", "events in December",
+                 "What's for dinner at the Birch tonight?", "events in December or January",
                  "What time is the event tonight?"):
         assert not plain_window(more), more  # A topic, two windows, or not the calendar.
+    # A break is a window when the academic calendar dates it.
+    today = date(2026, 11, 4)
+    assert plain_window("anything going on over thanksgiving break?", THANKSGIVING, today)
+    assert not plain_window("anything going on over thanksgiving break?")
+    assert not plain_window("any parties over thanksgiving break?", THANKSGIVING, today)
+
+
+def test_a_month_or_a_break_named_is_its_own_window() -> None:
+    now = datetime(2026, 11, 4, 15, 0, tzinfo=WEDNESDAY.tzinfo)
+    start, end, label = window("what's happening on campus in december", now)
+    assert (start.date(), end.date(), label) == (date(2026, 12, 1), date(2026, 12, 31),
+                                                 "in December")
+    start, end, label = window("anything in november?", now)
+    assert (start, end.date(), label) == (now, date(2026, 11, 30), "in November")
+    assert window("any events in march", now)[0].date() == date(2027, 3, 1)  # Next March.
+    # "May" and "March" name a month only after a word saying when.
+    assert window("what events may be fun", now)[2] == DEFAULT_LABEL
+    start, end, label = window("anything going on over thanksgiving break?", now, THANKSGIVING)
+    assert (start.date(), end.date(), label) == (date(2026, 11, 25), date(2026, 11, 29),
+                                                 "over Thanksgiving Break")
+    start, end, label = window("any events before thanksgiving", now, THANKSGIVING)
+    assert (start, end.date(), label) == (now, date(2026, 11, 24), "before Thanksgiving Break")
+    assert window("anything thanksgiving weekend", now, THANKSGIVING)[2] == (
+        "over Thanksgiving Break")
+    assert window("events over winter break", now, THANKSGIVING)[2] == "over Winter Break"
+    # A Thanksgiving event is no break ("a thanksgiving dinner" is held before it).
+    assert "Thanksgiving" not in window("is there a thanksgiving dinner", now, THANKSGIVING)[2]
+    # The words that set the window are not what is asked about.
+    assert asked_topic("anything going on over thanksgiving break?") == set()
+    assert asked_topic("any events over spring break") == set()
+    assert asked_topic("art events in december") == _stems("art")
+    assert asked_topic("is there a march on campus") == _stems("march")
+
+
+def test_social_and_shows_are_events_only_as_events() -> None:
+    assert not asks_events("which dean runs social science and social work")
+    assert asks_events("is there an ice cream social this week")
+    assert asks_events("any socials for commuters")
+    assert not asks_events("my portal shows an immunization hold so registration wont let me in")
+    assert asks_events("any shows this weekend")
+    assert asks_events("are there any comedy shows")
+
+
+def test_starting_a_club_asks_how_not_for_a_club() -> None:
+    for start in ("how do i start my own club", "can we form a new student organization",
+                  "how to register a club", "how do I create a club"):
+        assert not asks_clubs(start), start
+    assert asks_clubs("is there a chess club? if not how do i start one")
+    assert asks_clubs("how do i join a club")
 
 
 def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() -> None:
