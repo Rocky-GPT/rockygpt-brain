@@ -270,6 +270,122 @@ def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     assert result.trace["oneCallPicks"] == [[1], [1], [1]]
 
 
+class SlowPicksGateway(PartsGateway):
+    """Each section pick comes back after its own delay (in the order the picks are made)."""
+
+    def __init__(self, delays: Sequence[float], *steps: Any) -> None:
+        super().__init__(*steps)
+        self.delays = list(delays)
+        self.finished: list[float] = []
+
+    async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                       budget: TurnBudget) -> Completion:
+        budget.calls += 1
+        budget.committed_nusd += 1_000
+        step = await super().complete(input=input, tools=tools, budget=budget)
+        if tools and tools[0]["name"] == "pick_units":
+            delay = self.delays.pop(0)
+            await asyncio.sleep(delay)
+            self.finished.append(delay)
+        return step
+
+
+def picked_tutoring() -> Completion:
+    return Completion("", (ToolCall("p", "pick_units", {"n": [1]}),),
+                      [{"type": "function_call", "call_id": "p", "name": "pick_units",
+                        "arguments": json.dumps({"n": [1]})}], Usage(10, 2, 0))
+
+
+def ask_with_headings(gateway: Any) -> tuple[Any, ChatEngine]:
+    service = meaning_service()
+    service.index = index_of([("page-advising", "0", ["advising"], [[0, 1, 0]]),
+                              ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+                             service.index.names, labels=True)
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+    return engine.answer(intake(request, now=NOW), request), engine
+
+
+def test_a_slow_third_pick_is_not_waited_for_and_still_finishes(monkeypatch: Any) -> None:
+    # 11-04 blind run: a third pick ran up to 27 s after the other two, and the turn waited.
+    import rockygpt_brain.one_call as one_call
+    monkeypatch.setattr(one_call, "PICK_GRACE_SECONDS", 0.05)
+    monkeypatch.setattr(one_call, "PICK_SECONDS", 5.0)
+    gateway = SlowPicksGateway([0.0, 0.0, 0.6], picked_tutoring(), picked_tutoring(),
+                               picked_tutoring(),
+                               one_reply("Apply with the online form by March 1. [1]", [1]))
+
+    async def main() -> None:
+        answering, engine = ask_with_headings(gateway)
+        started = asyncio.get_running_loop().time()
+        result = await answering
+        assert asyncio.get_running_loop().time() - started < 0.5
+        assert result.trace["oneCallPicks"] == [[1], [1], "late"]
+        # The late pick is counted in the turn's calls and allowance, as one waited for was.
+        assert result.trace["modelCalls"] == 4
+        # It is left to finish on its own, so its spending is charged as usual.
+        assert len(engine._late_picks) == 1 and gateway.finished == [0.0, 0.0]
+        await asyncio.wait(set(engine._late_picks))
+        assert gateway.finished == [0.0, 0.0, 0.6] and not engine._late_picks
+        # What the pick was offered and what was read, by page address and heading.
+        assert result.trace["oneCallOffered"][0] == "page-tutoring | heading page-tutoring 0"
+        assert result.trace["oneCallRead"][0] == "page-tutoring | heading page-tutoring 0"
+
+    asyncio.run(main())
+
+
+def test_picks_all_too_slow_leave_the_usual_choice_read(monkeypatch: Any) -> None:
+    # 11-04 blind run: for two questions every pick ran 17-41 s, past the turn's time.
+    import rockygpt_brain.one_call as one_call
+    monkeypatch.setattr(one_call, "PICK_SECONDS", 0.1)
+    gateway = SlowPicksGateway([0.4, 0.4, 0.4], picked_tutoring(), picked_tutoring(),
+                               picked_tutoring(),
+                               one_reply("Apply with the online form by March 1. [1]", [1]))
+
+    async def main() -> None:
+        answering, engine = ask_with_headings(gateway)
+        result = await answering
+        assert result.trace["decidedBy"] == "one_call"
+        assert result.trace["oneCallPicks"] == ["late", "late", "late"]
+        assert "Apply with the online form" in json.dumps(result.body)
+        await asyncio.wait(set(engine._late_picks))
+
+    asyncio.run(main())
+
+
+def test_most_back_then_a_short_grace_and_never_past_the_limit() -> None:
+    from rockygpt_brain.engine import until_most_back
+
+    async def after(seconds: float, value: Any) -> Any:
+        await asyncio.sleep(seconds)
+        return value
+
+    async def waited(delays: Sequence[float], values: Sequence[Any], grace: float,
+                     limit: float) -> tuple[float, list[bool]]:
+        tasks = [asyncio.create_task(after(d, v)) for d, v in zip(delays, values, strict=True)]
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        await until_most_back(tasks, lambda o: bool(o), grace, limit)
+        took, done = loop.time() - started, [t.done() for t in tasks]
+        for task in tasks:
+            task.cancel()
+        return took, done
+
+    async def main() -> None:
+        # All back quickly: no waiting for the grace.
+        took, done = await waited([0.0, 0.01, 0.02], [1, 1, 1], 1.0, 5.0)
+        assert took < 0.5 and all(done)
+        # Two of three back: the third gets the grace, then the wait ends.
+        took, done = await waited([0.0, 0.01, 3.0], [1, 1, 1], 0.1, 5.0)
+        assert 0.1 <= took < 1.0 and done == [True, True, False]
+        # A pick that came back with nothing usable is no vote: the limit ends the wait.
+        took, done = await waited([0.0, 0.01, 3.0], [1, {}, 1], 0.05, 0.3)
+        assert 0.3 <= took < 1.0 and done == [True, True, False]
+
+    asyncio.run(main())
+
+
 def test_the_sections_most_picks_choose_are_read_first() -> None:
     from rockygpt_brain.one_call import agreed_pick
     # 11-03 repeat test: one pick a try read different pages for the same 60 sections.

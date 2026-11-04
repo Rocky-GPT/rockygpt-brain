@@ -343,6 +343,12 @@ PICK_TOOL: dict[str, Any] = {
 }
 
 
+def unit_labels(index: MeaningIndex, keys: Sequence[tuple[str, str]]) -> list[str]:
+    """Each section by page address and heading, as the pick sees it (for the trace: which
+    sections the pick was offered, and which were read)."""
+    return [" | ".join(index.labels.get(key, ("", ""))) for key in keys]
+
+
 def pick_messages(question: str, index: MeaningIndex,
                   pool: Sequence[tuple[str, str]]) -> list[dict[str, Any]]:
     """The question and the pool's sections by page address and heading, numbered from 1."""
@@ -356,6 +362,13 @@ def pick_messages(question: str, index: MeaningIndex,
 # (11-03 repeat test: the same question, the same 60 sections by meaning every time, and one pick
 # a try read different pages, so the replies named different offices and contacts).
 PICKS = 3
+# Once most picks are back the others get PICK_GRACE_SECONDS more, and no pick is waited for past
+# PICK_SECONDS; the turn goes on with the picks it has. 11-04 blind run, 233 pick steps: the
+# second of three picks was back by 3.7 s (median) and the third 0.4 s after it (1.6 s at the
+# 90th percentile), but a third ran up to 27 s more, and for two questions every pick ran 17-41 s,
+# so 6 of the 7 answers that ran out of time were waiting on picks.
+PICK_GRACE_SECONDS = 2.0
+PICK_SECONDS = 15.0
 
 
 def agreed_pick(picks: Sequence[Mapping[str, Any] | None], pool_size: int,
