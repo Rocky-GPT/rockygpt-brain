@@ -29,11 +29,12 @@ WRITERS: tuple[str, ...] = ("template", "ai")
 
 # At most this many facts are said: a three-step appeal with its deadline and its form fits; the
 # trace counts how often more were chosen (capped).
-MAX_FACTS = 14
+# 11-04 check run: at 14, 20 of 100 answers were cut there and read as every sentence of a page.
+MAX_FACTS = 10
 # Code adds a sentence of a kind asked only this near a picked one in the same section: the late
 # fee after the appeal deadline, not the winter session's limit three sentences on from the fall
 # and spring one.
-NEAR = 2
+NEAR = 1
 # A piece shorter than this ("Fall and Spring", "Winter") is a label, read with what follows it.
 MIN_SENTENCE_CHARS = 24
 MAX_SENTENCES = 220
@@ -195,9 +196,11 @@ PICK_PROMPT = """A Ramapo College student asked a question. Below are numbered s
 the college's own pages, grouped by office and section heading. Choose the sentences the answer
 needs: list each part the student asked (asked); whether it asks for something no college page
 holds, such as the student's own records, something live right now, or an opinion
-(not_on_pages); and the numbers of every sentence that answers it (sentences): each step, form,
-link, deadline, amount, condition and exception for it. Leave out sentences about other groups,
-programs, places, terms or topics, and sentences that only say the same thing again. When
+(not_on_pages); and the numbers of the fewest sentences that fully answer it (sentences): the
+answer itself, then each step, form, link, deadline, amount and condition the student needs to
+act on it. Usually that is two to six sentences. Leave out background, sentences about other
+groups, programs, places, terms or topics, other staff than the one asked about, and sentences
+that say the same thing again. When
 already_written is given, it already answers part of the question: choose sentences only for
 what else is asked. A part no sentence answers gets an empty list. Answer only with the
 pick_facts tool."""
@@ -297,6 +300,8 @@ def facts_of(question: str, lines: Sequence[Mapping[str, Any]], picked: Sequence
                                    line["kinds"][0] if line["kinds"] else "statement"),
               "says": line["says"], "office": line["office"], "source": line["source"],
               "chosen_by": "ai" if line["n"] in picked else "code",
+              # The kinds asked are said by every writer; another fact may be left out.
+              "must_say": bool(asked & set(line["kinds"])),
               **({"past_term": True} if line.get("past_term") else {}),
               **({"applies_to": line["applies_to"]} if line.get("applies_to") else {})}
              for line in lines if line["n"] in kept]
@@ -356,13 +361,17 @@ def template_text(page: Mapping[str, Any]) -> str:
 
 WRITER_PROMPT = """You write a Ramapo College student's answer from facts that code chose from
 the college's own pages, given as JSON. You know nothing else.
-- Say every fact once, in plain short words, in the order given, and nothing else: never add a
-  fact, number, date, name, email, link, step or advice the facts do not hold, and never say
-  he or she about anyone unless a fact does.
+- Answer what was asked first, in one plain sentence: a yes or no question gets Yes or No when
+  the facts, code_notes or already_written settle it (a deadline that has passed is a No).
+- Then say the facts that answer the question, once each, in plain short words, in the order
+  given. Every fact marked must_say is said; a fact that does not help answer the question may
+  be left out. Never add a fact, number, date, name, email, link, step or advice the facts do
+  not hold, and never say he or she about anyone unless a fact does.
 - Keep each fact's numbers, dates, amounts, emails, phone numbers, rooms, form names and links
   exactly as written. A fact marked past_term is for a term that is over: say so.
 - shape says how to open: yes_no starts with Yes, No or It depends, only as the facts say;
   value gives the date, amount or name asked first; steps numbers the steps.
+- Short: under 900 characters unless the steps need more.
 - Name each office before its facts. code_notes are code's notes on the facts' dates: say them
   as given. When already_written is given it is placed before your text: never repeat it.
 - Code adds each office's phone, email and room after your text: do not list them yourself
@@ -434,16 +443,16 @@ def tokens(text: str) -> set[str]:
 
 
 def misses(text: str, page: Mapping[str, Any], allowed: str = "") -> dict[str, Any]:
-    """What the AI writer's reply got wrong: the facts whose numbers, emails, links or phone
-    numbers it does not say, or whose source it never cites (unsaid, by n); and the numbers,
+    """What the AI writer's reply got wrong: the must_say facts whose numbers, emails, links or
+    phone numbers it does not say, or whose source it never cites (unsaid, by n); and the numbers,
     emails, links and he/she it says that no fact, note, question or code-written part holds
     (extra)."""
     said = tokens(_LIST_NUMBER.sub(" ", text))
     cited = {int(n) for group in re.findall(r"\[([\d,\s–-]+)\]", text)
              for n in re.findall(r"\d+", group)}
     facts = page.get("facts") or []
-    unsaid = [f["n"] for f in facts
-              if not tokens(f["says"]) <= said or f["source"] not in cited]
+    unsaid = [f["n"] for f in facts if f.get("must_say")
+              and (not tokens(f["says"]) <= said or f["source"] not in cited)]
     held_text = " ".join([*(f["says"] for f in facts),
                           *(n["says"] for n in page.get("code_notes") or []),
                           str(page.get("question") or ""),

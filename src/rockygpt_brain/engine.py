@@ -75,7 +75,7 @@ from rockygpt_brain.retrieval import (
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
-from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.router import (
     asks_inside,
     code_route,
@@ -3349,7 +3349,15 @@ class ChatEngine:
                 named = list(dict.fromkeys([*self._school_offices(
                     [p.get("school") for p in [*people, *academic]]), *named]))
                 chosen = None
-                if searchable and index is not None and index.labels:
+                # A page answer in two stages reads the same sections on every try: the usual
+                # choice by meaning, each policy whole, and no section pick (11-04 check run: with
+                # the pick, the sections read differed between tries, so the facts did).
+                two_stage = (self._page_writer_now() in page_facts.WRITERS
+                             and not academic and not calendar and not people)
+                if two_stage and searchable and index is not None:
+                    chosen = one_call.with_picked(index, vectors, MeaningScores({}), [], None)
+                    trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
+                elif searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
                         index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
                         per_page=one_call.POOL_PER_PAGE)
@@ -3445,8 +3453,7 @@ class ChatEngine:
                         code_view["academic_calendar"] = dated
                 # A page answer (only page sections beside what code wrote) is made in two
                 # stages when a writer for them is set: the facts first, then the writer.
-                two_stage = (self._page_writer_now() in page_facts.WRITERS and bool(offices)
-                             and not academic and not calendar and not clubs and not people)
+                two_stage = two_stage and bool(offices) and not clubs
                 staged = (await self._two_stage(
                     latest, earlier if question != latest else None, offices, computed,
                     code_parts, turn.campus_now.date(), budget, trace) if two_stage else None)

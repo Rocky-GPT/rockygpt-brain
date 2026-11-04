@@ -106,7 +106,7 @@ def test_more_facts_than_the_limit_keep_the_picked_ones_and_say_so() -> None:
     picked = [1, 4, 7, 10, 13, 16, 19]
     page = facts_of("when are the deadlines", lines, picked, TODAY)
     # Every deadline is near a picked one; the picked ones are kept first.
-    assert len(page["facts"]) == 14 and page["capped"] == 6
+    assert len(page["facts"]) == 10 and page["capped"] == 10
     said = {f["says"] for f in page["facts"]}
     assert all(f"Deadline number {k} is due on November {k}, 2026." in said for k in picked)
     # Code adds only sentences near a picked one: the winter limit far from the fall one is not.
@@ -147,6 +147,11 @@ def test_the_check_finds_facts_left_out_and_things_no_fact_holds() -> None:
     assert {"20", "5"} <= tokens("twenty days, five dollars")
     assert tokens("1. Pay online [3].") == {"1"}
     assert misses("1. " + good, page) == {}
+    # A fact of no kind asked may be left out; one of a kind asked may not.
+    page = facts_of("how much is the late fee", lines, [4, 5], TODAY)
+    assert [f["must_say"] for f in page["facts"]] == [False, True, True]
+    assert misses("Not paid or appealed in 20 days, it is $5 [2], and $5 more after 28 days "
+                  "[2].", page) == {}
 
 
 def staged(*arguments: dict[str, Any]) -> list[Completion]:
