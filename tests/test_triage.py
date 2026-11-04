@@ -427,6 +427,34 @@ def test_what_is_coming_up_on_the_calendar_is_never_off_topic_or_a_prediction(
     assert weather.trace is not None and "corrected" not in weather.trace["read"]
 
 
+def test_a_campus_question_asking_no_choice_is_no_opinion() -> None:
+    # 11-04 practice: two of three reads made "does ramapo have a nursing major and how long is
+    # it" an opinion, one adding "and who helps students decide?", and the reply began "I can't
+    # choose for you". The student asked no choice, so their own words are asked.
+    message = "does ramapo have a nursing major and how long is it"
+    gateway = MeteredGateway(read(limit="opinion", question=(
+        "Does Ramapo have a nursing major, how long is it, and who helps students decide?")),
+        LOOKUP, finish())
+    result = ask(gateway, message)
+    assert result.trace is not None and result.trace["read"]["corrected"] == {
+        "why": "no_choice_asked", "social": "none", "danger": "none", "needs": [],
+        "limit": "none", "question": message}
+    assert not result.body["answer"].startswith(triage.LIMIT_TEXTS["opinion"])
+    assert latest_asked(gateway.inputs[1]) == message
+    # A choice asked stays an opinion, however it is asked.
+    for asked in ("is ramapo good for nursing", "which dorm should i pick",
+                  "nursing or bio major?", "is the nursing program worth it"):
+        kept = ask(MeteredGateway(read(limit="opinion", question="What does Ramapo publish "
+                                                                 "about it?"), LOOKUP, finish()),
+                   asked)
+        assert kept.body["answer"].startswith(triage.LIMIT_TEXTS["opinion"]), asked
+        assert kept.trace is not None and "corrected" not in kept.trace["read"], asked
+    # An opinion with no campus side is answered by code alone, as before.
+    alone = ask(MeteredGateway(read(limit="opinion")), "what's ur favorite color")
+    assert alone.body["answer"] == (triage.LIMIT_TEXTS["opinion"]
+                                    + triage.LIMIT_ALONE["opinion"])
+
+
 def test_a_hello_before_a_question_is_said_once() -> None:
     # 11-03 practice: "Hi!" came first, then the whole greeting again after the answer.
     gateway = MeteredGateway(read(social="greeting", question="Who handles transcripts?"),
