@@ -376,6 +376,27 @@ class Finish(StrictModel):
     language: str | None = None
 
 
+async def until_most_back(tasks: Sequence["asyncio.Task[Any]"], usable: Callable[[Any], bool],
+                          grace: float, limit: float) -> None:
+    """Waits until every task is done; or, once most are done with a usable result, at most
+    `grace` seconds more; and never more than `limit` seconds in all. Tasks still running are
+    left running."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + limit
+    most = len(tasks) // 2 + 1
+    pending = {task for task in tasks if not task.done()}
+    while pending:
+        timeout = end - loop.time()
+        if timeout <= 0:
+            return
+        _, pending = await asyncio.wait(pending, timeout=timeout,
+                                        return_when=asyncio.FIRST_COMPLETED)
+        back = sum(1 for task in tasks if task.done() and not task.cancelled()
+                   and task.exception() is None and usable(task.result()))
+        if back >= most:
+            end = min(end, loop.time() + grace)
+
+
 def _all_required(node: Any) -> Any:
     """Strict tool schemas list every property as required (an optional one is nullable)."""
     if isinstance(node, dict):
@@ -1370,6 +1391,8 @@ class ChatEngine:
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
+        # Section picks still running after the turn went on without them (_picks).
+        self._late_picks: set[asyncio.Task[Any]] = set()
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
         # How many calendar listings say each word (per release and day) and how many page
         # sections (per meaning index), for the events a reply's question names (events.py).
@@ -3145,6 +3168,10 @@ class ChatEngine:
                     chosen = one_call.with_picked(
                         index, vectors, pool_scores, pool,
                         one_call.agreed_pick(picks, len(pool)))
+                    # What the pick was offered (numbered from 1, as oneCallPicks counts) and
+                    # what was read, so a miss shows whether its section was offered at all.
+                    trace["oneCallOffered"] = one_call.unit_labels(index, pool)
+                    trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
                 if searchable and index is not None:
                     with measure("Read the evidence"):
                         offices, found = await asyncio.to_thread(
@@ -3932,8 +3959,12 @@ class ChatEngine:
                      trace: dict[str, Any]) -> list[dict[str, Any] | None]:
         """The section pick made self.picks times at once (one_call.PICKS), each with its own
         share of what is left of the turn's allowance, counted in the turn's; each pick's
-        arguments, or None for a pick that failed or came back malformed. Every pick failing is
-        the turn's failure, as one pick failing was."""
+        arguments, or None for a pick that failed, came back malformed or came late. Once most
+        picks are back the rest get one_call.PICK_GRACE_SECONDS more, and none is waited for
+        past one_call.PICK_SECONDS: a late pick is left to finish on its own, so its spending is
+        charged as usual, and the turn goes on with the picks it has (with_picked reads the usual
+        choice when it has none). Every pick failing is the turn's failure, as one pick failing
+        was."""
         left = max(budget.max_cost_nusd - budget.committed_nusd, 0)
         shares = [TurnBudget(budget.request_id, budget.deadline, max_calls=1,
                              max_cost_nusd=left // self.picks) for _ in range(self.picks)]
@@ -3947,18 +3978,31 @@ class ChatEngine:
             pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
             return pick.arguments if pick is not None and pick.name == "pick_units" else {}
 
+        tasks = [asyncio.create_task(one(share)) for share in shares]
         try:
-            outcomes = await asyncio.gather(*(one(share) for share in shares))
+            await until_most_back(tasks, lambda o: isinstance(o, dict) and bool(o),
+                                  one_call.PICK_GRACE_SECONDS, one_call.PICK_SECONDS)
+        except BaseException:
+            for task in tasks:
+                task.cancel()
+            raise
         finally:
             budget.calls += sum(share.calls for share in shares)
             budget.committed_nusd += sum(share.committed_nusd for share in shares)
             budget.max_calls = max(budget.max_calls, budget.calls)
+        for task in tasks:
+            if not task.done():
+                # Held until it finishes (the event loop keeps only a weak reference).
+                self._late_picks.add(task)
+                task.add_done_callback(self._late_picks.discard)
+        outcomes = [task.result() if task.done() else None for task in tasks]
         errors = [o for o in outcomes if isinstance(o, GatewayError)]
         if len(errors) == len(outcomes):
             raise errors[0]
         if len(outcomes) > 1:
             trace["oneCallPicks"] = [
-                None if isinstance(o, GatewayError) else o.get("n") for o in outcomes]
+                "late" if o is None else None if isinstance(o, GatewayError) else o.get("n")
+                for o in outcomes]
         return [o if isinstance(o, dict) and o else None for o in outcomes]
 
     async def _read(self, turn: Turn, context: Context,
