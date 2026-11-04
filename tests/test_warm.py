@@ -41,8 +41,9 @@ def test_warm_fills_each_per_release_read_once() -> None:
     reader = counting()
     engine = ChatEngine(ScriptedGateway(), reader)
     seconds = engine.warm()
-    assert set(seconds) == {"meaning_index", "procedures", "directory", "clubs", "events",
-                            "venues", "stops", "office_labels", "catalog"}
+    assert set(seconds) == {"meaning_index", "procedures", "names", "ordinary_words",
+                            "directory", "clubs", "events", "venues", "stops", "office_labels",
+                            "catalog"}
     assert reader.warmed == 1
     assert engine._directory_cache is not None and engine._club_cache is not None
     assert getattr(engine, "_labels_cache", None) is not None
@@ -117,7 +118,7 @@ def test_how_to_sections_are_read_once_when_questions_ask_at_once() -> None:
     reader.snapshot = slow  # type: ignore[method-assign]
     start = threading.Barrier(8)
 
-    def ask() -> list[Any]:
+    def ask() -> object:
         start.wait()
         return reader._procedure_sections(version, identity_hash)
 

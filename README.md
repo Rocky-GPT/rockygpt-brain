@@ -124,9 +124,12 @@ boundary. Install the extra first: `pip install -e '.[graph]'`. There are two wa
    the active release into one file, then writes `DIR/active.json` (last, renamed into place), and
    keeps the newest three releases.
 2. **Serve**: start the Brain with `BRAIN_GRAPH_ONLY_DIR=DIR`. It needs no `DATABASE_URL`, never
-   opens a Postgres connection for campus data, and serves whatever release `active.json` names. A
-   newly published release is served from the next question on. (The AI spending ledger is a
-   separate database and is still used.)
+   opens a Postgres connection for campus data, and serves the release `active.json` names. When
+   `active.json` names a newer release, the Brain opens and checks it, and reads it in full (meaning
+   index, how-to sections, every list) in an engine of its own while the engine serving keeps
+   answering; only then does it switch (`api/releases.py`). A question already being answered
+   finishes on the release it began on. (The AI spending ledger is a separate database and is
+   still used.)
 3. **No fallback**: no published release, a damaged file, a pointer that disagrees with its file,
    or a failed read is an error for the question, `/readiness` fails, and the log says why. A
    graph that failed a read is opened afresh for the next question.
@@ -142,11 +145,15 @@ release before it too.
 
 - **Production** sets `BRAIN_GRAPH_STORE_BUCKET`, `_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID` and
   `_SECRET_ACCESS_KEY` beside `BRAIN_GRAPH_ONLY_DIR`. It downloads before it takes questions
-  (`/readiness` fails until a release is in), then checks the store every 5 minutes and warms a
-  new release's reads as soon as it is in.
+  (`/readiness` fails until a release is in), then checks the store every 5 minutes. A new
+  release is downloaded and read in full before it is installed (`active.json` rewritten) and
+  served; one that fails to open or pass its checks is never installed, so a restart does not
+  serve it either, and it is not tried again until the store shares another.
 - **The laptop** gives its Brain no store keys, so its copy changes only when synced by hand:
   `python -m rockygpt_brain.retrieval.graph_sync DIR [--force] [--events]` (the workspace's
-  `./run-local.sh sync-prod` and the dev UI's "Sync from production").
+  `./run-local.sh sync-prod` and the dev UI's "Sync from production"). Its running Brain looks
+  at its folder every 5 seconds and moves to a newly synced copy the way production does: read
+  in full first, then switched.
 
 ### The graph file
 

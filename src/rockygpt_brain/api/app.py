@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from rockygpt_brain.api.dev import add_dev_routes
+from rockygpt_brain.api.releases import Releases
 from rockygpt_brain.boundary import check
 from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
 from rockygpt_brain.engine import HELP_SECONDS, ChatEngine, ChatResult, answered, failed
@@ -35,7 +36,7 @@ from rockygpt_brain.retrieval import (
     PostgresEntityFacts,
     UnknownEntity,
 )
-from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable
+from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable, read_pointer
 from rockygpt_brain.retrieval.graph_sync import GraphFollower, GraphStore, SyncError
 from rockygpt_brain.settings import ConfigurationError, ProviderSettings
 from rockygpt_brain.spending import SpendingError
@@ -177,9 +178,11 @@ def _configured_engine() -> ChatEngine:
     only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
     if only_directory:
         # Graph only: the Brain never connects to the campus database. A publisher builds the
-        # graph (scripts/build_graph.py); any graph problem is an error, never a fallback.
+        # graph (scripts/build_graph.py); any graph problem is an error, never a fallback. The
+        # engine serves the release the folder has now; a newer one gets an engine of its own
+        # once it is ready (api/releases.py).
         try:
-            facts = GraphOnlyFacts(Path(only_directory))
+            facts = GraphOnlyFacts(Path(only_directory), release=read_pointer(only_directory))
         except GraphUnavailable as error:
             LOG.error("brain_graph_store_not_installed")
             raise ConfigurationError("BRAIN_GRAPH_ONLY_DIR is set but LadybugDB is missing") \
@@ -213,12 +216,21 @@ def _configured_follower() -> GraphFollower | None:
     return GraphFollower(store, Path(only_directory))
 
 
-async def _first_sync(follower: GraphFollower) -> None:
+def _configured_releases(state: Any) -> Releases | None:
+    """A graph-only Brain moves to each newer release once it is ready: production's from the
+    store, the laptop's from its own folder (changed by hand)."""
+    only_directory = os.getenv("BRAIN_GRAPH_ONLY_DIR", "").strip()
+    if not only_directory:
+        return None
+    return Releases(state, Path(only_directory), _configured_follower())
+
+
+async def _first_sync(releases: Releases) -> None:
     """The first download, before the server takes questions. A failure leaves the Brain not
-    ready (no release file yet, or the copy already on disk); the follower keeps retrying."""
+    ready (no release file yet) or on the copy already on disk; the next checks keep trying."""
     try:
         async with asyncio.timeout(FIRST_SYNC_SECONDS):
-            await asyncio.to_thread(follower.sync_once)
+            await asyncio.to_thread(releases.first)
     except TimeoutError:
         LOG.warning("brain_graph_first_sync_timeout seconds=%s", FIRST_SYNC_SECONDS)
 
@@ -269,21 +281,26 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        active = engine
-        follower: GraphFollower | None = None
+        # Only the gateway is held here, never the engine: a new release's engine replaces it
+        # in application.state, and the old one must be free to go once its questions finish.
+        gateway: object | None = None
+        releases: Releases | None = None
         try:
+            active = engine
             if active is None:
-                follower = _configured_follower()
-                if follower is not None:
-                    await _first_sync(follower)
+                releases = _configured_releases(application.state)
+                if releases is not None and releases.follower is not None:
+                    await _first_sync(releases)
                 active = _configured_engine()
             application.state.engine = active
-            if isinstance(active.gateway, Gateway):
-                await active.gateway.open()
+            gateway = active.gateway
+            if isinstance(gateway, Gateway):
+                await gateway.open()
             if engine is None and os.getenv("BRAIN_WARM_AT_START", "1") != "0":
                 await _warm(active)
-            if follower is not None:
-                follower.start(on_new_release=active.warm)
+            del active
+            if releases is not None:
+                releases.start()
         except ConfigurationError:
             application.state.startup_error = "model_not_configured"
         except SpendingError:
@@ -291,10 +308,10 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         try:
             yield
         finally:
-            if follower is not None:
-                follower.stop()
-            if active is not None and isinstance(active.gateway, Gateway):
-                await active.gateway.close()
+            if releases is not None:
+                releases.stop()
+            if isinstance(gateway, Gateway):
+                await gateway.close()
 
     application = FastAPI(title="RockyGPT Brain", lifespan=lifespan)
     application.state.engine = engine

@@ -1387,6 +1387,15 @@ class ChatEngine:
         self._builders: dict[str, Any] = {}
         self._builders_lock = threading.Lock()
 
+    def for_release(self, facts: EntityFacts) -> "ChatEngine":
+        """An engine with this one's settings over another release's facts, nothing read yet. A
+        new release is read in full in an engine of its own while this one keeps answering, and
+        the Brain switches engines once it is ready (api/releases.py)."""
+        return ChatEngine(self.gateway, facts, turn_seconds=self.turn_seconds,
+                          max_turn_nusd=self.max_turn_nusd, output=self.output,
+                          howto_one_call=self.howto_one_call, lookup_writer=self.lookup_writer,
+                          read_first=self.read_first, reads=self.reads, picks=self.picks)
+
     def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
         """A value read once per release (or per release and day), held as (key, value) in the
         attribute name. One caller builds it and every other caller asking for it meanwhile waits
@@ -1434,15 +1443,18 @@ class ChatEngine:
     def warm(self) -> dict[str, float]:
         """Read, before the first question, what questions otherwise read on first use: the
         meaning index, the office sections how-to questions search, and the once-per-release
-        lists (directory, clubs, events, venues, stops, office labels, catalog tracks). After a
-        deploy the first answer took ~24 s, and how-to questions asked before the meaning index
-        loaded were searched by words alone.
+        lists (names, the pages' own words, directory, clubs, events, venues, stops, office
+        labels, catalog tracks). After a deploy the first answer took ~24 s, and how-to
+        questions asked before the meaning index loaded were searched by words alone. A new
+        release is warmed the same way in an engine of its own before it serves anyone.
 
         Each step stands alone: one that fails is logged and the Brain starts anyway, reading
         it on first use as before. Returns the seconds each step took."""
         steps: list[tuple[str, Callable[[], object]]] = [
             ("meaning_index", self.facts.warm_meaning_index),
             ("procedures", self.facts.warm_procedure_sections),
+            ("names", self._names),
+            ("ordinary_words", self._ordinary),
             ("directory", self._directory),
             ("clubs", self._club_directory),
             ("events", lambda: self._upcoming_events(datetime.now(CAMPUS_TZ))),
@@ -2651,16 +2663,22 @@ class ChatEngine:
     def _people_named(self, message: str) -> list[dict[str, Any]]:
         """The people a message names by their directory names (people.py); the published
         pages' own words (section headings, course titles) are never read as misspelt names."""
-        index = self.facts.meaning_index()
-        ordinary: frozenset[str] = frozenset()
-        if index is not None:
-            def read() -> frozenset[str]:
-                text = " ".join([*(" ".join(label) for label in index.labels.values()),
-                                 *index.course_titles.values()])
-                return frozenset(re.findall(r"[a-z]{3,}", text.casefold()))
+        return people_module.find_people(self.facts.identities(("person",)), message,
+                                         self._ordinary())
 
-            ordinary = self._per_release("_ordinary_words", index.dataset_version, read)
-        return people_module.find_people(self.facts.identities(("person",)), message, ordinary)
+    def _ordinary(self) -> frozenset[str]:
+        """The published pages' own words (section headings, course titles), read once per
+        meaning index; none without one."""
+        index = self.facts.meaning_index()
+        if index is None:
+            return frozenset()
+
+        def read() -> frozenset[str]:
+            text = " ".join([*(" ".join(label) for label in index.labels.values()),
+                             *index.course_titles.values()])
+            return frozenset(re.findall(r"[a-z]{3,}", text.casefold()))
+
+        return self._per_release("_ordinary_words", index.dataset_version, read)
 
     def _read_people(self, people: Sequence[dict[str, Any]], numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

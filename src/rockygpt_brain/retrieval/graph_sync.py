@@ -27,7 +27,6 @@ import json
 import logging
 import os
 import sys
-import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -233,12 +232,31 @@ def _write_json(path: Path, value: Mapping[str, Any]) -> None:
 
 # --- downloading (every graph-only Brain) ------------------------------------------------------
 
+def release_key(pointer: Mapping[str, Any]) -> str:
+    """What makes two pointers the same release: its graph file, release, identities and files."""
+    return json.dumps({k: pointer.get(k) for k in ("file", "dataset_version", "identity_hash",
+                                                    "files")}, sort_keys=True)
+
+
 def sync(store: GraphStore, directory: Path, *, force: bool = False, emit: Emit = quiet,
          client: httpx.Client | None = None) -> tuple[bool, str]:
     """Make directory serve the store's active release. Returns (changed, message).
 
     A file already here with the listed sha256 is not downloaded again; force re-checks and
     re-installs everything even when the release is the same."""
+    remote, new = download(store, directory, force=force, emit=emit, client=client)
+    if not new:
+        return False, f"up to date (production data from {remote.get('published_at') or ''})"
+    emit("installing")
+    return True, install_release(directory, remote)
+
+
+def download(store: GraphStore, directory: Path, *, force: bool = False, emit: Emit = quiet,
+             client: httpx.Client | None = None, skip: str | None = None,
+             ) -> tuple[dict[str, Any], bool]:
+    """Download the store's active release into directory, checked, without serving it yet.
+    Returns (its pointer, whether it still needs installing): False when directory already
+    serves it, or when it is the release skip names (one already refused)."""
     directory.mkdir(parents=True, exist_ok=True)
     with ExitClient(client) as http:
         emit("checking")
@@ -249,15 +267,14 @@ def sync(store: GraphStore, directory: Path, *, force: bool = False, emit: Emit 
         total = sum(entry["size"] for entry in files)
         shared = str(remote.get("published_at") or "")
         emit("found", shared=shared, total=total)
+        if skip is not None and release_key(remote) == skip:
+            return remote, False
         local = _read_json(directory / POINTER)
-        same = (local is not None and {k: local.get(k) for k in ("file", "dataset_version",
-                                                                  "identity_hash")}
-                == {k: remote.get(k) for k in ("file", "dataset_version", "identity_hash")}
-                and local.get("files") == remote.get("files"))
+        same = local is not None and release_key(local) == release_key(remote)
         if same and not force and all(
                 (directory / e["name"]).is_file()
                 and (directory / e["name"]).stat().st_size == e["size"] for e in files):
-            return False, f"up to date (production data from {shared})"
+            return remote, False
         received = 0
 
         def progress(count: int) -> None:
@@ -280,18 +297,24 @@ def sync(store: GraphStore, directory: Path, *, force: bool = False, emit: Emit 
                 os.replace(part, target)
             finally:
                 part.unlink(missing_ok=True)
-        emit("installing")
-        previous = _stem(local) if local and local.get("file") else None
-        _write_json(directory / POINTER, remote)
-        _write_json(directory / MARKER, {"created_at": shared, "source": "file store",
-                                         "dataset_version": remote.get("dataset_version")})
-        keep = {_stem(remote), previous}
-        for item in directory.iterdir():
-            if item.name.startswith("release-") and not any(
-                    k and (item.name == k or item.name.startswith(k + ".")) for k in keep):
-                item.unlink(missing_ok=True)
-        return True, (f"installed production release {remote.get('dataset_version')} "
-                      f"(shared {shared})")
+        return remote, True
+
+
+def install_release(directory: Path, remote: Mapping[str, Any]) -> str:
+    """Serve a downloaded release from directory: write its pointer and marker, and remove the
+    release files other than its own and the release it replaces."""
+    shared = str(remote.get("published_at") or "")
+    local = _read_json(directory / POINTER)
+    previous = _stem(local) if local and local.get("file") else None
+    _write_json(directory / POINTER, remote)
+    _write_json(directory / MARKER, {"created_at": shared, "source": "file store",
+                                     "dataset_version": remote.get("dataset_version")})
+    keep = {_stem(remote), previous}
+    for item in directory.iterdir():
+        if item.name.startswith("release-") and not any(
+                k and (item.name == k or item.name.startswith(k + ".")) for k in keep):
+            item.unlink(missing_ok=True)
+    return f"installed production release {remote.get('dataset_version')} (shared {shared})"
 
 
 class ExitClient:
@@ -313,47 +336,61 @@ class ExitClient:
 class GraphFollower:
     """Production's Brain: keep BRAIN_GRAPH_ONLY_DIR on the store's active release.
 
-    sync_once() runs before the server takes questions; start() then checks every
-    FOLLOW_SECONDS (RETRY_SECONDS after a failure) and calls on_new_release after each install,
-    so the new release's index and lists are read before students ask."""
+    fetch() downloads the store's release when it is newer than the one installed here, checked
+    but not served yet; install() then serves it from this folder. The Brain installs a release
+    only once it has read it in full in an engine of its own (api/releases.py checks every
+    FOLLOW_SECONDS, RETRY_SECONDS after a failure), so a release that fails to open is never
+    installed. sync_once() does both at once."""
 
     def __init__(self, store: GraphStore, directory: Path, *,
-                 interval: float = FOLLOW_SECONDS) -> None:
+                 interval: float = FOLLOW_SECONDS, client: httpx.Client | None = None) -> None:
         self.store, self.directory, self.interval = store, Path(directory), interval
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self.client = client  # None: each check opens (and closes) its own.
         self.last_error: str | None = None
         self.last_message: str | None = None
 
+    def wait(self) -> float:
+        """Seconds until the next check: sooner after a failed one."""
+        return self.interval if self.last_error is None else min(self.interval, RETRY_SECONDS)
+
+    def _failed(self, error: Exception) -> None:
+        self.last_error = type(error).__name__
+        LOG.warning("brain_graph_sync_failed exception_type=%s reason=%s",
+                    type(error).__name__, str(error)[:200] if isinstance(error, SyncError)
+                    else "")
+
+    def fetch(self, skip: str | None = None) -> dict[str, Any] | None:
+        """The store's release, downloaded and checked, when it still needs installing here and
+        is not the release skip names; None when nothing is new or the download failed."""
+        try:
+            remote, new = download(self.store, self.directory, skip=skip, client=self.client)
+        except (SyncError, httpx.HTTPError, OSError) as error:
+            self._failed(error)
+            return None
+        self.last_error = None
+        return remote if new else None
+
+    def install(self, pointer: Mapping[str, Any]) -> bool:
+        """Serve a fetched release from this folder."""
+        try:
+            message = install_release(self.directory, pointer)
+        except OSError as error:
+            self._failed(error)
+            return False
+        self.last_message = message
+        LOG.info("brain_graph_sync_installed %s", message)
+        return True
+
     def sync_once(self) -> bool:
         try:
-            changed, message = sync(self.store, self.directory)
+            changed, message = sync(self.store, self.directory, client=self.client)
         except (SyncError, httpx.HTTPError, OSError) as error:
-            self.last_error = type(error).__name__
-            LOG.warning("brain_graph_sync_failed exception_type=%s reason=%s",
-                        type(error).__name__, str(error)[:200] if isinstance(error, SyncError)
-                        else "")
+            self._failed(error)
             return False
         self.last_error, self.last_message = None, message
         if changed:
             LOG.info("brain_graph_sync_installed %s", message)
         return changed
-
-    def start(self, on_new_release: Callable[[], object] = lambda: None) -> None:
-        def loop() -> None:
-            while not self._stop.wait(self.interval if self.last_error is None
-                                      else min(self.interval, RETRY_SECONDS)):
-                if self.sync_once():
-                    try:
-                        on_new_release()
-                    except Exception:  # noqa: BLE001 - warming is best effort; answers still work
-                        LOG.exception("brain_graph_warm_failed")
-
-        self._thread = threading.Thread(target=loop, name="graph-follower", daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop.set()
 
 
 # --- uploading (the daily data run, scripts/publish_graph.py) ----------------------------------
