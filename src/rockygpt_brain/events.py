@@ -529,13 +529,49 @@ WHOLE_TOPIC = 0.999
 # only mention the word sat at 1.2 or below (a therapy animal visit's QR code for "coding": 0;
 # a birdwatching outing that provides binoculars and books, for "book clubs": 1.2). Three
 # spreads, the bar for meaning alone, left out the cookie art and magnet decorating nights and
-# the commuter lunch.
+# the commuter lunch. The gap is narrow: on the 11-04 dev calendar the birdwatching outing came
+# out above it, so words a question joins to a club's word are also checked (joined_words).
 SAID_AGREES = 1.5
+
+
+def joined_words(message: str, words: AbstractSet[str]) -> list[tuple[str, ...]]:
+    """The topic words (`words`) a question says joined to a club's or group's word, as plain
+    forms in the order said: "any book clubs meeting" says (book, club), "black student union
+    events" (black, student, union). The club's word is no topic word (asked_topic), but with
+    it the question names a thing ("a book club"), not a word a listing may only mention."""
+    runs: list[tuple[str, ...]] = []
+    run: list[str] = []
+    for stem in [*(_stem(word) for word in _said(message)), ""]:
+        if stem and (stem in words or stem in _GENERIC_STEMS):
+            run.append(stem)
+            continue
+        if any(s in words for s in run) and any(s in _GENERIC_STEMS for s in run):
+            runs.append(tuple(run))
+        run = []
+    return runs
+
+
+def _passing(value: dict[str, Any], joined: Sequence[tuple[str, ...]]) -> bool:
+    """Whether a listing says a topic word the question joins to a club's word (joined_words)
+    but never the two together: a word said in passing, not the thing asked (11-04 practice:
+    "Binoculars and books will be provided" listed a birdwatching outing for "any book clubs
+    meeting")."""
+    text = " ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
+                     str(value.get("description") or ""), str(value.get("organizer") or ""),
+                     str(value.get("location") or "")])
+    said = [_stem(word) for word in _said(text)]
+    for run in joined:
+        if ({s for s in run if s not in _GENERIC_STEMS} <= set(said)
+                and not any(tuple(said[k:k + len(run)]) == run
+                            for k in range(len(said) - len(run) + 1))):
+            return True
+    return False
 
 
 def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
              meaning: Mapping[int, float], scores: Mapping[str, float] | None,
-             titled: AbstractSet[int] = frozenset()) -> set[int]:
+             titled: AbstractSet[int] = frozenset(),
+             joined: Sequence[tuple[str, ...]] = ()) -> set[int]:
     """The window's events (by id of their value) whose listing names what was asked: every word
     of it; or, when no listing does, most of its weight (TOPIC_SHARE). Where the words are only in
     a listing's description (`titled` holds the events whose title, tags, host or place hold
@@ -544,15 +580,21 @@ def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
     alone. A word can be the same and the thing different (11-03 practice: "saving money" found
     "a life saving drug", "sports games" a birdwatching outing tagged Sports/Recreation and a
     trading card game meeting, while the basketball games held both words; "coding workshops"
-    found a therapy animal visit whose description says to scan the QR code)."""
+    found a therapy animal visit whose description says to scan the QR code). A description
+    saying a word the question joins to a club's word (`joined`, joined_words) but never the two
+    together counts no more than a listing naming nothing asked: its card must stand out."""
     values = (scores or {}).values()
     said_bar = standout_bar(values, SAID_AGREES) if scores else None
     bar = standout_bar(values) if scores else None
 
     def agrees(value: dict[str, Any], at: float | None) -> bool:
         return at is None or meaning[id(value)] >= at
+
+    def said_with(value: dict[str, Any]) -> bool:
+        return (not _passing(value, joined)
+                or (bar is not None and meaning[id(value)] >= bar))
     whole = {id(v) for v in timed if share.get(id(v), 0.0) >= WHOLE_TOPIC
-             and (id(v) in titled or agrees(v, said_bar))}
+             and (id(v) in titled or (agrees(v, said_bar) and said_with(v)))}
     if whole:
         return whole
     return {id(v) for v in timed if share.get(id(v), 0.0) >= TOPIC_SHARE and agrees(v, bar)}
@@ -648,7 +690,8 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                   if any(alternative <= _about(v, alternative, description=False)
                          for alternative in rest)}
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
-        worded = by_words(timed, share, meaning, scores, titled) if rest else set()
+        worded = (by_words(timed, share, meaning, scores, titled, joined_words(message, words))
+                  if rest else set())
         # Meaning finds a single thing asked ("pet therapy"), never a whole kind: with a kind
         # asked, its labels are the list. A team's games are named by its sport, and a team
         # question asks for the team: an NFL watch party was once the "closest event" to "is

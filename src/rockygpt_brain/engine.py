@@ -1814,9 +1814,14 @@ class ChatEngine:
                 detail.update(path=graph.path(graph.current_node), resolvedBy="service")
             elif len(serving) <= 3:  # More than that names something too common to ask about.
                 opened = {**opened, "candidates": serving}
-        if "facts" in opened and (shared := self._venues_in_building(latest)) and len(shared) > 1:
+        if (not exact_name_only and "facts" in opened
+                and (shared := self._venues_in_building(latest)) and len(shared) > 1):
             # "The cafe in the student center" names a building two venues share: one picked by
             # the model, when the student named neither, is a guess, so they are asked which.
+            # A name code chose is no guess (exact_name_only: each place in a building, an
+            # office's other lines): 11-04, "is the student center open on saturday" asked
+            # "which office do you mean" of the Atrium and Birch Tree Inn, and left out their
+            # hours, once the student's words reached those lookups for the time asked.
             called = [opened.get("label") or "", *opened.get("aliases", [])]
             message_words = " ".join(_words(latest))
             if (opened.get("label") in {venue["name"] for venue in shared}
@@ -3784,7 +3789,8 @@ class ChatEngine:
         typed ("registrar # ?"): it goes on in the student's own words. Homework and writing
         always have the same campus side, tutoring and writing help, asked when the read left
         the question empty ("solve this: ..." names no subject). What is coming up on the
-        calendar is never off-topic or a prediction."""
+        calendar is never off-topic or a prediction, and a campus question asking no choice or
+        judgment (triage.CHOICE_WORDS) is no opinion."""
         read = trace.get("read")
         corrected: triage.Reading | None = None
         if reading.social == "nonsense" and not reading.question and reading.danger == "none":
@@ -3821,6 +3827,14 @@ class ChatEngine:
             corrected = replace(reading, limit="none",
                                 question=reading.question or context.latest_message.strip())
             why = "calendar_lookup"
+        elif (reading.limit == "opinion" and reading.question
+              and not triage.CHOICE_WORDS.search(context.latest_message)):
+            # A campus question asking no choice or judgment is no opinion (11-04 practice: "does
+            # ramapo have a nursing major and how long is it" began "I can't choose for you").
+            # The read's question then also asks the opinion's campus side ("and who helps
+            # students decide?"), so the student's own words are asked.
+            corrected = replace(reading, limit="none", question=context.latest_message.strip())
+            why = "no_choice_asked"
         if corrected is None:
             return reading
         if isinstance(read, dict):

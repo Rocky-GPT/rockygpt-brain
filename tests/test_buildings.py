@@ -22,7 +22,9 @@ def in_the_student_center(key: str) -> list[dict[str, Any]]:
          "source_record_key": key}]}]
 
 
-def student_center() -> MemoryEntityFacts:
+def student_center(*, dining: bool = False) -> MemoryEntityFacts:
+    """The Student Center with two offices; with `dining`, two food places too, which the
+    directory lists in the Student Center by its name (as the Atrium and Birch Tree Inn are)."""
     entities = [
         {"id": "b-sc", "kind": "building", "name": "Student Center (SC)",
          "aliases": ["SC", "Student Center"],
@@ -55,15 +57,41 @@ def student_center() -> MemoryEntityFacts:
         "id": "buildings:1218428", "source_key": "campus-map", "source_record_key": "1218428",
         "name": "Student Center (SC)", "source_url": MAP, "room_prefixes": ["SC"],
         "category": "Academic Buildings", "collected_at": NOW, "content_hash": "map"}]}
+    dining_hours: list[dict[str, Any]] = []
+    for key, name, saturday in (("atrium", "The Atrium", "Lunch: 11:00 AM - 08:00 PM"),
+                                ("birch", "Birch Tree Inn", "Brunch: 10:30 AM - 03:00 PM; "
+                                                            "Dinner: 05:00 PM - 07:00 PM")
+                                ) if dining else ():
+        rows = [{"id": f"{key}-{day}", "source_key": "dining",
+                 "source_record_key": f"{name}:{day}", "name": name, "day": day,
+                 "schedule": saturday if day == "Saturday" else "Lunch: 11:00 AM - 02:00 PM",
+                 "valid_from": None, "valid_until": None, "collected_at": NOW,
+                 "canonical_url": "https://example.edu/dining", "freshness_sla_hours": 36,
+                 "content_hash": f"{key}-{day}"} for day in DAYS]
+        dining_hours += rows
+        entities.append({
+            "id": key, "kind": "venue", "name": name, "aliases": [],
+            "links": [{"collection": "contacts", "source_key": "directory",
+                       "source_record_keys": [key]},
+                      {"collection": "dining_hours", "source_key": "dining",
+                       "source_record_keys": [row["source_record_key"] for row in rows]}],
+            "relationships": in_the_student_center(key)})
+        contacts.append({"id": f"c-{key}", "source_key": "directory", "source_record_key": key,
+                         "name": name, "office": "Student Center",
+                         "canonical_url": f"https://example.edu/{key}", "collected_at": NOW,
+                         "freshness_sla_hours": 24})
+    if dining_hours:
+        records["dining_hours"] = dining_hours
     return MemoryEntityFacts(dataset_version="release-1", identity_hash="identities-1",
                              entities=entities, contacts=contacts, schedules=schedules,
                              records=records, now=lambda: NOW)
 
 
-def ask(question: str) -> Any:
+def ask(question: str, *, dining: bool = False) -> Any:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
     gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
-    engine = ChatEngine(gateway, student_center(), output="written")
+    engine = ChatEngine(gateway, student_center(dining=dining), output="written")
+    engine.warm()  # As the Brain does before its first question: the venues' buildings are read.
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert gateway.inputs == []
     return result
@@ -109,6 +137,40 @@ def test_a_buildings_hours_are_the_hours_its_places_publish() -> None:
     assert "campus map" not in answer and "Commuter Lounge" not in answer
     # Only the sources the reply cites are listed: not the map, the lounge or the directory.
     assert answer.endswith("[4]\n\nSources: [4](https://example.edu/registrar)")
+
+
+def test_a_building_two_food_places_share_gives_each_ones_hours_never_asks_which() -> None:
+    # 11-04: "is the student center open on saturday" asked "Which office do you mean: Birch
+    # Tree Inn, The Atrium?" and gave neither one's hours. Code names each place in a building,
+    # so the rule that asks which of two venues a student meant (when the model picked one the
+    # student never named) has nothing to ask, the student's words reaching the lookups or not.
+    places = [("Birch Tree Inn", "building_place", "ok"), ("Registrar", "building_place", "ok"),
+              ("The Atrium", "building_place", "ok")]
+    result = ask("Is the Student Center open on Saturday?", dining=True)
+    assert result.trace["decidedBy"] == "code"
+    assert sorted(lookups(result)) == [*places[:2], ("Student Center (SC)", "building", "ok"),
+                                       places[2]]
+    answer = result.body["answer"]
+    assert "which" not in answer.casefold()
+    assert "The Atrium on Saturday, October 3: Lunch: 11:00 AM - 08:00 PM" in answer
+    assert "Birch Tree Inn on Saturday, October 3: Brunch: 10:30 AM - 03:00 PM" in answer
+    # A time asked is read from the student's words in each place's lookup, which still asks
+    # nothing about which place.
+    lookup = completion("graph_lookup", {"requests": [
+        {"query": "Student Center", "fields": ["hours"], "day": "saturday"}]})
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "is the student center open saturday after 7pm"}]})
+    engine = ChatEngine(ScriptedGateway(lookup, finish()), student_center(dining=True),
+                        output="written")
+    engine.warm()
+    late = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert sorted(lookups(late)) == [*places[:2], ("Student Center", "building", "ok"),
+                                     places[2]]
+    assert "which" not in late.body["answer"].casefold()
+    assert ("After 7:00pm on Saturday, October 3, The Atrium serves Lunch until 8:00pm."
+            in late.body["answer"])
+    assert ("Birch Tree Inn is not open after 7:00pm on Saturday, October 3: it closes at "
+            "7:00pm." in late.body["answer"])
 
 
 def test_a_lookup_the_model_names_a_building_by_finds_the_building() -> None:
