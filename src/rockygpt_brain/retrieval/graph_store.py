@@ -477,6 +477,11 @@ class GraphOnlyFacts(EntityFacts):
         if cached is not None and cached[0] == graph.path:
             return cached[1]
         with self._lock:
+            # Another question may have loaded it while this one waited: four asking at once made
+            # four loads, one after another.
+            cached = self._meaning
+            if cached is not None and cached[0] == graph.path:
+                return cached[1]
             try:
                 index = MeaningIndex.load(graph.path)
             except (OSError, ValueError, KeyError, TypeError) as exc:

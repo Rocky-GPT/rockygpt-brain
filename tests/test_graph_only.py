@@ -8,7 +8,9 @@ build script.
 import asyncio
 import json
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +35,7 @@ from rockygpt_brain.retrieval.graph_store import (
     GraphUnavailable,
     publish_release_graph,
 )
+from rockygpt_brain.retrieval.meaning import MeaningIndex
 from rockygpt_brain.settings import ConfigurationError
 from rockygpt_brain.turn import intake
 from test_campus_graph import Script, call
@@ -188,6 +191,28 @@ def test_a_graph_that_fails_a_read_is_reopened_for_the_next_question(
     monkeypatch.undo()
     assert email(service) == "published@example.edu"  # The file is opened afresh and works.
     assert service.stats()["loads"] == 2
+
+
+def test_questions_asking_at_once_load_the_meaning_index_once(
+        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service = serve(basic(), folder)
+    service.active_release()
+    loads: list[Path] = []
+
+    def slow_load(path: Path) -> None:
+        loads.append(path)
+        time.sleep(0.05)
+
+    monkeypatch.setattr(MeaningIndex, "load", staticmethod(slow_load))
+    start = threading.Barrier(6)
+
+    def ask() -> object:
+        start.wait()
+        return service.meaning_index()
+
+    with ThreadPoolExecutor(6) as pool:
+        list(pool.map(lambda _: ask(), range(6)))
+    assert len(loads) == 1  # Four questions at once made four loads, one after another.
 
 
 def configured(monkeypatch: pytest.MonkeyPatch, folder: Path) -> ChatEngine:
