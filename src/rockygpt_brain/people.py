@@ -604,12 +604,6 @@ def leaders(directory: Sequence[dict[str, Any]], message: str,
                   and "retired" not in str(e.get("school") or "").casefold()]
         leading = [e for e in titled if _LEAD_TITLE.search(str(e.get("title") or ""))
                    and id(e) not in listed]
-        if dean_asked and (school or named):
-            # A school's dean asked: only its own people lead its fields, not an office's staff
-            # whose title shares a word ("Director of ... Business Partnerships" is not the
-            # business school's; fix 4, 11-04, once staff titles were read).
-            asked_schools = {school} if school else {s for _, group in named for s in group}
-            leading = [e for e in leading if _school(e.get("school")) in asked_schools]
         for entry in leading:
             lines.append((f"{_name(entry)} leads in {field} by their directory title: "
                           f"{entry['title']}.", entry))

@@ -818,8 +818,13 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
         asked, rest = (asked_kinds(message, words) if kinds and words
                        else (frozenset(), alternatives(message, words)))
         listed = with_included(asked)
+        # A group of students asked as a kind ("any lgbtq events") also has the events its own
+        # office or club holds, whatever they are labelled (fix check 11-04: Quiet Together, held
+        # by Women's Center & LGBTQ+ Services, was missed when "LGBTQ+" was read as a kind).
+        group = words & _COMMUNITY if asked else set()
         kinded = {id(v) for v in timed
-                  if listed & set((kinds or {}).get(str(v.get("_id")), ()))}
+                  if listed & set((kinds or {}).get(str(v.get("_id")), ()))
+                  or (group and names_host(str(v.get("organizer") or ""), group))}
         share: dict[int, float] = {}
         for alternative in rest:
             for key, part in topic_share(timed, alternative, corpus or values).items():

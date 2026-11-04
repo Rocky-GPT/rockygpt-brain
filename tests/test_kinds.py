@@ -435,3 +435,16 @@ def test_a_kind_of_club_is_every_club_given_that_kind() -> None:
     assert [s["n"] for s in sources] == [4, 5] and [c["n"] for c in listed_clubs] == [4, 5]
     assert facts == [{"fact": "By what their entries describe, the club directory lists 2 "
                               "cultural and heritage clubs."}]
+
+
+def test_a_group_asked_as_a_kind_has_its_own_offices_events() -> None:
+    # Fix check 11-04: Quiet Together, held by Women's Center & LGBTQ+ Services and labelled
+    # "Other", was missed when "lgbtq" was read as a kind.
+    host = "Women's Center & LGBTQ+ Services"
+    circle = {**event(7, "QT+ Community Circle", 5), "organizer": host}
+    quiet = {**event(8, "Quiet Together", 4), "organizer": host}
+    other = {**event(9, "Book Swap", 4), "organizer": "Potter Library"}
+    calendar = [circle, quiet, other]
+    ranked, matched = rank_events(calendar, "any lgbtq events", START, END, None, calendar,
+                                  kinds={"e7": ("lgbtq",), "e8": ("other",), "e9": ("other",)})
+    assert matched and [v["title"] for v in ranked] == ["Quiet Together", "QT+ Community Circle"]
