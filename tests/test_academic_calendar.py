@@ -227,3 +227,54 @@ def test_winter_break_from_slang_is_codes_answer_with_no_model_call() -> None:
     assert result.body["answer"].endswith(f"Sources: [1]({URL})")
     assert len(gateway.inputs) == 1 and result.trace is not None
     assert result.trace["decidedBy"] == "code"
+
+
+GRADING = [*YEAR,
+           dated("2026-10-30", "Full Semester Courses - Last Day to Request Pass/Fail or Audit",
+                 "grading_option_deadline", "Fall 2026"),
+           dated("2026-12-04", "Full Semester Courses - Last Day to Request an Incomplete",
+                 "grading_option_deadline", "Fall 2026"),
+           dated("2027-03-26", "Full Semester Courses - Last Day to Request Pass/Fail or Audit",
+                 "grading_option_deadline", "Spring 2027")]
+
+
+def said_of(message: str, dates: list[dict[str, Any]], today: date = TUESDAY) -> str | None:
+    from rockygpt_brain.academic_calendar import kind_named
+    kind = kind_named(message)
+    assert kind is not None, message
+    found = dates_said(message, kind, {"terms": YEAR_TERMS, "dates": dates}, today)
+    return found[0] if found else None
+
+
+def test_can_i_still_asks_this_terms_date_even_when_it_has_passed() -> None:
+    # Fix check 11-04: "can i still switch one of my classes to audit" got the spring date, and
+    # "can i still add a class this semester" was read as finals.
+    assert said_of("can i still switch one of my classes to audit", GRADING) == (
+        "The Fall 2026 academic calendar lists [1]:\n"
+        "- Friday, October 30, 2026: Full Semester Courses - Last Day to Request Pass/Fail or "
+        "Audit (already passed)")
+    assert said_of("when is the last day to take an incomplete", GRADING) == (
+        "The Fall 2026 academic calendar lists [1]:\n"
+        "- Friday, December 4, 2026: Full Semester Courses - Last Day to Request an Incomplete")
+    added = said_of("can i still add a class this semester", GRADING)
+    assert added is not None and added.startswith("The Fall 2026 academic calendar lists [1]:")
+    assert "Add/Drop for 100% Tuition Refund (already passed)" in added
+    assert kind_asked("i think my final grade is wrong, how do i appeal it") != "finals"
+    assert kind_asked("when are finals") == "finals"
+
+
+def test_an_entry_another_term_also_lists_says_so() -> None:
+    # The winter session's first day is on the fall calendar too: said as the winter's.
+    found = said_of("when do classes begin this semester", YEAR)
+    assert found is not None
+    assert ("Thursday, December 17, 2026: First Day of Winter Classes (also on the Winter 2027 "
+            "calendar)") in found
+
+
+def test_the_breaks_an_event_question_can_name() -> None:
+    from rockygpt_brain.academic_calendar import break_spans
+    spans = break_spans({"terms": YEAR_TERMS, "dates": YEAR}, TUESDAY)
+    assert ("Thanksgiving Break (No Classes)", date(2026, 11, 25), date(2026, 11, 29)) in spans
+    assert ("Spring Break (No Classes)", date(2027, 3, 14), date(2027, 3, 21)) in spans
+    assert ("Winter Break", date(2026, 12, 16), date(2027, 1, 18)) in spans
+    assert ("Summer Break", date(2027, 5, 12), date(2027, 8, 24)) in spans

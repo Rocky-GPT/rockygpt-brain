@@ -215,8 +215,12 @@ _COURSE_WANTS = ((re.compile(r"\bcredits?\b"), " credit"),
 
 
 def code_kind(question: str, named_people: Sequence[Any],
-              programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None) -> str | None:
-    """Which code-answered question this is, or None when the model should write it."""
+              programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None,
+              breaks: Sequence[tuple[str, date, date]] = (),
+              today: date | None = None) -> str | None:
+    """Which code-answered question this is, or None when the model should write it. `breaks`
+    are the academic calendar's (name, first day, last day), so a break named ("over
+    thanksgiving break") is a window code lists."""
     text = question.casefold()
     # Who leads a school, and how to reach them: the dean's directory contacts are code's too.
     if ((reach := _REACH.search(text)) and _WHO.search(text)
@@ -224,7 +228,8 @@ def code_kind(question: str, named_people: Sequence[Any],
             and not _MORE.search(text[:reach.start()])):
         return "leaders"
     # Only what is on in a window ("what can I do this weekend"): its every word is a plain one.
-    if not named_people and not (programs and any(programs)) and plain_window(question):
+    if not named_people and not (programs and any(programs)) and plain_window(
+            question, breaks, today):
         return "events"
     if _MORE.search(text):
         return None
@@ -406,16 +411,62 @@ def with_picked(index: MeaningIndex, vectors: Sequence[Sequence[float]],
                 pool_scores: MeaningScores, pool: Sequence[tuple[str, str]],
                 arguments: dict[str, Any] | None) -> tuple[MeaningScores, list[tuple[str, str]]]:
     """The usual choice's first CORE_READ units, then the picked sections, then the rest of the
-    usual choice, at most PICKED_READ; the usual choice alone when nothing valid was picked."""
+    usual choice, at most PICKED_READ; the usual choice alone when nothing valid was picked.
+    A policy one of the core or picked units is in is read whole (with_policies)."""
     scores, order = chosen_units(index, vectors)
     picked = [pool[n - 1] for n in (arguments or {}).get("n") or []
               if isinstance(n, int) and 1 <= n <= len(pool)][:PICKED]
     if not picked:
-        return scores, order
+        return with_policies(index, (scores, order), CORE_READ)
     final = list(dict.fromkeys([*order[:CORE_READ], *picked, *order[CORE_READ:]]))[:PICKED_READ]
     merged = MeaningScores({k: pool_scores.get(k, scores.get(k, 0.0)) for k in final})
     merged.at = {k: at for k in final
                  if (at := pool_scores.at.get(k, scores.at.get(k))) is not None}
+    leading = len(dict.fromkeys([*order[:CORE_READ], *picked]))
+    return with_policies(index, (merged, final), leading)
+
+
+# A policy is read whole (Fix 3, 11-04): a section of a policy ("Undergraduate Academic Standing:
+# Academic Probation") brings the policy's other sections, so probation is read with the
+# suspension and reinstatement after it, and a grade appeal's first step with the steps after.
+# 11-04 blind run: each section of a policy was its own unit, at most 2 from one record, so a
+# reply told the first step and stopped. At most MAX_POLICY_UNITS sections are added, those after
+# a chosen one first, and only for a policy a leading unit is in (the core or a pick): a unit read
+# only to fill the list brings no policy with it.
+MAX_POLICY_UNITS = 8
+
+
+def with_policies(index: MeaningIndex, chosen: tuple[MeaningScores, list[tuple[str, str]]],
+                  leading: int) -> tuple[MeaningScores, list[tuple[str, str]]]:
+    """The units chosen, each leading unit's policy (index.policies) in the policy's order where
+    it stands, with at most MAX_POLICY_UNITS sections added in all. Each policy's sections share
+    its best chosen score, a step less for each place, so they are read together and in order."""
+    scores, order = chosen
+    policies = getattr(index, "policies", None) or {}
+    budget = MAX_POLICY_UNITS
+    final: list[tuple[str, str]] = []
+    new_scores: dict[tuple[str, str], float] = {}
+    for at, key in enumerate(order):
+        if key in final:
+            continue
+        members = policies.get(key[0]) if at < leading else None
+        if not members:
+            final.append(key)
+            new_scores[key] = scores.get(key, 0.0)
+            continue
+        mine = [k for k in members if k in order]
+        first = min(members.index(k) for k in mine)
+        others = sorted((k for k in members if k not in order),
+                        key=lambda k: (members.index(k) < first, abs(members.index(k) - first)))
+        added = set(others[:budget])
+        budget -= len(added)
+        top = max(scores.get(k, 0.0) for k in mine)
+        for place, member in enumerate(members):
+            if (member in mine or member in added) and member not in final:
+                final.append(member)
+                new_scores[member] = top - 0.0001 * place
+    merged = MeaningScores(new_scores)
+    merged.at = {k: v for k, v in scores.at.items() if k in new_scores}
     return merged, final
 
 
@@ -719,7 +770,58 @@ def dated_statements(offices: Sequence[dict[str, Any]], today: date, question: s
                               "n": section["n"]})
                 if len(facts) >= MAX_DATED:
                     return facts
+    deadline_words = {w for w in re.findall(r"[a-z]{4,}", question.casefold())} - _GENERIC_ASKED
+    for office in offices:
+        for section in office.get("sections") or []:
+            text = " ".join(str(section.get(k) or "") for k in ("text", "section_words"))
+            for said, when in _deadlines(text):
+                if said.casefold() in seen or not deadline_words & set(
+                        re.findall(r"[a-z]+", said.casefold())):
+                    continue
+                seen.add(said.casefold())
+                facts.append({"fact": f'A page says "{said}" [{section["n"]}]: '
+                                      f"{when:%B} {when.day}, {when.year} "
+                                      + ("has passed." if when < today else "is today."
+                                         if when == today else "is still to come."),
+                              "n": section["n"]})
+                if len(facts) >= MAX_DATED:
+                    return facts
     return facts
+
+
+# A deadline a page states with its year ("Applications are due by February 15, 2026", "no later
+# than 12/1/2026"): code says whether it has passed, so one gone by is never given as one still to
+# meet (blind run 11-04: a deadline from a past year was said as if ahead). Its sentence must
+# share a word of four letters or more with the question, besides words every deadline has.
+_DEADLINE = re.compile(
+    r"\b(?:deadlines?|due|no later than|not later than|last day|until|closes?|closing|by)\b"
+    r"[^.;!?]{0,40}?\b(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+)?"
+    r"(?:(" + "|".join(_MONTH_NAMES) + r")\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})"
+    r"|(\d{1,2})/(\d{1,2})/(\d{4}|\d{2}))\b", re.IGNORECASE)
+_GENERIC_ASKED = frozenset("""
+deadline deadlines date dates when what where which there their about would could should still
+until before after does have need want know tell late last time ramapo college student students
+""".split())
+
+
+def _deadlines(text: str) -> list[tuple[str, date]]:
+    """Each deadline a text states with a full date, as the words that say it and its date."""
+    found = []
+    for m in _DEADLINE.finditer(text):
+        try:
+            if m.group(1):
+                when = date(int(m.group(3)), _MONTH_NAMES.index(m.group(1).casefold()) + 1,
+                            int(m.group(2)))
+            else:
+                year = int(m.group(6))
+                when = date(year + 2000 if year < 100 else year, int(m.group(4)),
+                            int(m.group(5)))
+        except ValueError:
+            continue
+        lead = re.split(r"[.;!?]\s|\n", text[:m.start()])[-1][-80:]
+        said = " ".join((lead + m.group(0)).split()).strip(" ,–-")
+        found.append((said, when))
+    return found
 
 
 # The every-word check (Dan 11-02, "no made-up facts"): each statement of a reply may use only words

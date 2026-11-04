@@ -77,6 +77,27 @@ class MeaningUnit:
     entity_ids: tuple[str, ...]
 
 
+def policy_records(units: Sequence[MeaningUnit],
+                   labels: Mapping[tuple[str, str], tuple[str, str]],
+                   ) -> dict[str, list[tuple[str, str]]]:
+    """The records that hold one policy, each with its units in the policy's order: the first
+    unit's heading names the policy (two words or more: "Undergraduate Academic Standing") and
+    every other heading starts with that name and a colon ("Undergraduate Academic Standing:
+    Academic Probation"), as the college's policy library writes them. A page whose headings
+    say other things ("Q: ...", "Tip: ...") is no policy."""
+    by_record: dict[str, list[tuple[str, str]]] = {}
+    for unit in units:
+        by_record.setdefault(unit.record_id, []).append((unit.record_id, unit.index))
+    policies: dict[str, list[tuple[str, str]]] = {}
+    for record, keys in by_record.items():
+        headings = [labels.get(key, ("", ""))[1].strip() for key in keys]
+        name = headings[0] if headings else ""
+        if (len(keys) > 1 and len(name.split()) >= 2 and ":" not in name
+                and all(h.startswith(f"{name}: ") for h in headings[1:])):
+            policies[record] = keys
+    return policies
+
+
 class MeaningScores(dict[tuple[str, str], float]):
     """Each unit's similarity to a question; `at` says where in a long unit's text the best
     matching piece starts (absent when its opening or a written question matched best)."""
@@ -109,6 +130,8 @@ class MeaningIndex:
         self.labels: dict[tuple[str, str], tuple[str, str]] = {
             (u.record_id, u.index): (str(label[0]), str(label[1]))
             for u, label in zip(self.units, meta.get("labels") or [], strict=False)}
+        # Each policy record's units in the policy's order, by record (policy_records).
+        self.policies: dict[str, list[tuple[str, str]]] = policy_records(self.units, self.labels)
         # Each program's and course's card (id, kind), after the office cards: a program or course
         # named only in part is found by its meaning. Never office cards: they are read as offices.
         self.academic: list[tuple[str, str]] = [(str(a[0]), str(a[1]))

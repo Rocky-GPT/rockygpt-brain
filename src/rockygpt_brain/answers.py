@@ -90,7 +90,12 @@ def _value_text(key: str, value: Any) -> str:
             (literal(item["location"]) +
              (" (" + literal(item["label"]) + ")" if item.get("label") else ""))
             if isinstance(item, dict) and set(item) <= {"location", "label"}
-            and isinstance(item.get("location"), str) else literal(item)
+            and isinstance(item.get("location"), str)
+            # A building given with its campus map link, by its name and the link.
+            else (literal(item["name"]) + " (campus map: " + literal(item["map"]) + ")"
+                  if item.get("map") else literal(item["name"]))
+            if isinstance(item, dict) and set(item) <= {"name", "map"}
+            and isinstance(item.get("name"), str) else literal(item)
             for item in value)
     if key == "menu" and isinstance(value, dict) and isinstance(value.get("meals"), list):
         return _menu_text(value)
@@ -362,8 +367,7 @@ def render_facts(facts: dict[str, Any]) -> Rendered:
             }
             links = " ".join(f"[{literal(first['source_key'])}]({url})" for url in urls)
             checked = literal(absence["checked_at"][:10])
-            line = (f"{label}: not published on the reviewed official pages "
-                    f"(checked {checked}) {links}")
+            line = f"{label}: not listed on its pages (checked {checked}) {links}"
             if absence.get("scope"):
                 line += f". Scope: {literal(absence['scope'])}"
             if absence.get("reason"):
