@@ -728,3 +728,24 @@ def test_the_engine_reads_a_program_named_in_full_when_the_pick_leaves_it_out() 
     # "Accounts" of an office the message names is no program's word, whole or short.
     message = "my student account at the Student Accounts office"
     assert engine._named_in_full(engine._programs_named(message), message) == ([], [])
+
+
+def test_a_degree_of_its_own_names_its_programs_and_a_root_word_is_no_short_form() -> None:
+    # Fix check 11-04: "tell me about the MPP" and "what's the RN to BSN" named no program, and
+    # "account" in "my account" stood for Accounting.
+    from rockygpt_brain.academics import named_in_full
+    programs = [*PROGRAMS, *({"id": f"d{n}", "name": name, "aliases": []} for n, name in
+                             enumerate(["Public Policy MPP", "Accounting BS", "Marketing BS",
+                                        "Management BS"]))]
+    assert names(find_programs(programs, "tell me about the MPP")) == ["Public Policy MPP"]
+    assert names(find_programs(programs, "what's the RN to BSN")) == ["Nursing RN to BSN"]
+    assert names(find_programs(programs, "is the bsn hard")) == [
+        "Nursing Generic BSN", "Nursing RN to BSN"]
+    assert names(named_in_full(find_programs(programs, "tell me about the MPP"),
+                               "tell me about the MPP")) == ["Public Policy MPP"]
+    # A BS or an MS is any of dozens.
+    assert find_programs(programs, "is a bs better than a ba") == []
+    for message in ("how do i reset my account password", "is the market open",
+                    "how do i manage my schedule"):
+        assert find_programs(programs, message) == [], message
+    assert names(find_programs(programs, "accounting major")) == ["Accounting BS"]

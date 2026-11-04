@@ -234,6 +234,12 @@ def by_meaning(scores: Sequence[tuple[str, float]], names: dict[str, str]) -> li
             ][:MAX_PEOPLE]
 
 
+def page_of(entry: dict[str, Any]) -> str | None:
+    """The page a person's facts are cited to: their faculty profile, else the office page that
+    lists them as staff (fix 4, 11-04)."""
+    return entry.get("profile_url") or entry.get("staff_page")
+
+
 def person_evidence(facts: dict[str, Any], n: int, near_spelling: bool = False) -> dict[str, Any]:
     """What the reply is given for one person: the directory's and profile's published facts,
     and whether the question named them only by a near spelling."""
@@ -471,9 +477,14 @@ def person_text(item: dict[str, Any], message: str) -> str | None:
     if item.get("near_spelling_of_asked_name") or not item.get("name"):
         return None
     title, school = item.get("title"), _school(item.get("school"))
+    # A staff member is said with the office whose page lists them (fix 4, 11-04).
+    office = (item.get("department") if item.get("staff_page") and not school
+              and str(item.get("department") or "").casefold() not in str(title).casefold()
+              else None)
     said = [(f"{literal(_name(item))} is {literal(title)}" if title
              else f"The directory lists {literal(_name(item))} with no title")
-            + (f" in the {literal(school)}." if school else ".")]
+            + (f" in the {literal(school)}." if school
+               else f" ({literal(office)})." if office else ".")]
     for key, label in _asked(message):
         value = item.get(key)
         if value:
@@ -482,6 +493,8 @@ def person_text(item: dict[str, Any], message: str) -> str | None:
             shown = shown.strip().rstrip(".")
             said.append(f"{_FIELD_LABELS[key]}: "
                         f"{shown if key in ('email', 'phone') else literal(shown)}.")
+        elif item.get("staff_page") and not item.get("profile_url"):
+            said.append(f"The office's staff page lists no {label}.")
         elif key in _PROFILE_FIELDS:
             said.append(f"The faculty profile lists no {label}.")
         else:
@@ -779,7 +792,10 @@ def course_teachers(directory: Sequence[dict[str, Any]], codes: Sequence[str],
                     titles: dict[str, str]) -> list[dict[str, Any]]:
     """Everyone whose faculty profile lists one of the courses, by its code or by its title (a
     profile's title with no number in a series names the whole series), in the directory's
-    order; a retired listing is kept, and said as retired (course_teachers_text)."""
+    order. A retired professor's profile still lists what they taught, so retired listings are
+    left out when anyone else lists the course (11-04 live check: "who teaches intro to psych"
+    named a retired professor); when only retired ones do, they are kept and said as retired
+    (course_teachers_text)."""
     keys = {course_key(titles[code]) for code in codes if code in titles}
     found = []
     for entry in directory:
@@ -791,7 +807,13 @@ def course_teachers(directory: Sequence[dict[str, Any]], codes: Sequence[str],
                     base == b and (not series or bool(series & n)) for b, n in keys if b):
                 found.append(entry)
                 break
-    return found
+    active = [e for e in found if not _retired(e)]
+    return active or found
+
+
+def _retired(entry: dict[str, Any]) -> bool:
+    """Whether the directory or the profile lists a person as retired."""
+    return any("retired" in str(entry.get(key) or "").casefold() for key in ("school", "title"))
 
 
 def catalog_title(title: str) -> str:

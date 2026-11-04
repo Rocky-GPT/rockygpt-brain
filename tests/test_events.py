@@ -756,3 +756,25 @@ def test_a_reply_the_model_wrote_is_followed_by_the_event_its_question_names() -
     assert added.body["answer"].endswith(
         "at Student Center (SC) [2]\n\nSources: [1](https://a.edu/ps) "
         "[2](https://archway.ramapo.edu/rsvp_boot?id=n)")
+
+
+def test_more_event_questions_reach_the_calendar() -> None:
+    # Fix check 11-04: each of these was answered from pages without the calendar.
+    from rockygpt_brain.events import asks_club_events, asks_occasion
+    assert asks_events("any volunteer opportunities this month?")
+    assert asks_events("is there any narcan training on campus")
+    assert asks_occasion("is there anything on campus for veterans day")
+    assert asks_events("is there anything on campus for veterans day")
+    assert asks_club_events("is there a jewish student group? anything going on with them soon")
+    assert asks_events("is there a jewish student group? anything going on with them soon")
+    # A time beside a bill, a deadline or a grade asks when that is, not what is on.
+    for other in ("is my tuition bill due this month", "when do grades come out this week",
+                  "is there a payment deadline next week"):
+        assert not asks_events(other), other
+    # A club's existence alone still reads no events, and neither does "going on hikes".
+    assert not asks_events("is there a hiking club? i like going on hikes")
+    assert not asks_events("how do i get trained to be an RA")
+
+
+def test_next_month_is_the_whole_next_month() -> None:
+    assert span("any events next month") == ("Sun 11-01 00:00", "Mon 11-30 23:59", "in November")

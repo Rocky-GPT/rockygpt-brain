@@ -255,6 +255,10 @@ def test_events_for_commuters_names_commuter_affairs() -> None:
     assert names_host("Commuter Affairs", asked_topic("any events for commuters"))
     assert not names_host("Health Promotion", asked_topic("any health events"))
     assert not names_host("College Programming Board", asked_topic("any board game events"))
+    # A group of students names the office or club for it (fix check 11-04).
+    assert names_host("Women's Center & LGBTQ+ Services", asked_topic("any lgbtq events this week"))
+    assert names_host("Chabad Jewish Student Club", asked_topic("any jewish events soon"))
+    assert not names_host("Women's Center & LGBTQ+ Services", asked_topic("any service events"))
 
 
 def test_a_kind_asked_lists_the_narrower_kinds_it_includes() -> None:

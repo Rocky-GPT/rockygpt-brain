@@ -34,14 +34,15 @@ _EVENT_WORDS = re.compile(
     r"(?:a|an|any|ice[- ]cream|welcome|pizza|holiday)\s+social\b(?!\s+(?:sciences?|work))|"
     r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming|contests?|competitions?|"
     r"costume|hunts?|5ks?|races?|walks? for|charity walks?|haunted|try ?outs?|auditions?)\b")
-# Sessions or meetings a question asks for ("any study sessions", "any book clubs meeting") may
-# be the calendar's or an office's service (tutoring, counseling, advising), so the calendar is
-# read and the model writes from it and the pages; a term ("summer session") or "is school in
-# session" is the academic calendar's (11-03 practice: "any study sessions" and "any book clubs
-# meeting" never reached the calendar).
+# Sessions, meetings or trainings a question asks for ("any study sessions", "any book clubs
+# meeting", "is there any narcan training") may be the calendar's or an office's service
+# (tutoring, counseling, advising, safety trainings), so the calendar is read and the model writes
+# from it and the pages; a term ("summer session") or "is school in session" is the academic
+# calendar's (11-03 practice: "any study sessions" and "any book clubs meeting" never reached the
+# calendar; fix check 11-04: nor did "is there any narcan training on campus").
 _SESSIONS_ASKED = re.compile(
     r"\b(?:any|are there|is there an?)\b(?:\s+(?!summer\b|winter\b|spring\b|fall\b|in\b)[\w'’]+)"
-    r"{0,3}\s+(?:sessions?|meetings?|meeting|meets?)\b")
+    r"{0,3}\s+(?:sessions?|meetings?|meeting|meets?|trainings?)\b")
 # A team a student can join ("is there a hockey team", "how do I join the cheer team") is a club
 # sports entry in the club directory ("Ramapo College Ice Hockey Club", "RCNJ Cheer"), and its
 # games are on the calendar; "the IT team" or "my team" asks about neither (11-03 practice: "is
@@ -51,10 +52,13 @@ _TEAM_ASKED = re.compile(
     r"do (?:you|we|they) have)\b.*\bteams?\b"
     r"|\b(?:join|joining|try ?outs?|tryouts?)\b.*\bteams?\b"
     r"|\bteams?\b.*\b(?:try ?outs?|tryouts?)\b")
-# A time alone asks for the calendar ("anything tonight?"), but not beside a subject code answers
-# from its own records: "dinner at the Birch tonight" is the menu, "the last shuttle tonight" the
-# timetable, "is the Library open tonight" its hours.
+# A time alone asks for the calendar ("anything tonight?", "any volunteer opportunities this
+# month?"), but not beside a subject code answers from its own records: "dinner at the Birch
+# tonight" is the menu, "the last shuttle tonight" the timetable, "is the Library open tonight"
+# its hours (fix check 11-04: "this month" was no time, so the month's service events were
+# never read).
 _WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr|this week|next week|"
+                         r"this month|next month|"
                          r"(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|"
                          r"sunday))\b")
 _SUBJECT_WORDS = (
@@ -62,6 +66,10 @@ _SUBJECT_WORDS = (
     "buses train hours open opens close closes closing closed weather forecast rain raining "
     "rainy snow snowing snowy temperature temperatures").split()
 _OTHER_SUBJECT = re.compile(r"\b(?:" + "|".join(_SUBJECT_WORDS) + r")\b")
+# A time beside a bill, a deadline or a grade asks when that is ("is my bill due this month",
+# "when do grades come out this week"), not what is on.
+_DUE_SUBJECT = re.compile(r"\b(?:due|deadlines?|bills?|billing|pay|paid|payments?|tuition|rent|"
+                          r"refunds?|fees?|grades?|transcripts?|registration|register)\b")
 _CLUB_WORDS = re.compile(
     r"\b(?:clubs?|organi[sz]ations?|orgs?|greek|sororit(?:y|ies)|fraternit(?:y|ies)|"
     r"student groups?|honor societ(?:y|ies))\b")
@@ -97,13 +105,15 @@ _NOT_TOPIC = discovery_tokens(
 _NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b|\bshows\s+(?:a|an|the|my|"
                         r"me|it|him|her|them|how|what|which|no|as)\b")
 # An occasion ("Black Solidarity Week", "Pride Month", "Veterans Day") asked about by what is on
-# for it ("anything for", "what's planned for", "how is ... celebrated") is the calendar's: its
-# events are the answer (11-03 practice: "anything for black solidarity week" never reached the
-# calendar, and the reply missed its two events). The occasion is named by at least one word
-# that is not a time ("this week", "a week", "the first day").
+# for it ("anything for", "anything on campus for", "what's planned for", "how is ...
+# celebrated") is the calendar's: its events are the answer (11-03 practice: "anything for black
+# solidarity week" never reached the calendar, and the reply missed its two events; fix check
+# 11-04: nor did "is there anything on campus for veterans day"). The occasion is named by at
+# least one word that is not a time ("this week", "a week", "the first day").
 _OCCASION = (
     re.compile(r"\b(?:anything|something|planned|scheduled|do|doing)\s+(?:(?:happening|going on|"
-               r"special|planned|scheduled)\s+)?(?:for|during|around)\s+((?:[\w'’-]+\s+){1,4}?)"
+               r"special|planned|scheduled)\s+)?(?:(?:on campus|at ramapo|at school|here)\s+)?"
+               r"(?:for|during|around)\s+((?:[\w'’-]+\s+){1,4}?)"
                r"(?:week|month|weekend|day)\b"),
     re.compile(r"\b(?:celebrat\w*|observ\w*|commemorat\w*|recogni[sz]\w*)\s+((?:[\w'’-]+\s+)"
                r"{1,4}?)(?:week|month|weekend|day)\b"),
@@ -148,7 +158,8 @@ def asks_events(message: str) -> bool:
         return False
     return bool(_EVENT_WORDS.search(text) or _SESSIONS_ASKED.search(text) or asks_team(message)
                 or asks_occasion(text)
-                or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
+                or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)
+                    and not _DUE_SUBJECT.search(text)))
 
 
 # Starting a club ("how do I start my own club", "can we form a new organization") asks how a
@@ -363,6 +374,10 @@ def _days(message: str, now: datetime,
         last = (date(today.year + (today.month == 12), today.month % 12 + 1, 1)
                 - timedelta(days=1))
         return now, _end(last, now), "this month"
+    if "next month" in text:
+        first = date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+        last = date(first.year + (first.month == 12), first.month % 12 + 1, 1) - timedelta(days=1)
+        return _start(first, now), _end(last, now), f"in {first:%B}"
     named_month = month_asked(message)
     if named_month is not None:
         year = today.year if named_month >= today.month else today.year + 1
@@ -482,12 +497,27 @@ _FORM = _stems(
 _VERSUS = re.compile(r"\bvs\b\.?", re.I)
 
 
+# Groups of students an office or club is for: a question asking only for one group's events
+# ("any lgbtq events", "anything going on with the jewish student group") asks for what that
+# group's own office or club holds, whatever its listing says (fix check 11-04: Quiet Together,
+# held by Women's Center & LGBTQ+ Services, and Kosher Sushi Night, by the Chabad Jewish Student
+# Club, were missed because their listings never say "lgbtq" or "jewish"). A subject ("health")
+# is not a group: Health Promotion's events are not all health events.
+_COMMUNITY = _stems("lgbtq lgbt lgbtqia queer gay lesbian trans transgender pride women womens "
+                    "jewish muslim christian catholic hindu sikh buddhist black african "
+                    "caribbean latino latina latinx hispanic asian indigenous native veterans "
+                    "veteran military international commuters commuter transfer nontraditional "
+                    "first-generation parents")
+
+
 def names_host(organizer: str, words: AbstractSet[str]) -> bool:
     """Whether a question's topic words name an event's host: two of the words its name says what
     it is by, or its one such word ("data science" names the Data Science Club, "board" alone
-    not the College Programming Board)."""
+    not the College Programming Board), or the question names only a group of students its name
+    says it is for (_COMMUNITY: "lgbtq" names Women's Center & LGBTQ+ Services)."""
     own = _stems(organizer) - _HOST_FILLER
-    return bool(own) and len(own & words) >= min(2, len(own))
+    return bool(own) and (len(own & words) >= min(2, len(own))
+                          or bool(words) and words <= own and words <= _COMMUNITY)
 
 
 def _about(value: dict[str, Any], words: AbstractSet[str] = frozenset(),
@@ -788,8 +818,13 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
         asked, rest = (asked_kinds(message, words) if kinds and words
                        else (frozenset(), alternatives(message, words)))
         listed = with_included(asked)
+        # A group of students asked as a kind ("any lgbtq events") also has the events its own
+        # office or club holds, whatever they are labelled (fix check 11-04: Quiet Together, held
+        # by Women's Center & LGBTQ+ Services, was missed when "LGBTQ+" was read as a kind).
+        group = words & _COMMUNITY if asked else set()
         kinded = {id(v) for v in timed
-                  if listed & set((kinds or {}).get(str(v.get("_id")), ()))}
+                  if listed & set((kinds or {}).get(str(v.get("_id")), ()))
+                  or (group and names_host(str(v.get("organizer") or ""), group))}
         share: dict[int, float] = {}
         for alternative in rest:
             for key, part in topic_share(timed, alternative, corpus or values).items():
@@ -1124,6 +1159,15 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                                   "by their listings: "
                                   + "; ".join(f"{line['event']} [{line['n']}]" for line in near)
                                   + ".", "n": near[0]["n"]})
+        if outside:
+            near_only = all(line.get("near_in_meaning") for line in outside)
+            facts.append({"fact": f"After {span}, the calendar's next events "
+                                  + (f"only near {topic or 'the question'} in meaning, not named "
+                                     "by their listings" if near_only else about)
+                                  + ", by date: "
+                                  + "; ".join(f"{line['event']} ({line['when']}) [{line['n']}]"
+                                              for line in outside) + ".",
+                          "n": outside[0]["n"]})
     else:
         about = (f"about {topic}" if topic else "whose listing mentions food" if food
                  else "about what was asked")
@@ -1359,6 +1403,16 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                        f"No event {phrase} is listed by name for what you asked; these are the "
                        f"closest in meaning (of {in_window} events then) {cal}:"),
                       *said(near, start, end)]
+        later = [line for line in outside if _starts(line["_value"]) is not None]
+        if parts and later:
+            # No time was named, so the two weeks are the calendar's default, not the student's:
+            # the topic's next later dates follow, always said under their day, and said as only
+            # near in meaning when none of them is named by its listing.
+            near_only = all((line.get("_value") or {}).get("_matched_by") == "meaning"
+                            for line in later)
+            parts += [("Later on the calendar, only near it in meaning:" if near_only
+                       else "Later on the calendar, also matching what you asked:"),
+                      *said(later, start, start + timedelta(days=1))]
         return "\n\n".join(parts) if parts else None
     parts = [f"The calendar lists no {kinds_said} events {phrase} {cal}." if only_kinds
              else f"The calendar lists no event {phrase} that matches what you asked {cal}."]
@@ -1381,8 +1435,16 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
 _ONLINE = re.compile(r"(?:online|virtual|zoom|remote)\b", re.I)
 
 
+# What a club has on asks for its events: when it meets, its next events, "anything going on with
+# them soon" (fix check 11-04: "is there a jewish student group? anything going on with them
+# soon" was read as asking only whether the club exists, and its events were never read). "I like
+# going on hikes" asks for none.
 _CLUB_TIME_ASK = re.compile(r"\b(?:when|meet|meets|meeting|meetings|perform\w*|events?|"
-                            r"schedule|next|upcoming|coming up)\b")
+                            r"schedule|next|upcoming|coming up|soon|"
+                            r"(?:anything|something|what'?s|whats|what is)\s+(?:[\w'’]+\s+)?"
+                            r"(?:going on|happening)|"
+                            r"(?:going on|happening)\s+(?:with|at|for|this|next|today|tonight|"
+                            r"tomorrow))\b")
 
 
 def asks_club_events(message: str) -> bool:
