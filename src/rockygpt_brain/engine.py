@@ -6,6 +6,7 @@ output capability: checking a citation ID alone would not prove its claims.
 """
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -27,6 +28,7 @@ from rockygpt_brain import (
     contacts,
     events,
     one_call,
+    page_facts,
     teams,
     triage,
 )
@@ -73,7 +75,7 @@ from rockygpt_brain.retrieval import (
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
-from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.router import (
     asks_inside,
     code_route,
@@ -107,6 +109,20 @@ from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
 _Value = TypeVar("_Value")
+
+# The writer a request asks for ("template" or "ai"; ChatRequest.writer), for this turn only:
+# `rocky ask --writer` and the dev UI try both writers on the same question. The student site
+# never sends it, so students get the settings' writers.
+_REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_writer", default=None)
+
+
+def _writer_setting(name: str, default: str, allowed: Sequence[str]) -> str:
+    """A writer setting's value, or the default when it is unset or not one allowed. "1" is
+    "ai", as BRAIN_LOOKUP_WRITER=1 was before the setting named its writer."""
+    value = os.environ.get(name, "").strip().casefold()
+    value = "ai" if value == "1" else value
+    return value if value in allowed else default
 # Each office with the words of a service label it lists and that label's last word (a
 # "Mailroom" contact is a mailroom), for the services no office is named after.
 _ServiceLabels = list[tuple[dict[str, Any], frozenset[str], frozenset[str]]]
@@ -1403,7 +1419,7 @@ class ChatEngine:
                  output: Literal["text", "json", "written"] = "text",
                  howto_one_call: bool | None = None, lookup_writer: bool | None = None,
                  read_first: bool | None = None, reads: int | None = None,
-                 picks: int | None = None) -> None:
+                 picks: int | None = None, page_writer: str | None = None) -> None:
         self.gateway, self.facts = gateway, facts
         # Dan 11-03: in written output one small model call reads what kind of message it is
         # before anything is searched (triage.py), unless code already understands the whole
@@ -1426,10 +1442,17 @@ class ChatEngine:
         # verifier cannot hold to the view is replaced by the code-written text.
         self.output = output
         # Who writes a lookup answer (hours, contacts, rooms, menus): code's plain sentences from
-        # the writer view (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=1. Dan 11-02: code,
-        # the same every time and never a made-up word; an AI layer can come back later.
-        self.lookup_writer = (os.environ.get("BRAIN_LOOKUP_WRITER") == "1"
+        # the writer view (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=ai. Dan 11-02:
+        # code, the same every time and never a made-up word.
+        self.lookup_writer = (_writer_setting("BRAIN_LOOKUP_WRITER", "template",
+                                              page_facts.WRITERS) == "ai"
                               if lookup_writer is None else lookup_writer)
+        # Who writes a page answer (a policy or how-to from the pages; Dan's two-stage plan,
+        # 11-04): "template" or "ai" say the facts code and a sentence pick chose first
+        # (page_facts.py); "one_call", the default until the check set shows the two stages
+        # better, is one model call that chooses the facts while it writes (one_call.py).
+        self.page_writer = (page_writer if page_writer is not None else _writer_setting(
+            "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call")))
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -1459,7 +1482,19 @@ class ChatEngine:
         return ChatEngine(self.gateway, facts, turn_seconds=self.turn_seconds,
                           max_turn_nusd=self.max_turn_nusd, output=self.output,
                           howto_one_call=self.howto_one_call, lookup_writer=self.lookup_writer,
-                          read_first=self.read_first, reads=self.reads, picks=self.picks)
+                          read_first=self.read_first, reads=self.reads, picks=self.picks,
+                          page_writer=self.page_writer)
+
+    def _lookup_writer_now(self) -> bool:
+        """Whether this turn's lookups are written by a model: the request's writer, if it names
+        one, else the setting."""
+        asked = _REQUEST_WRITER.get()
+        return asked == "ai" if asked in page_facts.WRITERS else self.lookup_writer
+
+    def _page_writer_now(self) -> str:
+        """This turn's page-answer writer: the request's, if it names one, else the setting."""
+        asked = _REQUEST_WRITER.get()
+        return asked if asked in page_facts.WRITERS else self.page_writer
 
     def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
         """A value read once per release (or per release and day), held as (key, value) in the
@@ -3001,6 +3036,7 @@ class ChatEngine:
         offices: list[dict[str, Any]] = []
         sources: list[dict[str, Any]] = []
         dataset_version = index.dataset_version if index else ""
+        staged: dict[str, Any] | None = None  # The two stages' reply, when they wrote it.
         # An academic question is read from what the model picks among the catalog's own names
         # when the meaning index is published; the code-named programs are its hints.
         # A question code answers alone (one_call.code_kind): its facts are read by code and said
@@ -3313,7 +3349,15 @@ class ChatEngine:
                 named = list(dict.fromkeys([*self._school_offices(
                     [p.get("school") for p in [*people, *academic]]), *named]))
                 chosen = None
-                if searchable and index is not None and index.labels:
+                # A page answer in two stages reads the same sections on every try: the usual
+                # choice by meaning, each policy whole, and no section pick (11-04 check run: with
+                # the pick, the sections read differed between tries, so the facts did).
+                two_stage = (self._page_writer_now() in page_facts.WRITERS
+                             and not academic and not calendar and not people)
+                if two_stage and searchable and index is not None:
+                    chosen = one_call.with_picked(index, vectors, MeaningScores({}), [], None)
+                    trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
+                elif searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
                         index, vectors, one_call.POOL, per_part=one_call.POOL_PER_PART,
                         per_page=one_call.POOL_PER_PAGE)
@@ -3407,24 +3451,34 @@ class ChatEngine:
                         sources = [*sources, *found_sources]
                         code_parts.insert(0, said)
                         code_view["academic_calendar"] = dated
-                budget.max_calls = max(budget.max_calls, budget.calls + 1)
-                with measure("Write the answer from the evidence"):
-                    completion = await self.gateway.complete(
-                        input=one_call.messages(latest, earlier if question != latest else None,
-                                                offices, turn.campus_now.date(), academic,
-                                                calendar, clubs, people, computed, code_parts,
-                                                contacts_by_code=True),
-                        tools=[one_call.ONE_CALL_TOOL], budget=budget)
+                # A page answer (only page sections beside what code wrote) is made in two
+                # stages when a writer for them is set: the facts first, then the writer.
+                two_stage = two_stage and bool(offices) and not clubs
+                staged = (await self._two_stage(
+                    latest, earlier if question != latest else None, offices, computed,
+                    code_parts, turn.campus_now.date(), budget, trace) if two_stage else None)
+                if staged is None:
+                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                    with measure("Write the answer from the evidence"):
+                        completion = await self.gateway.complete(
+                            input=one_call.messages(
+                                latest, earlier if question != latest else None, offices,
+                                turn.campus_now.date(), academic, calendar, clubs, people,
+                                computed, code_parts, contacts_by_code=True),
+                            tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
         except TimeoutError:
             return fallback("timeout")
         except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest, UnknownEntity) as error:
             return fallback(type(error).__name__)
-        call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
-        if call is None or call.name != "write_answer":
-            return fallback("no_reply")
-        arguments = call.arguments
+        if staged is not None:
+            arguments = staged
+        else:
+            call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+            if call is None or call.name != "write_answer":
+                return fallback("no_reply")
+            arguments = call.arguments
         # A second look: the parts the reply found no section for are searched on their own, and
         # the reply is written again with what that finds beside the first evidence.
         asks = one_call.gave_up(arguments, latest) if searchable else []
@@ -3439,20 +3493,27 @@ class ChatEngine:
                             index.dataset_version, index.identity_hash, (),
                             cap=one_call.SECOND_LOOK_UNITS, numbered_from=len(sources),
                             seen=seen)
-                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
-                    with measure("Write the answer again"):
-                        again = await self.gateway.complete(
-                            input=one_call.messages(latest,
-                                                    earlier if question != latest else None,
-                                                    [*offices, *more], turn.campus_now.date(),
-                                                    academic, calendar, clubs, people,
-                                                    computed, code_parts,
-                                                    contacts_by_code=True),
-                            tools=[one_call.ONE_CALL_TOOL], budget=budget)
-                second = again.tool_calls[0] if len(again.tool_calls) == 1 else None
-                if second is not None and second.name == "write_answer":
-                    arguments, offices, sources = (second.arguments, [*offices, *more],
-                                                   [*sources, *more_sources])
+                    restaged = (await self._two_stage(
+                        latest, earlier if question != latest else None, [*offices, *more],
+                        computed, code_parts, turn.campus_now.date(), budget, trace)
+                        if staged is not None and more else None)
+                    if restaged is None:
+                        budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                        with measure("Write the answer again"):
+                            again = await self.gateway.complete(
+                                input=one_call.messages(
+                                    latest, earlier if question != latest else None,
+                                    [*offices, *more], turn.campus_now.date(), academic,
+                                    calendar, clubs, people, computed, code_parts,
+                                    contacts_by_code=True),
+                                tools=[one_call.ONE_CALL_TOOL], budget=budget)
+                second = (None if restaged is not None else
+                          again.tool_calls[0] if len(again.tool_calls) == 1 else None)
+                if restaged is not None or (second is not None
+                                            and second.name == "write_answer"):
+                    arguments = restaged if restaged is not None else second.arguments \
+                        if second is not None else arguments
+                    offices, sources = [*offices, *more], [*sources, *more_sources]
                     trace["oneCallSecondLook"] = asks
             except (GatewayError, TimeoutError, DatasetChanged, EvidenceUnavailable,
                     InvalidFactRequest, UnknownEntity) as error:
@@ -3531,7 +3592,75 @@ class ChatEngine:
                               **({"academics": [p.get("program") or p.get("course")
                                                  for p in academic]}
                                  if academic else {})})
-        return answered(turn, text, "answered", citations, dataset_version)
+        result = answered(turn, text, "answered", citations, dataset_version)
+        if staged is not None and isinstance(trace.get("pageFacts"), dict):
+            # The facts the answer says, which writer said them and whether it fell back, with
+            # every page answer, as a lookup's facts come with it.
+            result = replace(result, body={**result.body, "pageFacts": trace["pageFacts"]})
+        return result
+
+    async def _two_stage(self, question: str, earlier: str | None,
+                         offices: list[dict[str, Any]], computed: Sequence[Mapping[str, Any]],
+                         already: Sequence[str], today: date, budget: TurnBudget,
+                         trace: dict[str, Any]) -> dict[str, Any] | None:
+        """A page answer in two stages (page_facts.py): the sections' sentences numbered, the
+        ones most of self.picks sentence picks choose kept with every sentence of a kind asked
+        from the same sections, then this turn's writer says them. The reply as one_call's
+        write_answer arguments (its parts, for a second look, and its text); None when no
+        sentence was picked, and the one call writes the answer instead. The facts, the writer
+        and whether it fell back go in the trace (pageFacts)."""
+        lines = page_facts.numbered(offices)
+        if not lines:
+            return None
+        with measure("Pick the facts to say"):
+            picks = await self._picks(
+                page_facts.pick_messages(question, earlier, lines, already), budget, trace,
+                tool=page_facts.PICK_TOOL, trace_key="pageFactPicks",
+                traced=lambda o: [n for part in o.get("parts") or [] if isinstance(part, dict)
+                                  for n in part.get("sentences") or []])
+        kept = page_facts.agreed(picks, len(lines))
+        if not kept:
+            trace["pageFacts"] = {"sentences": len(lines), "picked": None if kept is None else 0}
+            return None
+        page = page_facts.facts_of(question, lines, kept, today, already, computed)
+        template = page_facts.template_text(page)
+        writer = self._page_writer_now()
+        text = template
+        how: dict[str, Any] = {}
+        if writer == "ai":
+            said, how = await self._page_writer_ai(page, budget, " ".join([question, *already]))
+            text = said if said is not None else template
+        trace["pageFacts"] = {**page, "sentences": len(lines), "writer": writer,
+                              "fell_back": writer == "ai" and text is template, **how}
+        return {"parts": page_facts.chosen_parts(picks, kept, lines), "text": text}
+
+    async def _page_writer_ai(self, page: Mapping[str, Any], budget: TurnBudget, allowed: str,
+                              ) -> tuple[str | None, dict[str, Any]]:
+        """The AI writer's reply from the facts JSON alone, when code finds every fact said and
+        nothing else (page_facts.misses); one repair try with what it missed; else None, and
+        the template's text goes out. With what the check found, for the trace."""
+        last: str | None = None
+        found: dict[str, Any] | None = None
+        for tries in (1, 2):
+            budget.max_calls = max(budget.max_calls, budget.calls + 1)
+            with measure("Write the answer from the facts" if tries == 1
+                         else "Write the answer from the facts again"):
+                try:
+                    completion = await self.gateway.complete(
+                        input=page_facts.writer_messages(page, found, last),
+                        tools=[page_facts.WRITE_TOOL], budget=budget)
+                except GatewayError as error:
+                    return None, {"tries": tries, "error": error.code}
+            call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
+            said = str(call.arguments.get("text") or "").strip() \
+                if call is not None and call.name == "write_answer" else ""
+            if not said:
+                return None, {"tries": tries, "error": "no_text"}
+            found = page_facts.misses(said, page, allowed)
+            if not found:
+                return said, {"tries": tries}
+            last = said
+        return None, {"tries": 2, "misses": found}
 
     def _calendar_answer(self, turn: Turn, trace: dict[str, Any], message: str,
                          kind: str) -> ChatResult | None:
@@ -3976,6 +4105,7 @@ class ChatEngine:
         question should still be answered beside: its text comes first, as for a model's own."""
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
+        _REQUEST_WRITER.set(request.writer)
         if floor_situation is not None and self.output == "written":
             result = await self._beside_emergency(turn, request, trace, floor_situation,
                                                   read=True)
@@ -4174,7 +4304,10 @@ class ChatEngine:
         return await self._code_lookup(question)
 
     async def _picks(self, messages: list[dict[str, Any]], budget: TurnBudget,
-                     trace: dict[str, Any]) -> list[dict[str, Any] | None]:
+                     trace: dict[str, Any], tool: dict[str, Any] = one_call.PICK_TOOL,
+                     trace_key: str = "oneCallPicks",
+                     traced: Callable[[dict[str, Any]], Any] = lambda o: o.get("n"),
+                     ) -> list[dict[str, Any] | None]:
         """The section pick made self.picks times at once (one_call.PICKS), each with its own
         share of what is left of the turn's allowance, counted in the turn's; each pick's
         arguments, or None for a pick that failed, came back malformed or came late. Once most
@@ -4189,12 +4322,11 @@ class ChatEngine:
 
         async def one(share: TurnBudget) -> dict[str, Any] | GatewayError:
             try:
-                picking = await self.gateway.complete(input=messages, tools=[one_call.PICK_TOOL],
-                                                      budget=share)
+                picking = await self.gateway.complete(input=messages, tools=[tool], budget=share)
             except GatewayError as error:
                 return error
             pick = picking.tool_calls[0] if len(picking.tool_calls) == 1 else None
-            return pick.arguments if pick is not None and pick.name == "pick_units" else {}
+            return pick.arguments if pick is not None and pick.name == tool["name"] else {}
 
         tasks = [asyncio.create_task(one(share)) for share in shares]
         try:
@@ -4218,8 +4350,8 @@ class ChatEngine:
         if len(errors) == len(outcomes):
             raise errors[0]
         if len(outcomes) > 1:
-            trace["oneCallPicks"] = [
-                "late" if o is None else None if isinstance(o, GatewayError) else o.get("n")
+            trace[trace_key] = [
+                "late" if o is None else None if isinstance(o, GatewayError) else traced(o)
                 for o in outcomes]
         return [o if isinstance(o, dict) and o else None for o in outcomes]
 
@@ -5236,7 +5368,8 @@ class ChatEngine:
         emergency = packet.get("status") == "emergency"
         if not says_something(view) or emergency and not lead:
             return keep("nothing_to_write")
-        if not self.lookup_writer:
+        lookup_writer = self._lookup_writer_now()
+        if not lookup_writer:
             with measure("Write the answer from the facts in code's words"):
                 said = plain_text(view, limit=WRITER_TEXT_LIMIT)
             if said is None:
@@ -5257,7 +5390,7 @@ class ChatEngine:
                     return keep("writer_unavailable", error=getattr(error, "code", "timeout"))
         if not isinstance(said, str) or not said.strip():
             return keep("no_text")
-        if self.lookup_writer and len(said) >= WRITER_TEXT_LIMIT:
+        if lookup_writer and len(said) >= WRITER_TEXT_LIMIT:
             # A model stopped at the length limit, mid-sentence. Code's sentences are never cut:
             # a long reply quotes its pages shorter (plain_text), and is never the evidence text.
             return keep("cut_off")
@@ -5279,7 +5412,7 @@ class ChatEngine:
                    if s.get("urls") and (not marks or str(s.get("n")) in marks)]
         text = "\n\n".join([*([lead] if emergency else []), said.strip(), *fixed,
                             *([("Sources: " + " ".join(sources))] if sources else [])])
-        trace["writer"] = {"used": True, **({} if self.lookup_writer else {"by": "code"})}
+        trace["writer"] = {"used": True, **({} if lookup_writer else {"by": "code"})}
         return replace(result, body={**result.body, "answer": text})
 
     @measure("Compose partial or failed response")

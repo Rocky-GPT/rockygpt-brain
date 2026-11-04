@@ -27,6 +27,10 @@ of this office-facts slice.
 - `omittedMessages` is an optional integer from 0 to 100,000. It records messages
   removed by the caller. The service also reports its own context truncation to
   the model. Missing history is not evidence that something was never said.
+- `writer` is optional, `template` or `ai`: which writer says this answer's facts, for
+  lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
+  `BRAIN_PAGE_WRITER`). It is for trying both writers on one question; the student app never
+  sends it.
 - Unknown JSON fields are rejected. Malformed input returns HTTP 422 with the
   standard failure envelope and sanitized validation details; student input is
   not echoed into those details.

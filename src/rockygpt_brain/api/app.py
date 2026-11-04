@@ -170,7 +170,7 @@ def _configured_engine() -> ChatEngine:
     settings = ProviderSettings.from_env()
     # BRAIN_OUTPUT=json: answers carry the facts as typed JSON parts and no written text.
     # BRAIN_OUTPUT=written: the same, and a writer with only the writer view says them: code's
-    # plain sentences (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=1.
+    # plain sentences (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=ai.
     mode = os.getenv("BRAIN_OUTPUT", "").strip().lower()
     output: Literal["text", "json", "written"] = (
         "written" if mode == "written" else "json" if mode == "json" else "text")
