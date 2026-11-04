@@ -87,7 +87,9 @@ Fill every field:
   asking what a dish contains because of an allergy or a diet: that is a question about the menu,
   not health or food_or_housing. A medical question is health however plainly it is asked, with
   or without a problem told: which medicine to take, whether medicines can be taken together, a
-  dose, whether a medicine or treatment is safe, what a symptom means.
+  dose, whether a medicine or treatment is safe, what a symptom means. Asking where or whether
+  to get a health service on campus (a flu shot, an appointment, a test, a prescription) is a
+  practical question, with no need unless the student also says they are sick or hurt.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
