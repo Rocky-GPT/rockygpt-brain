@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -18,7 +19,16 @@ from typing import Any, Literal, Protocol, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from rockygpt_brain import academic_calendar, academics, catalog, contacts, events, one_call, triage
+from rockygpt_brain import (
+    academic_calendar,
+    academics,
+    catalog,
+    contacts,
+    events,
+    one_call,
+    teams,
+    triage,
+)
 from rockygpt_brain import kinds as kinds_module
 from rockygpt_brain import people as people_module
 from rockygpt_brain.answers import (
@@ -69,6 +79,7 @@ from rockygpt_brain.router import (
     places_named,
     rooms_said,
     shuttle_route,
+    without_places,
 )
 from rockygpt_brain.shuttle import (
     SCOPE_TEXT,
@@ -1355,6 +1366,10 @@ class ChatEngine:
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._upcoming_cache: tuple[tuple[str, str], list[dict[str, Any]]] | None = None
+        # How many calendar listings say each word (per release and day) and how many page
+        # sections (per meaning index), for the events a reply's question names (events.py).
+        self._listing_words: tuple[tuple[str, str], Counter[str]] | None = None
+        self._heading_words: tuple[str, Counter[str]] | None = None
         self._ordinary_words: tuple[str, frozenset[str]] | None = None
         self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
         # The buildings and every office's and venue's names, read once per release (_names).
@@ -1579,7 +1594,7 @@ class ChatEngine:
     def _names(self) -> dict[str, Any]:
         """Read once per release: the buildings by name, other names and room-number prefixes
         (as the router reads names), every office's and venue's name and other names as said
-        plainly, and each office's and venue's id by its name."""
+        plainly and as the router reads them, and each office's and venue's id by its name."""
         key = self.facts.active_release()
         if self._names_cache is not None and self._names_cache[0] == key:
             return self._names_cache[1]
@@ -1591,7 +1606,10 @@ class ChatEngine:
         names = {"buildings": buildings,
                  "places": {_said_name(str(name)) for place in places
                             for name in [place["name"], *place["aliases"]]},
-                 "ids": {str(place["name"]): place["id"] for place in places}}
+                 "ids": {str(place["name"]): place["id"] for place in places},
+                 **{f"{kind}s": [{"name": place["name"], "also_called": list(place["aliases"])}
+                                 for place in places if place["kind"] == kind]
+                    for kind in ("office", "venue")}}
         self._names_cache = (key, names)
         return names
 
@@ -1796,9 +1814,14 @@ class ChatEngine:
                 detail.update(path=graph.path(graph.current_node), resolvedBy="service")
             elif len(serving) <= 3:  # More than that names something too common to ask about.
                 opened = {**opened, "candidates": serving}
-        if "facts" in opened and (shared := self._venues_in_building(latest)) and len(shared) > 1:
+        if (not exact_name_only and "facts" in opened
+                and (shared := self._venues_in_building(latest)) and len(shared) > 1):
             # "The cafe in the student center" names a building two venues share: one picked by
             # the model, when the student named neither, is a guess, so they are asked which.
+            # A name code chose is no guess (exact_name_only: each place in a building, an
+            # office's other lines): 11-04, "is the student center open on saturday" asked
+            # "which office do you mean" of the Atrium and Birch Tree Inn, and left out their
+            # hours, once the student's words reached those lookups for the time asked.
             called = [opened.get("label") or "", *opened.get("aliases", [])]
             message_words = " ".join(_words(latest))
             if (opened.get("label") in {venue["name"] for venue in shared}
@@ -3272,6 +3295,21 @@ class ChatEngine:
                                  [{"n": 1, "url": url, "title": "Academic calendar"}], version,
                                  calendar=facts)
 
+    def _team_answer(self, turn: Turn, trace: dict[str, Any], message: str) -> ChatResult | None:
+        """The coaches, next games or results of the teams a question names, said by code
+        (teams.py); None when the release has no teams, none is named, or the check finds
+        something the records do not hold."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            found = self.facts.teams(version, identity_hash=identity_hash)
+        except (EvidenceUnavailable, DatasetChanged):
+            return None
+        said = teams.answer(message, found, turn.campus_now.date()) if found else None
+        if said is None:
+            return None
+        text, sources, records = said
+        return self._code_answer(turn, trace, text, sources, version, teams=records)
+
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
                      ) -> ChatResult | None:
@@ -3682,6 +3720,8 @@ class ChatEngine:
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
             trace["decidedBy"], trace["errorCode"] = "error", code
+        if floor_situation is None:
+            result = await self._with_related_events(turn, request, result, trace)
         # Every reply leaves by here, so this is where a web address written on its own in a
         # sentence is made into a link, whoever wrote the sentence.
         answer = result.body.get("answer")
@@ -3749,7 +3789,8 @@ class ChatEngine:
         typed ("registrar # ?"): it goes on in the student's own words. Homework and writing
         always have the same campus side, tutoring and writing help, asked when the read left
         the question empty ("solve this: ..." names no subject). What is coming up on the
-        calendar is never off-topic or a prediction."""
+        calendar is never off-topic or a prediction, and a campus question asking no choice or
+        judgment (triage.CHOICE_WORDS) is no opinion."""
         read = trace.get("read")
         corrected: triage.Reading | None = None
         if reading.social == "nonsense" and not reading.question and reading.danger == "none":
@@ -3786,6 +3827,14 @@ class ChatEngine:
             corrected = replace(reading, limit="none",
                                 question=reading.question or context.latest_message.strip())
             why = "calendar_lookup"
+        elif (reading.limit == "opinion" and reading.question
+              and not triage.CHOICE_WORDS.search(context.latest_message)):
+            # A campus question asking no choice or judgment is no opinion (11-04 practice: "does
+            # ramapo have a nursing major and how long is it" began "I can't choose for you").
+            # The read's question then also asks the opinion's campus side ("and who helps
+            # students decide?"), so the student's own words are asked.
+            corrected = replace(reading, limit="none", question=context.latest_message.strip())
+            why = "no_choice_asked"
         if corrected is None:
             return reading
         if isinstance(read, dict):
@@ -3979,6 +4028,77 @@ class ChatEngine:
                                      "datasetVersion": result.body.get("datasetVersion")
                                      or self.facts.active_release()[0]})
 
+    async def _with_related_events(self, turn: Turn, request: ChatRequest, result: ChatResult,
+                                   trace: dict[str, Any]) -> ChatResult:
+        """The reply, then the upcoming calendar events whose titles name all that its question
+        asks (events.related_events), in code's words, each citing its listing, numbered after
+        the reply's own sources. Only a reply the model wrote from the pages or lookups gets
+        them: code's own answers give the one record asked, a question about events or clubs
+        has read the calendar already, and a reply cut short or about an emergency stays as it
+        is, as does one already naming the event. The reply goes out as it was when the
+        calendar can't be read."""
+        answer = result.body.get("answer")
+        if (self.output != "written" or result.status_code != 200
+                or trace.get("decidedBy") not in ("model", "one_call")
+                or result.body.get("status") not in ("answered", "partial", "unavailable")
+                or not isinstance(answer, str) or not answer or situation_of(answer)):
+            return result
+        context = build_context(request)
+        # The read's clean question is the one answered when it was used (_answer).
+        read = trace.get("read")
+        question = ((read.get("question") if isinstance(read, dict)
+                     and not context.recent_messages else None) or context.latest_message)
+        if events.asks_events(question) or events.asks_clubs(question):
+            return result
+        try:
+            with measure("Find the upcoming events the question names"):
+                names = await asyncio.to_thread(self._names)
+                words = events.related_topic(without_places(
+                    question, names["offices"], names["venues"], names["buildings"]))
+                found = (await asyncio.to_thread(self._related_events, words, turn.campus_now)
+                         if words else [])
+        except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
+            return result
+        found = [v for v in found if str(v.get("title")).casefold() not in answer.casefold()]
+        if not found:
+            return result
+        numbered = list(enumerate(found, start=max(
+            (int(n) for n in re.findall(r"\[(\d+)\]", answer)), default=0) + 1))
+        sources = [{"n": n, "title": str(value.get("title")),
+                    "url": url if (url := str(value.get("url") or ""))
+                    and not re.search(r"[\s()]", url) else events.CALENDAR_URL}
+                   for n, value in numbered]
+        cited = SUPPORT_LINKS.search(answer)
+        body, links = (answer[:cited.start()], cited.group(1).strip()) if cited else (answer, "")
+        links = " ".join(x for x in (links, *(f"[{s['n']}]({s['url']})" for s in sources)) if x)
+        text = f"{body}\n\n{events.related_text(numbered, turn.campus_now)}\n\nSources: {links}"
+        citations = [*result.body.get("citations", []),
+                     *({"id": f"event-{s['n']}", "title": s["title"], "url": s["url"]}
+                       for s in sources)]
+        trace["relatedEvents"] = {"words": sorted(words), "events": [s["title"] for s in sources]}
+        return replace(result, body={**result.body, "answer": text, "citations": citations,
+                                     "datasetVersion": result.body.get("datasetVersion")
+                                     or self.facts.active_release()[0]})
+
+    def _related_events(self, words: set[str], now: datetime) -> list[dict[str, Any]]:
+        """The upcoming events whose titles name all of the words asked (events.related_events),
+        with how many calendar listings and page sections say each word; none without a meaning
+        index, whose sections' headings tell a common campus word from an uncommon one."""
+        index = self.facts.meaning_index()
+        if index is None:
+            return []
+        upcoming = self._upcoming_events(now)
+        if self._upcoming_cache is None:
+            return []
+        day, listed = self._upcoming_cache
+        if self._listing_words is None or self._listing_words[0] != day:
+            self._listing_words = (day, events.listing_words(listed))
+        if self._heading_words is None or self._heading_words[0] != index.dataset_version:
+            self._heading_words = (index.dataset_version,
+                                   events.heading_words(index.labels.values()))
+        return events.related_events(upcoming, words, now, self._listing_words[1],
+                                     self._heading_words[1])
+
     async def _read_emergency(self, turn: Turn, request: ChatRequest, reading: triage.Reading,
                               trace: dict[str, Any], question: str | None,
                               started: float) -> ChatResult:
@@ -4064,6 +4184,15 @@ class ChatEngine:
             with measure("Read the academic calendar"):
                 done = await asyncio.to_thread(self._calendar_answer, turn, trace,
                                                context.latest_message, calendar_kind)
+            if done is not None:
+                return done
+        # A varsity team's coaches, next games or results ("who coaches men's soccer"): code's
+        # answer from the team's record, read from the athletics site (teams.py).
+        if (self.output == "written" and floor_situation is None and not context.recent_messages
+                and teams.asked(context.latest_message)):
+            with measure("Read the varsity teams"):
+                done = await asyncio.to_thread(self._team_answer, turn, trace,
+                                               context.latest_message)
             if done is not None:
                 return done
         # A question naming a major, minor or certificate is answered from the catalog's own

@@ -11,7 +11,7 @@ window is answered in code's own words (listing_text); otherwise the model only 
 import math
 import re
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -56,10 +56,11 @@ _TEAM_ASKED = re.compile(
 _WHEN_WORDS = re.compile(r"\b(?:tonight|this weekend|next weekend|tmrw|tmr|this week|next week|"
                          r"(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|"
                          r"sunday))\b")
-_OTHER_SUBJECT = re.compile(
-    r"\b(?:menus?|eat|food|meals?|breakfast|brunch|lunch|dinner|dining|shuttles?|bus|buses|"
-    r"train|hours|open|opens|close|closes|closing|closed|weather|forecast|rain|raining|rainy|"
-    r"snow|snowing|snowy|temperatures?)\b")
+_SUBJECT_WORDS = (
+    "menu menus eat food meal meals breakfast brunch lunch dinner dining shuttle shuttles bus "
+    "buses train hours open opens close closes closing closed weather forecast rain raining "
+    "rainy snow snowing snowy temperature temperatures").split()
+_OTHER_SUBJECT = re.compile(r"\b(?:" + "|".join(_SUBJECT_WORDS) + r")\b")
 _CLUB_WORDS = re.compile(
     r"\b(?:clubs?|organi[sz]ations?|orgs?|greek|sororit(?:y|ies)|fraternit(?:y|ies)|"
     r"student groups?|honor societ(?:y|ies))\b")
@@ -528,13 +529,49 @@ WHOLE_TOPIC = 0.999
 # only mention the word sat at 1.2 or below (a therapy animal visit's QR code for "coding": 0;
 # a birdwatching outing that provides binoculars and books, for "book clubs": 1.2). Three
 # spreads, the bar for meaning alone, left out the cookie art and magnet decorating nights and
-# the commuter lunch.
+# the commuter lunch. The gap is narrow: on the 11-04 dev calendar the birdwatching outing came
+# out above it, so words a question joins to a club's word are also checked (joined_words).
 SAID_AGREES = 1.5
+
+
+def joined_words(message: str, words: AbstractSet[str]) -> list[tuple[str, ...]]:
+    """The topic words (`words`) a question says joined to a club's or group's word, as plain
+    forms in the order said: "any book clubs meeting" says (book, club), "black student union
+    events" (black, student, union). The club's word is no topic word (asked_topic), but with
+    it the question names a thing ("a book club"), not a word a listing may only mention."""
+    runs: list[tuple[str, ...]] = []
+    run: list[str] = []
+    for stem in [*(_stem(word) for word in _said(message)), ""]:
+        if stem and (stem in words or stem in _GENERIC_STEMS):
+            run.append(stem)
+            continue
+        if any(s in words for s in run) and any(s in _GENERIC_STEMS for s in run):
+            runs.append(tuple(run))
+        run = []
+    return runs
+
+
+def _passing(value: dict[str, Any], joined: Sequence[tuple[str, ...]]) -> bool:
+    """Whether a listing says a topic word the question joins to a club's word (joined_words)
+    but never the two together: a word said in passing, not the thing asked (11-04 practice:
+    "Binoculars and books will be provided" listed a birdwatching outing for "any book clubs
+    meeting")."""
+    text = " ".join([str(value.get("title") or ""), " ".join(value.get("tags") or []),
+                     str(value.get("description") or ""), str(value.get("organizer") or ""),
+                     str(value.get("location") or "")])
+    said = [_stem(word) for word in _said(text)]
+    for run in joined:
+        if ({s for s in run if s not in _GENERIC_STEMS} <= set(said)
+                and not any(tuple(said[k:k + len(run)]) == run
+                            for k in range(len(said) - len(run) + 1))):
+            return True
+    return False
 
 
 def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
              meaning: Mapping[int, float], scores: Mapping[str, float] | None,
-             titled: AbstractSet[int] = frozenset()) -> set[int]:
+             titled: AbstractSet[int] = frozenset(),
+             joined: Sequence[tuple[str, ...]] = ()) -> set[int]:
     """The window's events (by id of their value) whose listing names what was asked: every word
     of it; or, when no listing does, most of its weight (TOPIC_SHARE). Where the words are only in
     a listing's description (`titled` holds the events whose title, tags, host or place hold
@@ -543,15 +580,21 @@ def by_words(timed: Sequence[dict[str, Any]], share: Mapping[int, float],
     alone. A word can be the same and the thing different (11-03 practice: "saving money" found
     "a life saving drug", "sports games" a birdwatching outing tagged Sports/Recreation and a
     trading card game meeting, while the basketball games held both words; "coding workshops"
-    found a therapy animal visit whose description says to scan the QR code)."""
+    found a therapy animal visit whose description says to scan the QR code). A description
+    saying a word the question joins to a club's word (`joined`, joined_words) but never the two
+    together counts no more than a listing naming nothing asked: its card must stand out."""
     values = (scores or {}).values()
     said_bar = standout_bar(values, SAID_AGREES) if scores else None
     bar = standout_bar(values) if scores else None
 
     def agrees(value: dict[str, Any], at: float | None) -> bool:
         return at is None or meaning[id(value)] >= at
+
+    def said_with(value: dict[str, Any]) -> bool:
+        return (not _passing(value, joined)
+                or (bar is not None and meaning[id(value)] >= bar))
     whole = {id(v) for v in timed if share.get(id(v), 0.0) >= WHOLE_TOPIC
-             and (id(v) in titled or agrees(v, said_bar))}
+             and (id(v) in titled or (agrees(v, said_bar) and said_with(v)))}
     if whole:
         return whole
     return {id(v) for v in timed if share.get(id(v), 0.0) >= TOPIC_SHARE and agrees(v, bar)}
@@ -647,7 +690,8 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                   if any(alternative <= _about(v, alternative, description=False)
                          for alternative in rest)}
         meaning = {id(v): (scores or {}).get(str(v.get("_id")), 0.0) for v in timed}
-        worded = by_words(timed, share, meaning, scores, titled) if rest else set()
+        worded = (by_words(timed, share, meaning, scores, titled, joined_words(message, words))
+                  if rest else set())
         # Meaning finds a single thing asked ("pet therapy"), never a whole kind: with a kind
         # asked, its labels are the list. A team's games are named by its sport, and a team
         # question asks for the team: an NFL watch party was once the "closest event" to "is
@@ -1060,6 +1104,86 @@ def _event_lines(numbered: Sequence[tuple[int, dict[str, Any]]], start: datetime
             + (f" ({literal(host)})" if host else "") + at + f" [{n}]")
     return ["\n".join([heading, *lines]) if heading else "\n".join(lines)
             for heading, lines in days.items()]
+
+
+# An upcoming event whose title names all that a question not about events asks is said after
+# the reply, in code's words (engine._with_related_events). 11-03 practice: "Anything about
+# Narcan?" gave the places to get naloxone and missed "You Can Narcan!", because the question
+# asks for no event and the calendar was not read. Dan (11-03) chose one code-written line for
+# such an event, limited to uncommon words so "library" doesn't pull in every library event: at
+# least one of the words is said by at most RELATED_LISTINGS of the calendar's listings and
+# RELATED_HEADINGS of the published pages' sections. Measured on the 11-03 calendar (233
+# listings) and pages (10,693 sections): "narcan" is in 1 listing and 1 section heading, "condom"
+# 1 and 0, "kosher" 1 and 0; "library" is in 458 headings, "parking" 126, "job" 214 and
+# "tutoring" 9 (a tutoring question is not followed by a volunteer tutoring outing), and "grab"
+# in 10 listings ("grab a snack"), "stress" 6, "health" 12. Tried on 65 everyday questions and
+# the 50 of the 11-03 repeat test: a line followed only questions about Narcan, condoms, kosher
+# food, Chabad, a farmers market, a passport, a food pantry and Thanksgiving. A game's title
+# names its teams, not what it is about.
+RELATED_DAYS = 30
+MAX_RELATED = 2
+RELATED_LISTINGS = 3
+RELATED_HEADINGS = 3
+RELATED_LEAD = "Coming up on the campus calendar:"
+# Words asking what is known about a thing ("any info on", "learn more about", "how do I use
+# it"), not naming it.
+_KNOWN_ASKED = _stems("info information detail details learn more use using")
+
+
+def related_topic(message: str) -> set[str]:
+    """The words an upcoming event's title must hold to be about what a question asks: its topic
+    words (topic_words), less those asking what is known (_KNOWN_ASKED), naming an event's form
+    (_FORM) or a host's kind (_GENERIC_STEMS), or a subject code answers from its own records
+    (a menu, hours, the shuttle, the weather: _SUBJECT_WORDS)."""
+    return (topic_words(message) - _KNOWN_ASKED - _FORM - _GENERIC_STEMS
+            - _stems(" ".join(_SUBJECT_WORDS)))
+
+
+def listing_words(values: Sequence[dict[str, Any]]) -> Counter[str]:
+    """How many of the calendar's listings say each word, in their title, tags, description or
+    place; a listing on several dates counts once (by its title). A host's name says who runs an
+    event, not what it is about."""
+    said: dict[str, set[str]] = {}
+    for value in values:
+        title = " ".join(str(value.get("title") or "").casefold().split())
+        text = " ".join([title, " ".join(value.get("tags") or []),
+                         str(value.get("description") or ""), str(value.get("location") or "")])
+        for word in _stems(text):
+            said.setdefault(word, set()).add(title)
+    return Counter({word: len(titles) for word, titles in said.items()})
+
+
+def heading_words(labels: Iterable[Sequence[str]]) -> Counter[str]:
+    """How many of the published pages' sections say each word in their page's place on the
+    site or their heading (the meaning index's labels)."""
+    return Counter(word for label in labels for word in _stems(" ".join(label)))
+
+
+def related_events(values: Sequence[dict[str, Any]], words: AbstractSet[str], now: datetime,
+                   listings: Mapping[str, int], headings: Mapping[str, int],
+                   ) -> list[dict[str, Any]]:
+    """The events of the next RELATED_DAYS days whose title holds every word asked
+    (related_topic), when at least one of the words is uncommon (RELATED_LISTINGS,
+    RELATED_HEADINGS): soonest first, each title once, at most MAX_RELATED, and no game."""
+    if not any(listings.get(word, 0) <= RELATED_LISTINGS
+               and headings.get(word, 0) <= RELATED_HEADINGS for word in words):
+        return []
+    found: list[dict[str, Any]] = []
+    titles: set[str] = set()
+    for value in in_window(values, now, now + timedelta(days=RELATED_DAYS)):
+        title = " ".join(str(value.get("title") or "").split())
+        if (title and title.casefold() not in titles and not _VERSUS.search(title)
+                and words <= _stems(title)):
+            titles.add(title.casefold())
+            found.append(value)
+    return found[:MAX_RELATED]
+
+
+def related_text(numbered: Sequence[tuple[int, dict[str, Any]]], now: datetime) -> str:
+    """The events related_events found, as code says them after a reply: under their day, each
+    with its time, title, host and place as published [its number]."""
+    return "\n\n".join([RELATED_LEAD,
+                        *_event_lines(numbered, now, now + timedelta(days=RELATED_DAYS))])
 
 
 def topic_text(label: str, start: datetime, end: datetime, in_window: int,

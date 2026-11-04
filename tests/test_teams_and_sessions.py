@@ -217,6 +217,39 @@ def test_a_description_saying_what_was_asked_counts_when_its_card_is_clearly_nea
     assert [v["title"] for v in ranked] == ["Silent Book Club"]
 
 
+def test_a_word_a_question_joins_to_a_clubs_word_is_said_with_it_or_its_card_stands_out(
+        ) -> None:
+    # 11-04 practice, dev calendar: the birdwatching outing whose description says "Binoculars
+    # and books will be provided" came out above the description bar (SAID_AGREES) for "any
+    # book clubs meeting", and was listed beside the silent book club. "Book clubs" names a
+    # thing: a description saying "books" without "book club" counts as naming nothing asked.
+    from rockygpt_brain.events import joined_words, rank_events
+    from test_kinds import END, START, event
+    assert joined_words("any book clubs meeting", {"book"}) == [("book", "club")]
+    assert joined_words("black student union events", {"black"}) == [
+        ("black", "student", "union")]
+    assert joined_words("any decorating events", {"decorat"}) == []
+    assert joined_words("clubs for books", {"book"}) == []
+    calendar = [event(3, "Birdwatching", 7, "Binoculars and books will be provided."),
+                event(4, "Silent Book Club", 8),
+                event(5, "Monthly Meetup", 9, "Our book club reads one novel a month.")]
+    # With these three cards, the description bar is 0.417 and the stand-out bar 0.483.
+    base = {f"x{n}": 0.30 + (n % 10) / 100 for n in range(40)}
+    books = base | {"e3": 0.42, "e4": 0.62, "e5": 0.42}
+    ranked, _ = rank_events(calendar, "any book clubs meeting", START, END, books, calendar)
+    assert [v["title"] for v in ranked] == ["Silent Book Club", "Monthly Meetup"]
+    # A card that stands out for the question is listed, as one naming nothing asked would be.
+    ranked, _ = rank_events(calendar, "any book clubs meeting", START, END,
+                            books | {"e3": 0.50}, calendar)
+    assert [v["title"] for v in ranked] == ["Birdwatching", "Silent Book Club", "Monthly Meetup"]
+    # Without meaning scores, a word said in passing is not enough.
+    ranked, _ = rank_events(calendar, "any book clubs meeting", START, END, None, calendar)
+    assert [v["title"] for v in ranked] == ["Silent Book Club", "Monthly Meetup"]
+    # Words asked with no club's word are matched as before.
+    ranked, _ = rank_events(calendar, "any events about books", START, END, books, calendar)
+    assert "Birdwatching" in [v["title"] for v in ranked]
+
+
 def test_events_for_commuters_names_commuter_affairs() -> None:
     from rockygpt_brain.events import asked_topic, names_host
     assert names_host("Commuter Affairs", asked_topic("any events for commuters"))

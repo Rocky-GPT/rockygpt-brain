@@ -32,7 +32,9 @@ import time
 import urllib.error
 import urllib.request
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,18 @@ QUESTIONS_PROMPT = (
     "short questions a student, parent or visitor might type to a campus chatbot that this entry "
     "answers, in their everyday words (not the page's wording), varied: one plain, one casual, one "
     "describing their situation. Only questions the entry really answers.")
+# Only how-to entries get questions. Questions for every page section were tried (Brain #159, dev
+# release v2-20261104003042, $0.54): on 79 how-to questions with known answer sections
+# (rockygpt-evals search-reach-2026-11-04), they brought no answer section into the 60 the one call
+# picks from that the sections' own text did not already bring (77 of 79 either way), and moved 6
+# answer sections out of its first 12 while moving 2 in. "how do i add money 2 my id card" still
+# missed "Buy Ramapo Dollars", and was once answered from PaperCut's "add funds" (11-04). Questions
+# written for 10,700 sections are 32,000 more ways for a near miss to match a student's words.
+# A build stops asking once its calls have cost QUESTIONS_BUDGET_NUSD at the chat model's bundled
+# prices, and the entries left are asked by the next build.
+QUESTIONS_BUDGET_NUSD = 1_000_000_000
+QUESTIONS_SAVE_EVERY = 100  # Batches between saves of the question cache, kept if a run stops.
+PRICES = json.loads(files("rockygpt_brain").joinpath("provider-release.json").read_text())
 QUESTIONS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["items"],
                     "properties": {"items": {"type": "array", "items": {
                         "type": "object", "additionalProperties": False,
@@ -387,41 +401,79 @@ def add_kinds(published: Path, cache_dir: Path) -> int:
     return 0 if not failed else 1
 
 
-def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]]) -> int:
-    """Three student questions per how-to entry not already in the cache, read 12 entries at a time
-    per page. Returns how many entries were read."""
+def cost_nusd(reply: dict[str, Any]) -> int:
+    """What one chat reply cost, from its usage, at the bundled prices (cached input apart)."""
+    usage = reply.get("usage") or {}
+    given = int(usage.get("input_tokens") or 0)
+    cached = int((usage.get("input_tokens_details") or {}).get("cached_tokens") or 0)
+    return ((given - cached) * int(PRICES["input_nusd_per_token"])
+            + cached * int(PRICES["cached_input_nusd_per_token"])
+            + int(usage.get("output_tokens") or 0) * int(PRICES["output_nusd_per_token"]))
+
+
+def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
+                    save: Callable[[], None] | None = None,
+                    budget_nusd: int = QUESTIONS_BUDGET_NUSD) -> tuple[int, int]:
+    """Three student questions for each how-to entry not already in the cache, read 12 entries at
+    a time per page, until the calls have cost `budget_nusd` (the rest wait for the next build).
+    `save` is called every QUESTIONS_SAVE_EVERY batches and at the end, so a run that is stopped
+    keeps what it paid for. Returns how many entries were read and what the calls cost."""
     due: dict[str, list[dict[str, Any]]] = {}
     for unit in units:
         if unit["entry"] and _digest(unit["heading"], unit["text"]) not in cache:
             due.setdefault(unit["page"], []).append(unit)
-    batches = [(page, items[k:k + 12]) for page, items in due.items()
-               for k in range(0, len(items), 12)]
+    batches = iter([(page, items[k:k + 12]) for page, items in due.items()
+                    for k in range(0, len(items), 12)])
 
-    def read(batch: tuple[str, list[dict[str, Any]]]) -> dict[str, list[str]]:
+    def read(batch: tuple[str, list[dict[str, Any]]]) -> tuple[dict[str, list[str]], int, int]:
         page, items = batch
         entries = [{"n": n, "task": u["heading"], "steps": u["text"][:500]}
                    for n, u in enumerate(items)]
         try:
             reply = _post("responses", {
                 "model": CHAT_MODEL, "store": False, "max_output_tokens": 8000,
+                # Questions in a student's words need little thought; at the default effort the
+                # model's reasoning would cost more than the questions it writes.
+                "reasoning": {"effort": "low"},
                 "input": [{"role": "system", "content": QUESTIONS_PROMPT},
                           {"role": "user", "content": json.dumps(
                               {"page": page, "entries": entries}, ensure_ascii=False)}],
                 "text": {"format": {"type": "json_schema", "name": "questions",
                                     "schema": QUESTIONS_SCHEMA, "strict": True}}})
+        except RuntimeError:
+            return {}, 0, len(items)
+        try:
             text = next((c["text"] for o in reply["output"] if o["type"] == "message"
                          for c in o["content"] if c["type"] == "output_text"), "")
             got = json.loads(text)["items"] if text else []
-        except (RuntimeError, ValueError, KeyError):
-            return {}
-        return {_digest(items[x["n"]]["heading"], items[x["n"]]["text"]):
-                [q.strip() for q in x["questions"] if q.strip()][:3]
-                for x in got if 0 <= x["n"] < len(items)}
+            found = {_digest(items[x["n"]]["heading"], items[x["n"]]["text"]):
+                     [q.strip() for q in x["questions"] if q.strip()][:3]
+                     for x in got if 0 <= x["n"] < len(items)}
+        except (ValueError, KeyError, TypeError):
+            found = {}
+        return found, cost_nusd(reply), len(items)
 
+    spent = read_count = finished = 0
+    pending: set[Future[tuple[dict[str, list[str]], int, int]]] = set()
     with ThreadPoolExecutor(16) as pool:
-        for found in pool.map(read, batches):
-            cache.update(found)
-    return sum(len(items) for _, items in batches)
+        while True:
+            while len(pending) < 16 and spent < budget_nusd:
+                batch = next(batches, None)
+                if batch is None:
+                    break
+                pending.add(pool.submit(read, batch))
+            if not pending:
+                break
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                found, cost, count = future.result()
+                cache.update(found)
+                spent, read_count, finished = spent + cost, read_count + count, finished + 1
+                if save is not None and finished % QUESTIONS_SAVE_EVERY == 0:
+                    save()
+    if save is not None:
+        save()
+    return read_count, spent
 
 
 def embed_all(texts: list[str], cache: dict[str, list[float]]) -> int:
@@ -491,8 +543,14 @@ def main(argv: list[str] | None = None) -> int:
     questions_path = args.cache / "questions.json"
     questions: dict[str, list[str]] = (json.loads(questions_path.read_text())
                                        if questions_path.exists() else {})
-    read = write_questions(units, questions)
-    questions_path.write_text(json.dumps(questions, ensure_ascii=False))
+
+    def save_questions() -> None:
+        # Written whole and renamed into place: a run stopped mid-write keeps the last whole one.
+        temporary = questions_path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(questions, ensure_ascii=False))
+        os.replace(temporary, questions_path)
+
+    read, spent = write_questions(units, questions, save_questions)
     kinds = load_kinds(args.cache)
     # A card the model could not read gets its kinds at the next build; the day's index still
     # goes out.
@@ -550,7 +608,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
           f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
-          f"({read} entries given questions, {embedded} texts embedded, {kinds_read} event and "
+          f"({read} entries given questions for ${spent / 1e9:.2f}, {embedded} texts embedded, "
+          f"{kinds_read} event and "
           f"club cards given kinds, {kinds_failed} failed), "
           f"{time.monotonic() - started:.0f} s")
     return 0

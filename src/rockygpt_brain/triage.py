@@ -85,7 +85,11 @@ Fill every field:
   have, never one guessed from what they ask for: wanting something free or cheap, a job or a
   discount is a practical question. So is looking for a kind of food (halal, kosher, vegan) or
   asking what a dish contains because of an allergy or a diet: that is a question about the menu,
-  not health or food_or_housing.
+  not health or food_or_housing. A medical question is health however plainly it is asked, with
+  or without a problem told: which medicine to take, whether medicines can be taken together, a
+  dose, whether a medicine or treatment is safe, what a symptom means. Asking where or whether
+  to get a health service on campus (a flu shot, an appointment, a test, a prescription) is a
+  practical question, with no need unless the student also says they are sick or hurt.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -342,6 +346,18 @@ RESULT_WORDS = re.compile(r"\b(?:won|win|wins|winning|winner|score|scores|scored
 LIVE_WORDS = re.compile(
     r"\b(?:cancel\w*|postpon\w*|delay\w*|busy|crowded|packed|lines?|wait\w*|weather|snow\w*|"
     r"storm\w*|rain\w*|outage|power)\b", re.IGNORECASE)
+# Words a student asks for a choice or a judgment with: "which is best", "should I", "is it worth
+# it", "A or B", "do you recommend", "is it hard". An opinion read in a campus question holding
+# none of them is a misread (11-04 practice: "does ramapo have a nursing major and how long is
+# it" was read as an opinion in two of three reads). The list is wide on purpose: a word on it
+# only leaves the read as it was.
+CHOICE_WORDS = re.compile(
+    r"\b(?:should|shud|shld|shall|best|better|betta|worse|worst|good|bad|great|nice|worth|"
+    r"recc?omm?end\w*|suggest\w*|advice|advise|prefer\w*|favou?rite|fave|fav|think|opinions?|"
+    r"like|love|hate|easy|easier|easiest|hard|harder|hardest|difficult|tough|fun|cool|rate|"
+    r"rated|rating|ranks?|ranked|ranking|top|vs|versus|or|choose|choosing|choice|pick|decide|"
+    r"deciding|decision|which|wich|compare|comparing|comparison|legit|pros|cons|safe|safest|"
+    r"vibes?)\b", re.IGNORECASE)
 
 
 def asks_only_the_clock(question: str) -> bool:
