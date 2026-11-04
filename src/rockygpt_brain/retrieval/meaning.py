@@ -197,10 +197,10 @@ class MeaningIndex:
         """The index published beside a release graph file, or None when there is none.
 
         Its float vectors are kept in 8 bits, exactly as quantize() stores them, read and turned
-        into 8 bits MATRIX_CHUNK vectors at a time. Render gives the Brain 512 MB, and since 11-03
-        every page section also has three written questions: about 51,000 vectors, 104 MB as
-        floats and 26 MB in 8 bits. On the 11-03 index, 8 bits kept the same best unit for 298 of
-        300 test questions and 99.3% of the ten best units, and scored faster."""
+        into 8 bits MATRIX_CHUNK vectors at a time: a quarter of the memory of floats (Render gives
+        the Brain 512 MB; 11-04's index with questions for every section was 47,000 vectors, 96 MB
+        as floats and 24 MB in 8 bits). On the 11-03 index, 8 bits kept the same best unit for 298
+        of 300 test questions and 99.3% of the ten best units, and scored faster."""
         meta_path = release_file.with_suffix(MEANING_SUFFIX)
         vectors_path = release_file.with_suffix(VECTORS_SUFFIX)
         if not meta_path.is_file() or not vectors_path.is_file():

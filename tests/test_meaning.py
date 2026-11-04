@@ -356,7 +356,7 @@ def test_a_card_stands_out_from_its_kind_by_the_questions_own_bar() -> None:
     assert standout_bar([0.5] * 10) is None and standout_bar([0.5] * 40) is None
 
 
-def test_every_page_section_is_given_student_questions_until_the_build_spends_its_budget(
+def test_how_to_entries_are_given_student_questions_until_the_build_spends_its_budget(
         monkeypatch: pytest.MonkeyPatch) -> None:
     import build_meaning_index as build
 
@@ -370,8 +370,8 @@ def test_every_page_section_is_given_student_questions_until_the_build_spends_it
         if "broken" in sent["page"]:
             raise RuntimeError("OpenAI responses failed with HTTP 500")
         items = [{"n": x["n"],
-                  "questions": [f"how do i {x['heading'].lower()}", " ", "b", "c", "d"]}
-                 for x in sent["sections"]]
+                  "questions": [f"how do i {x['task'].lower()}", " ", "b", "c", "d"]}
+                 for x in sent["entries"]]
         return {"output": [{"type": "message", "content": [
                     {"type": "output_text", "text": json.dumps({"items": items})}]}],
                 "usage": {"input_tokens": 1000, "input_tokens_details": {"cached_tokens": 200},
@@ -381,36 +381,41 @@ def test_every_page_section_is_given_student_questions_until_the_build_spends_it
     call = 800 * 125 + 200 * 10 + 300 * 500  # nUSD: uncached input, cached input, output.
     assert build.cost_nusd({"usage": {"input_tokens": 1000, "output_tokens": 300,
                                       "input_tokens_details": {"cached_tokens": 200}}}) == call
-    # Every section is asked, a how-to entry or not: 14 on one page (two calls), 1 on another.
-    units = [{"page": "https://www.ramapo.edu/bursar/", "heading": f"Section {n}",
-              "text": f"What section {n} says.", "entry": False} for n in range(14)]
+    # Only how-to entries are asked: 14 on one page (two calls), 1 on another. A page's other
+    # sections get no questions (written for every section, they ranked near misses higher, 11-04).
+    units = [{"page": "https://www.ramapo.edu/bursar/", "heading": f"Step {n}",
+              "text": f"What step {n} says.", "entry": True} for n in range(14)]
     units.append({"page": "https://www.ramapo.edu/cardservices/", "heading": "Buy Ramapo Dollars",
-                  "text": "Add money to your ID card online.", "entry": False})
+                  "text": "Add money to your ID card online.", "entry": True})
+    units.append({"page": "https://www.ramapo.edu/its/", "heading": "Need More Pages?",
+                  "text": "Add funds through PaperCut.", "entry": False})
     cache: dict[str, list[str]] = {}
     saved: list[int] = []
     assert build.write_questions(units, cache, lambda: saved.append(len(cache))) == (15, 3 * call)
-    assert sorted(len(x["sections"]) for x in asked) == [1, 2, 12]
-    first = next(x for x in asked if len(x["sections"]) == 12)
+    assert sorted(len(x["entries"]) for x in asked) == [1, 2, 12]
+    assert all("its" not in x["page"] for x in asked)
+    first = next(x for x in asked if len(x["entries"]) == 12)
     assert first["page"] == "https://www.ramapo.edu/bursar/"
-    assert first["sections"][0] == {"n": 0, "heading": "Section 0", "text": "What section 0 says."}
-    # Three questions a section, blank ones dropped; kept under the section's own text.
+    assert first["entries"][0] == {"n": 0, "task": "Step 0", "steps": "What step 0 says."}
+    # Three questions an entry, blank ones dropped; kept under the entry's own text.
     assert cache[build._digest("Buy Ramapo Dollars", "Add money to your ID card online.")] == [
         "how do i buy ramapo dollars", "b", "c"]
+    assert build._digest("Need More Pages?", "Add funds through PaperCut.") not in cache
     assert saved == [15]
     # The next build asks for none of them again.
     assert build.write_questions(units, cache) == (0, 0) and len(asked) == 3
 
-    # A build stops asking once its calls cost its budget; the sections left wait for the next
-    # build. 16 calls are asked at once, so the first build asks 16 of 40 one-section pages.
+    # A build stops asking once its calls cost its budget; the entries left wait for the next
+    # build. 16 calls are asked at once, so the first build asks 16 of 40 one-entry pages.
     asked.clear()
     pages = [{"page": f"https://www.ramapo.edu/page-{n}/", "heading": f"Heading {n}",
-              "text": f"Text {n}.", "entry": False} for n in range(40)]
+              "text": f"Text {n}.", "entry": True} for n in range(40)]
     assert build.write_questions(pages, cache, budget_nusd=1) == (16, 16 * call)
     assert len(asked) == 16
     assert build.write_questions(pages, cache) == (24, 24 * call) and len(asked) == 40
-    # A call that fails costs nothing, and its sections are asked again by the next build.
+    # A call that fails costs nothing, and its entries are asked again by the next build.
     broken = [{"page": "https://www.ramapo.edu/broken/", "heading": "Hours",
-               "text": "Open 9 to 5.", "entry": False}]
+               "text": "Open 9 to 5.", "entry": True}]
     assert build.write_questions(broken, cache) == (1, 0)
     assert build._digest("Hours", "Open 9 to 5.") not in cache
     assert build.write_questions(broken, cache) == (1, 0) and len(asked) == 42

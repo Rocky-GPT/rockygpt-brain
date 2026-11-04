@@ -1,9 +1,9 @@
 """Build the meaning index beside the active release graph, for finding how-to units by meaning.
 
 Every unit a how-to read can offer (each linked office page's how-to entries and headed sections,
-numbered exactly as the Brain numbers them) is embedded with its page and heading, and also as three
-questions a student might type for it, written once by the chat model. Both are cached by their text
-(CACHE_DIR), so a new release only pays for units that changed.
+numbered exactly as the Brain numbers them) is embedded with its page and heading, and each how-to
+entry also with three questions a student might type for it, written once by the chat model. Both
+are cached by their text (CACHE_DIR), so a new release only pays for units that changed.
 
     python scripts/build_meaning_index.py --dir PUBLISHED_DIR --cache CACHE_DIR
 
@@ -47,18 +47,19 @@ from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
 
 EMBED_MODEL, DIMENSIONS, CHAT_MODEL = "text-embedding-3-large", 512, "gpt-6-luna"
 QUESTIONS_PROMPT = (
-    "You see sections from one page of Ramapo College's website, each a heading and its text. For "
-    "each section, write three short questions a student, parent or visitor might type to a "
-    "campus chatbot that this section answers, in their everyday words (not the page's wording), "
-    "varied: one plain, one casual, one describing their situation. Only questions the section "
-    "really answers.")
-# Every page section gets its questions, not only how-to entries (11-03): production's pages have
-# no how-to entries, so its index held no question at all, and "how do i add money 2 my id card"
-# never reached "Buy Ramapo Dollars", whose words it shares none of. The first build asks for
-# about 10,700 sections (about 2,600 calls, an estimated $0.50 to $0.80); later builds only for new
-# or changed ones. A build stops asking once its calls have cost QUESTIONS_BUDGET_NUSD at the chat
-# model's bundled prices, and the sections left are asked by the next build (Dan approved about $1
-# on 11-03).
+    "You see how-to entries from one page of Ramapo College's website. For each entry, write three "
+    "short questions a student, parent or visitor might type to a campus chatbot that this entry "
+    "answers, in their everyday words (not the page's wording), varied: one plain, one casual, one "
+    "describing their situation. Only questions the entry really answers.")
+# Only how-to entries get questions. Questions for every page section were tried (Brain #159, dev
+# release v2-20261104003042, $0.54): on 79 how-to questions with known answer sections
+# (rockygpt-evals search-reach-2026-11-04), they brought no answer section into the 60 the one call
+# picks from that the sections' own text did not already bring (77 of 79 either way), and moved 6
+# answer sections out of its first 12 while moving 2 in. "how do i add money 2 my id card" still
+# missed "Buy Ramapo Dollars", and was once answered from PaperCut's "add funds" (11-04). Questions
+# written for 10,700 sections are 32,000 more ways for a near miss to match a student's words.
+# A build stops asking once its calls have cost QUESTIONS_BUDGET_NUSD at the chat model's bundled
+# prices, and the entries left are asked by the next build.
 QUESTIONS_BUDGET_NUSD = 1_000_000_000
 QUESTIONS_SAVE_EVERY = 100  # Batches between saves of the question cache, kept if a run stops.
 PRICES = json.loads(files("rockygpt_brain").joinpath("provider-release.json").read_text())
@@ -413,21 +414,21 @@ def cost_nusd(reply: dict[str, Any]) -> int:
 def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
                     save: Callable[[], None] | None = None,
                     budget_nusd: int = QUESTIONS_BUDGET_NUSD) -> tuple[int, int]:
-    """Three student questions for each section not already in the cache, read 12 sections at a
-    time per page, until the calls have cost `budget_nusd` (the rest wait for the next build).
+    """Three student questions for each how-to entry not already in the cache, read 12 entries at
+    a time per page, until the calls have cost `budget_nusd` (the rest wait for the next build).
     `save` is called every QUESTIONS_SAVE_EVERY batches and at the end, so a run that is stopped
-    keeps what it paid for. Returns how many sections were read and what the calls cost."""
+    keeps what it paid for. Returns how many entries were read and what the calls cost."""
     due: dict[str, list[dict[str, Any]]] = {}
     for unit in units:
-        if _digest(unit["heading"], unit["text"]) not in cache:
+        if unit["entry"] and _digest(unit["heading"], unit["text"]) not in cache:
             due.setdefault(unit["page"], []).append(unit)
     batches = iter([(page, items[k:k + 12]) for page, items in due.items()
                     for k in range(0, len(items), 12)])
 
     def read(batch: tuple[str, list[dict[str, Any]]]) -> tuple[dict[str, list[str]], int, int]:
         page, items = batch
-        sections = [{"n": n, "heading": u["heading"], "text": u["text"][:500]}
-                    for n, u in enumerate(items)]
+        entries = [{"n": n, "task": u["heading"], "steps": u["text"][:500]}
+                   for n, u in enumerate(items)]
         try:
             reply = _post("responses", {
                 "model": CHAT_MODEL, "store": False, "max_output_tokens": 8000,
@@ -436,7 +437,7 @@ def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
                 "reasoning": {"effort": "low"},
                 "input": [{"role": "system", "content": QUESTIONS_PROMPT},
                           {"role": "user", "content": json.dumps(
-                              {"page": page, "sections": sections}, ensure_ascii=False)}],
+                              {"page": page, "entries": entries}, ensure_ascii=False)}],
                 "text": {"format": {"type": "json_schema", "name": "questions",
                                     "schema": QUESTIONS_SCHEMA, "strict": True}}})
         except RuntimeError:
@@ -567,9 +568,10 @@ def main(argv: list[str] | None = None) -> int:
         for at, piece in _pieces(unit["text"]):
             texts.append((n, header + "…" + piece))
             offsets.append(at)
-        asked = questions.get(_digest(unit["heading"], unit["text"]), [])
-        texts += [(n, q) for q in asked]
-        offsets += [-1] * len(asked)
+        if unit["entry"]:
+            asked = questions.get(_digest(unit["heading"], unit["text"]), [])
+            texts += [(n, q) for q in asked]
+            offsets += [-1] * len(asked)
     cache = load_vectors(args.cache)
     every = ([t for _, t in texts] + [card for _, _, card in cards]
              + [card for _, _, card in academic])
@@ -606,7 +608,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
           f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
-          f"({read} sections given questions for ${spent / 1e9:.2f}, {embedded} texts embedded, "
+          f"({read} entries given questions for ${spent / 1e9:.2f}, {embedded} texts embedded, "
           f"{kinds_read} event and "
           f"club cards given kinds, {kinds_failed} failed), "
           f"{time.monotonic() - started:.0f} s")
