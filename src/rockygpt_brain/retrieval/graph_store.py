@@ -287,6 +287,8 @@ class GraphEntityFacts(EntityFacts):
             self._alias_sources = meta["alias_sources"]
         except (KeyError, ValueError) as exc:
             raise GraphUnavailable("The release graph is missing its release details.") from exc
+        self._registry_lock = threading.Lock()
+        self._registry: tuple[list[dict[str, Any]], list[dict[str, Any]]] | None = None
 
     def _read(self, connection: Any, query: str, params: dict[str, Any] | None = None
               ) -> list[Any]:
@@ -312,6 +314,23 @@ class GraphEntityFacts(EntityFacts):
             raise
         return rows
 
+    def _identities(self, connection: Any
+                    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The release's identities and alias sources, read and checked once per file. A file
+        never changes, and every fact read needs them: read for each one, they were 49.7 of the
+        59 s the engine took to fill its lists (464 reads, the 11-03 graph). Readers share them,
+        so no reader may change them (test_graph_store holds every reader to that). A file whose
+        identities fail the checks keeps failing every read, as before."""
+        held = self._registry
+        if held is not None:
+            return held
+        with self._registry_lock:
+            if self._registry is None:
+                docs = self._read(connection, "MATCH (e:Entity) RETURN e.doc ORDER BY e.ord")
+                self._registry = (validate_entities([_loads(doc) for doc in docs]),
+                                  _loads(self._alias_sources))
+            return self._registry
+
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
         try:
@@ -319,14 +338,13 @@ class GraphEntityFacts(EntityFacts):
         except Exception as exc:
             raise EvidenceUnavailable("The release graph could not be read.") from exc
         try:
-            docs = self._read(connection, "MATCH (e:Entity) RETURN e.doc ORDER BY e.ord")
-            entities = validate_entities([_loads(doc) for doc in docs])
+            entities, alias_sources = self._identities(connection)
             yield Snapshot(
                 self.dataset_version,
                 self.identity_hash,
                 entities,
                 lambda entity: self._evidence(connection, entity, CONTACTS),
-                _loads(self._alias_sources),
+                alias_sources,
                 lambda entity: self._evidence(connection, entity, SCHEDULES),
                 lambda: self.fingerprint,
                 lambda entity, collection: (
