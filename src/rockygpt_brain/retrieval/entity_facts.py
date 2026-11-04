@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import re
+import threading
 import unicodedata
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -2503,8 +2504,20 @@ class EntityFacts:
         load it in the background override this to load it now, on the caller's thread."""
         self.meaning_index()
 
+    def warm_procedure_sections(self) -> None:
+        """Have the active release's office sections ready for how-to questions (offices_by_
+        procedure) before the first one: reading them took 2.5 s on the 11-03 graph."""
+        version, identity_hash = self.active_release()
+        self._procedure_sections(version, identity_hash)
+
     def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
         self.now = now or (lambda: datetime.now(UTC))
+        # Every linked office section with its heading and text words, per release, and the lock
+        # that lets one caller read them while the others wait (_procedure_sections).
+        self._section_index: tuple[tuple[str, str | None],
+                                   list[tuple[str, str, str, frozenset[str], frozenset[str]]]
+                                   ] | None = None
+        self._section_lock = threading.Lock()
 
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
@@ -2678,6 +2691,35 @@ class EntityFacts:
                 "truncated": len(found) > limit,
             }
 
+    def _procedure_sections(self, dataset_version: str, identity_hash: str | None,
+                            ) -> list[tuple[str, str, str, frozenset[str], frozenset[str]]]:
+        """Every linked office section of the release (office id, name, page id, heading words,
+        text words), read once per release. One caller reads them and the others asking at the
+        same time wait for that read instead of starting their own."""
+        key = (dataset_version, identity_hash)
+        held = self._section_index
+        if held is not None and held[0] == key:
+            return held[1]
+        with self._section_lock:
+            held = self._section_index
+            if held is not None and held[0] == key:
+                return held[1]
+            index: list[tuple[str, str, str, frozenset[str], frozenset[str]]] = []
+            with self.snapshot() as snapshot:
+                self._pin(snapshot, dataset_version, identity_hash)
+                for entity in snapshot.entities:
+                    if not any(link.get("collection") == "office_sections"
+                               for link in entity["links"]):
+                        continue
+                    pages = linked_rows(entity, snapshot.record_reader(entity, "office_sections"),
+                                        "office_sections")
+                    for row in pages:
+                        for _, _, heading_words, text_words in _procedure_units(row):
+                            index.append((entity["id"], entity["name"], str(row["id"]),
+                                          frozenset(heading_words), frozenset(text_words)))
+            self._section_index = (key, index)
+            return index
+
     def offices_by_procedure(
         self,
         about: str,
@@ -2698,23 +2740,7 @@ class EntityFacts:
         wanted = _procedure_words(about or "")
         if not wanted or not 1 <= limit <= 5:
             return []
-        cached = getattr(self, "_section_index", None)
-        if cached is None or cached[0] != (dataset_version, identity_hash):
-            index: list[tuple[str, str, str, frozenset[str], frozenset[str]]] = []
-            with self.snapshot() as snapshot:
-                self._pin(snapshot, dataset_version, identity_hash)
-                for entity in snapshot.entities:
-                    if not any(link.get("collection") == "office_sections"
-                               for link in entity["links"]):
-                        continue
-                    pages = linked_rows(entity, snapshot.record_reader(entity, "office_sections"),
-                                        "office_sections")
-                    for row in pages:
-                        for _, _, heading_words, text_words in _procedure_units(row):
-                            index.append((entity["id"], entity["name"], str(row["id"]),
-                                          frozenset(heading_words), frozenset(text_words)))
-            self._section_index = cached = ((dataset_version, identity_hash), index)
-        sections = cached[1]
+        sections = self._procedure_sections(dataset_version, identity_hash)
         seen = {word: sum(1 for *_, top, body in sections if word in top or word in body)
                 for word in wanted}
         weight = {word: math.log(1 + len(sections) / count) for word, count in seen.items()
