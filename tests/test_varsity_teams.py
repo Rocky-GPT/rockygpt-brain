@@ -97,6 +97,21 @@ def test_next_games_start_today_and_a_finished_season_gives_its_results() -> Non
         "Paltz, North Turf Field, New Paltz, NY. Result: L, 1-4 [1].")
 
 
+def test_a_tournament_round_still_to_be_drawn_is_not_said_as_an_opponent() -> None:
+    wvb = team("womens-volleyball", "Women's Volleyball", "2026", [
+        game("2026-11-10", "Nov 10 (Tue)", "home", "NJAC Tournament Quarterfinal", time="TBA",
+             location="TBA"),
+        game("2026-11-14", "Nov 14 (Sat)", "away", "NJAC Championship Match", time="TBA"),
+        game("2026-11-15", "Nov 15 (Sun)", "home", "Kean University", time="1:00 PM")])
+    found = answer("when is the next women's volleyball game", [wvb], date(2026, 11, 4))
+    assert found is not None
+    text = found[0]
+    assert "Nov 10 (Tue), TBA: NJAC Tournament Quarterfinal, TBA (home)" in text
+    assert "vs NJAC" not in text
+    assert "Nov 14 (Sat), TBA: at NJAC Championship Match" in text
+    assert "vs Kean University" in text
+
+
 def test_an_old_capture_is_said_with_its_date() -> None:
     found = answer("men's soccer record", [MSOC], date(2026, 11, 9))
     assert found is not None and found[0].endswith("(As the athletics site listed it on Nov 3.)")
