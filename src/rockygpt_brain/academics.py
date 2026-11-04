@@ -144,6 +144,28 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
     return chosen[:MAX_PROGRAMS]
 
 
+def named_in_full(programs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """Of the programs code found for a message, those it names by whole words: every word of
+    the program's name ("the international business minor"), a published short name of its own
+    ("CS"), or a level with subject words that are whole words of the name ("a business minor":
+    Business Analytics Minor, International Business Minor). These are read whatever the catalog
+    pick says (11-04 blind run: the pick dropped the International Business Minor code named in
+    4 of 5 tries). A program found only by a short form ("comm", or "account" in "my student
+    account" for Accounting) is code's guess, left to the pick."""
+    tokens = re.findall(r"[a-z0-9+]+", message.casefold())
+    words = set(tokens)
+    subjects = dict(asked_subjects(message))
+    kept: list[dict[str, Any]] = []
+    for program in programs:
+        name = str(program["name"])
+        core = discovery_tokens(program_core(name))
+        asked = subjects.get(program_level(name))
+        if ((core and core <= words) or _short_names(program, tokens, message)
+                or (asked and set(asked) <= set(_core_words(name)))):
+            kept.append(program)
+    return kept
+
+
 # A program or course found by its card's meaning (the meaning index), not its exact name. On
 # 14 sample questions (10-21) academic ones scored 0.47-0.73 against their program and others at
 # most 0.30; courses 0.58-0.71 against at most 0.47 for questions about no course.

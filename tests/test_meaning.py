@@ -419,3 +419,56 @@ def test_how_to_entries_are_given_student_questions_until_the_build_spends_its_b
     assert build.write_questions(broken, cache) == (1, 0)
     assert build._digest("Hours", "Open 9 to 5.") not in cache
     assert build.write_questions(broken, cache) == (1, 0) and len(asked) == 42
+
+
+def test_who_leads_an_office_reads_its_own_sections_whatever_fields_were_asked() -> None:
+    # 11-04 blind run: "Who is the director of the Center for Health and Counseling Services?
+    # Also what's the phone number" was read for name and phones only, and "Who is the provost
+    # and what does the provost's office do?" for name, department and website: neither reply
+    # could name anyone. The pick keeps none here, yet the best two by meaning are read.
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["email"]}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []}]})
+    gateway = EmbeddingGateway(ask, pick, finish(), vector=[0, 1, 0])
+    result = answer(gateway, service=meaning_service(), messages=[
+        {"role": "user", "content": "who runs academic advising and what is their email"}])
+    assert "advising@example.edu" in result.body["answer"]
+    assert "Book an advising appointment." in result.body["answer"]
+    assert "Become a peer mentor for first-years." in result.body["answer"]
+    assert result.trace is not None and result.trace["procedureSearch"] == "meaning"
+    # A plain contact question reads the fields asked, and no pages.
+    gateway = EmbeddingGateway(ask, finish(), vector=[0, 1, 0])
+    result = answer(gateway, service=meaning_service(), messages=[
+        {"role": "user", "content": "what is academic advising's email"}])
+    assert "advising@example.edu" in result.body["answer"]
+    assert "Book an advising appointment." not in result.body["answer"]
+
+
+def test_the_pick_adds_to_the_best_sections_by_meaning_and_never_drops_them() -> None:
+    ask = completion("graph_lookup", {"requests": [
+        {"query": "Academic Advising", "fields": ["procedures"], "about": "peer mentors"}]})
+    pick = completion("pick_sections", {"picks": [{"lookup": 0, "sections": []}]})
+    gateway = EmbeddingGateway(ask, pick, finish(), vector=[0, 1, 0])
+    result = answer(gateway, service=meaning_service(), messages=[
+        {"role": "user", "content": "how do i become a peer mentor"}])
+    assert "Become a peer mentor for first-years." in result.body["answer"]
+    # Found by the asked words alone (no embedding), the pick still decides.
+    result = answer(ScriptedGateway(ask, pick, finish()), service=meaning_service(), messages=[
+        {"role": "user", "content": "how do i become a peer mentor"}])
+    assert "Become a peer mentor for first-years." not in result.body["answer"]
+
+
+def test_who_leads_or_what_an_office_does_is_told_from_other_questions() -> None:
+    from rockygpt_brain.engine import asks_who_leads
+    for message in ("Who is the provost and what does the provost's office do?",
+                    "Who is the director of the Center for Health and Counseling Services? "
+                    "Also what's the phone number",
+                    "who's the EOF program director and what's her email",
+                    "which dean runs social science and social work, and what room is their office",
+                    "who's in charge of the student accounts office",
+                    "Who is the Title IX coordinator at Ramapo, and which office are they in?",
+                    "what does the office of specialized services do"):
+        assert asks_who_leads(message), message
+    for message in ("what is the registrar's email", "is the library open sunday",
+                    "who do I call to get a parking permit", "where is the bursar's office"):
+        assert not asks_who_leads(message), message

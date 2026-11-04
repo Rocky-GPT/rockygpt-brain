@@ -235,17 +235,36 @@ def test_a_part_no_page_can_hold_gets_no_second_look() -> None:
     assert "oneCallSecondLook" not in result.trace
 
 
-def test_the_sections_picked_by_heading_are_read_first() -> None:
+def test_the_pick_adds_sections_after_the_core_by_meaning(monkeypatch: Any) -> None:
+    import rockygpt_brain.one_call as one_call
+    monkeypatch.setattr(one_call, "CORE_READ", 1)
+    monkeypatch.setattr(one_call, "PICKED_READ", 2)
     index = index_of([("page-a", "0", ["advising"], [[1, 0, 0]]),
                       ("page-b", "0", ["advising"], [[0.9, 0.1, 0]]),
                       ("page-c", "0", ["tutoring"], [[0, 1, 0]])], labels=True)
     pool_scores, pool = chosen_units(index, [[1, 0, 0]], 60, per_part=30, per_page=3)
     asked = pick_messages("how do i become a peer tutor", index, pool)[1]["content"]
     assert "3. page-c | heading page-c 0" in asked
+    # The best by meaning is read whatever the pick says, then the pick, within PICKED_READ.
     _, order = with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": [3, 99]})
-    assert order[0] == ("page-c", "0") and len(order) == 3
+    assert order == [("page-a", "0"), ("page-c", "0")]
+    # A pick of the core itself leaves room for the usual choice's next unit.
+    _, order = with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": [1]})
+    assert order == [("page-a", "0"), ("page-b", "0")]
     # Nothing valid picked: the usual choice.
     assert with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": []})[1][0] == ("page-a", "0")
+
+
+def test_every_try_reads_the_same_core_whatever_the_pick() -> None:
+    # 11-04 blind run: the agreed pick differed between tries for 37 of 48 questions.
+    index = index_of([(f"page-{n}", "0", ["advising"], [[1 - n / 20, n / 20, 0]])
+                      for n in range(12)], labels=True)
+    pool_scores, pool = chosen_units(index, [[1, 0, 0]], 60, per_part=30, per_page=3)
+    reads = [with_picked(index, [[1, 0, 0]], pool_scores, pool, {"n": pick})[1]
+             for pick in ([12, 11, 10], [9, 8], [12, 7, 1])]
+    core = [(f"page-{n}", "0") for n in range(6)]
+    assert all(read[:6] == core for read in reads)
+    assert reads[0][6:9] == [("page-11", "0"), ("page-10", "0"), ("page-9", "0")]
 
 
 def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
@@ -614,3 +633,32 @@ def test_a_contact_question_naming_an_offices_service_label_is_looked_up_by_code
         assert "library@example.edu" in result.body["answer"]
     # A how-to naming the office still reads its pages.
     assert routes_here("How do I borrow books from the Library?")
+
+
+def test_a_program_named_in_full_is_read_when_the_catalog_pick_leaves_it_out() -> None:
+    # 11-04 blind run: the catalog pick dropped the minor the student named in 4 of 5 tries.
+    from test_academics import catalog
+    service = meaning_service()
+    programs = catalog()
+    service.entities = [*service.entities, *programs.entities]
+    service.records = {**service.records, **programs.records}
+    service.index = index_of(
+        [("page-advising", "0", ["advising"], [[0, 1, 0]]),
+         ("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+        {"advising": "Academic Advising", "tutoring": "Center for Reading and Writing"},
+        academic=[("cs", "program", [0, 0, 1])])
+    pick = completion("pick_catalog", {"programs": [], "courses": [], "find": [],
+                                       "level": None, "track": None})
+    gateway = PartsGateway(pick, one_reply("The Computer Science BS requires CMPS 147. [1]",
+                                           [1]))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "what do I need for the computer science major"}]})
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert gateway.inputs[0][-1]["content"].startswith(
+        "Question: what do I need for the computer science major")
+    given = json.loads(gateway.inputs[1][1]["content"])
+    assert [p["program"] for p in given["programs"]] == ["Computer Science BS"]
+    assert result.trace is not None
+    assert result.trace["catalogPick"]["namedInFull"] == ["Computer Science BS"]
+    assert result.trace["catalogPick"]["programs"] == ["Computer Science BS"]
