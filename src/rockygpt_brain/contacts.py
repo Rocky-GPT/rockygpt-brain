@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from rockygpt_brain.answers import us_phone
-from rockygpt_brain.plain_writer import literal
+from rockygpt_brain.plain_writer import literal, room_parts
 
 # At most this many offices' contacts are said: more named is a list question, not a contact one.
 MAX_OFFICES = 3
@@ -155,8 +155,13 @@ def contact_text(name: str, emails: Sequence[Any], phones: Sequence[Any], rooms:
         said.append(f"Phone: {'; '.join(numbers)}.")
     if mails := [str(e) for e in emails if isinstance(e, str) and "@" in e]:
         said.append(f"Email: {', '.join(dict.fromkeys(mails))}.")
-    places = [str(r).strip().rstrip(".") for group in rooms
-              for r in (group if isinstance(group, list) else [group]) if str(r).strip()]
-    for place in dict.fromkeys(places):
-        said.append(f"{'Office' if _ROOM.match(place) else 'Location'}: {literal(place)}.")
+    # Rooms in words: a labelled room as "Main Office: C-209", a building given with its map
+    # link by its name; a room in any other shape is left out, never printed as it is.
+    plain, labelled, _ = room_parts([r for group in rooms
+                                     for r in (group if isinstance(group, list) else [group])])
+    for place in dict.fromkeys(p.rstrip(".") for p in plain):
+        said.append(f"{'Office' if _ROOM.match(place) else 'Location'}: {place}.")
+    if labelled:
+        said.append("; ".join(f"{label}: {room.rstrip('.')}"
+                              for label, room in dict.fromkeys(labelled)) + ".")
     return f"**{literal(name)}**: {' '.join(said)} [{n}]" if said else None

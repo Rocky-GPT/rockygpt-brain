@@ -635,3 +635,37 @@ def test_a_page_not_read_again_since_its_freshness_ran_out_is_said_with_the_day_
                      'September 26). [2]')
     # With no date to say, it is left to the code's evidence text.
     assert plain_text(view(facts=[stale("Ask about starting a new club.")])) is None
+
+
+def test_rooms_with_a_label_or_a_map_link_are_said_in_words() -> None:
+    # Fix check 11-04: 19 offices' rooms carry a label or a campus map link, and a room in a
+    # shape code did not know was printed as it is ("{'label': 'Main Office', ...}").
+    from rockygpt_brain.plain_writer import room_parts
+    assert room_parts(["C-209", {"label": "Main Office", "location": "C-209"},
+                       {"name": "Fieldhouse", "map": "https://www.ramapo.edu/map/"},
+                       {"location": " D-216 "}]) == (
+        ["C-209", "Fieldhouse", "D-216"], [("Main Office", "C-209")], False)
+    assert room_parts([{"room": "C-1"}, ""]) == ([], [], True)
+    v = view(facts=[{"subject": "Athletics", "predicate": "offices", "value": [
+        {"name": "Bill Bradley Sports and Recreation Arena",
+         "map": "https://www.ramapo.edu/map/?id=1"}], "sources": [1]}])
+    said = plain_text(v)
+    assert said == "Athletics is in Bill Bradley Sports and Recreation Arena. [1]"
+    assert unsupported_by(said, v) == []
+
+
+def test_a_published_name_that_is_its_own_name_and_an_absence_already_answered_are_unsaid() -> None:
+    # Fix check 11-04: "Title IX's published name is Title IX." and "Title IX doesn't publish a
+    # general email address" beside titleix@ramapo.edu from its contact note.
+    v = view(facts=[
+        {"subject": "Title IX", "predicate": "name", "value": "Title IX", "sources": [1]},
+        {"subject": "Title IX", "predicate": "contact_note",
+         "value": "To file a complaint: titleix@ramapo.edu", "sources": [1]}],
+        not_published=[{"subject": "Title IX", "predicate": "email", "checked_at": CHECKED,
+                        "pages": [], "sources": [1]},
+                       {"subject": "Title IX", "predicate": "phones", "checked_at": CHECKED,
+                        "pages": [], "sources": [1]}])
+    said = plain_text(v)
+    assert said is not None
+    assert "published name" not in said and "general email" not in said
+    assert "titleix@ramapo.edu" in said and "doesn't publish a general phone" in said

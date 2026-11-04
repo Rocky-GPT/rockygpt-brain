@@ -30,7 +30,8 @@ _EVENT_WORDS = re.compile(
     r"shows?|concerts?|performances?|plays?|recitals?|fairs?|workshops?|speakers?|lectures?|"
     r"free food|parties|party|things to do|anything to do|calendar|homecoming|tournaments?|"
     r"screenings?|exhibits?|exhibitions?|movie nights?|game nights?|trivia|bingo|karaoke|"
-    r"open mics?|festivals?|celebrations?|info(?:rmation)? sessions?|socials?|mixers?|"
+    r"open mics?|festivals?|celebrations?|info(?:rmation)? sessions?|socials|mixers?|"
+    r"(?:a|an|any|ice[- ]cream|welcome|pizza|holiday)\s+social\b(?!\s+(?:sciences?|work))|"
     r"fundraisers?|ceremon(?:y|ies)|activities|coming up|upcoming|contests?|competitions?|"
     r"costume|hunts?|5ks?|races?|walks? for|charity walks?|haunted|try ?outs?|auditions?)\b")
 # Sessions or meetings a question asks for ("any study sessions", "any book clubs meeting") may
@@ -90,8 +91,11 @@ _NOT_TOPIC = discovery_tokens(
     "really all each every both either neither no not too before after during until while")
 
 
-# "What shows up on my transcript" and "does it show up" ask about no show.
-_NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b")
+# "What shows up on my transcript" and "does it show up" ask about no show, and neither does "my
+# portal shows an immunization hold" (fix check 11-04: an immunization question began with "the
+# calendar lists no event in the next 14 days").
+_NOT_EVENT = re.compile(r"\bshows? up\b|\bshowing up\b|\bno[- ]shows?\b|\bshows\s+(?:a|an|the|my|"
+                        r"me|it|him|her|them|how|what|which|no|as)\b")
 # An occasion ("Black Solidarity Week", "Pride Month", "Veterans Day") asked about by what is on
 # for it ("anything for", "what's planned for", "how is ... celebrated") is the calendar's: its
 # events are the answer (11-03 practice: "anything for black solidarity week" never reached the
@@ -147,9 +151,18 @@ def asks_events(message: str) -> bool:
                 or (_WHEN_WORDS.search(text) and not _OTHER_SUBJECT.search(text)))
 
 
+# Starting a club ("how do I start my own club", "can we form a new organization") asks how a
+# club is made, which the involvement pages say, not for a club the directory lists (fix check
+# 11-04: the reply added "the club directory lists no club named 'start my own'").
+_NEW_CLUB = re.compile(
+    r"\b(?:start|starting|create|creating|form|forming|found|founding|make|making|register|"
+    r"registering|charter|chartering|begin|beginning)\s+(?:(?:a|an|my|our|your|one|some)\s+)?"
+    r"(?:(?:own|new|official|student)\s+)*(?:clubs?|organi[sz]ations?|orgs?|student groups?)\b")
+
+
 def asks_clubs(message: str) -> bool:
     text = message.casefold()
-    return bool(_CLUB_WORDS.search(text) or _TEAM_ASKED.search(text))
+    return bool(_CLUB_WORDS.search(_NEW_CLUB.sub(" ", text)) or _TEAM_ASKED.search(text))
 
 
 # A question asking only what is on in one time window ("what's happening this weekend", "any
@@ -169,18 +182,26 @@ _WINDOW_WORD = re.compile(r"\b(?:tonight|today|tomorrow|tmrw|tmr|weekend|week|mo
                           + "|".join(_DAYS) + r")s?\b")
 
 
-def plain_window(message: str) -> bool:
+def plain_window(message: str, breaks: Sequence[tuple[str, date, date]] = (),
+                 today: date | None = None) -> bool:
     """Whether a question asks only what the calendar lists in one time window (one: "today and
-    tomorrow" is two, and the model reads it)."""
+    tomorrow" is two, and the model reads it). A month named ("in december") is one, as is a
+    break the academic calendar dates (`breaks`, from `today` on: "over thanksgiving break")."""
     text = message.casefold().replace("’", "'").replace("'", "")
     words = re.findall(r"[a-z0-9]+", text)
     dated = bool(_MONTH_DAY.search(text) or _NUMERIC_DAY.search(text))
+    month = not dated and month_asked(message) is not None
+    named_break = today is not None and break_asked(message, breaks, today) is not None
     times = len(_WINDOW_WORD.findall(text)) + len(_MONTH_DAY.findall(text)) \
-        + len(_NUMERIC_DAY.findall(text))
+        + len(_NUMERIC_DAY.findall(text)) + month + named_break
     if not words or times > 1 or not asks_events(message):
         return False
-    return all(w in _WINDOW_ONLY or (dated and (w.isdigit() or w in _MONTH_WORDS
-                                               or re.fullmatch(r"\d{1,2}(?:st|nd|rd|th)", w)))
+    said = {w for m in [*(_month_phrases(text) if month else []),
+                        *(_break_phrases(text) if named_break else [])]
+            for w in re.findall(r"[a-z0-9]+", m.group(0))}
+    return all(w in _WINDOW_ONLY or w in said
+               or (dated and (w.isdigit() or w in _MONTH_WORDS
+                              or re.fullmatch(r"\d{1,2}(?:st|nd|rd|th)", w)))
                for w in words)
 
 
@@ -197,10 +218,70 @@ _PART_OF_DAY = ((re.compile(r"\b(?:night|evening)\b"), 17, 24, "evening"),
                 (re.compile(r"\bmorning\b"), 0, 12, "morning"))
 
 
-def window(message: str, now: datetime) -> tuple[datetime, datetime, str]:
+# A month asked by its name ("what's happening in december"): that month (fix check 11-04: read
+# as the rest of the semester, it showed the first 15 events, all in November). "May", "March"
+# and short forms ("dec") name a month only after a word that says when ("in may", "this march").
+_MONTH_NAMES = ("january", "february", "march", "april", "may", "june", "july", "august",
+                "september", "october", "november", "december")
+_MONTH_ASKED = re.compile(
+    r"\b(?:(in|during|for|of|this|next|early|late|mid|throughout|all|whole|rest of)\s+)?"
+    r"(?:the\s+month\s+of\s+)?(january|february|march|april|may|june|july|august|september|"
+    r"october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\b\.?")
+_PLAIN_MONTHS = frozenset(_MONTH_NAMES) - {"may", "march"}
+
+
+def _month_phrases(text: str) -> list[re.Match[str]]:
+    return [m for m in _MONTH_ASKED.finditer(text) if m.group(1) or m.group(2) in _PLAIN_MONTHS]
+
+
+def month_asked(message: str) -> int | None:
+    """The one month a question names without a day, as its number, or None."""
+    found = {next(k for k, name in enumerate(_MONTH_NAMES, start=1)
+                  if name.startswith(m.group(2)[:3]))
+             for m in _month_phrases(message.casefold())}
+    return found.pop() if len(found) == 1 else None
+
+
+# A break named ("over thanksgiving break", "during spring break"): its days on the academic
+# calendar (fix check 11-04: "anything going on over thanksgiving break" was read as the rest of
+# the semester, and its "break" matched a "Spring Break Info Session"). A season names a break
+# only beside "break" ("spring" alone is the term); Thanksgiving also after a word that says
+# when ("over thanksgiving"), never alone ("a thanksgiving dinner" is an event, held before it).
+_BREAK_ASKED = re.compile(
+    r"\b(?:(before|after|until|till|over|during|on)\s+(?:the\s+)?)?"
+    r"(thanksgiving|spring|winter|fall|summer)(\s+(?:break|recess|vacation|holidays?|weekend))?\b")
+
+
+def _break_phrases(text: str) -> list[re.Match[str]]:
+    found = []
+    for m in _BREAK_ASKED.finditer(text):
+        tail = (m.group(3) or "").strip()
+        if (tail and (m.group(2) == "thanksgiving" or tail != "weekend")) or (
+                m.group(2) == "thanksgiving" and m.group(1)):
+            found.append(m)
+    return found
+
+
+def break_asked(message: str, breaks: Sequence[tuple[str, date, date]],
+                today: date) -> tuple[str, date, date, str] | None:
+    """The break a question names, from the academic calendar's breaks (each (name, first day,
+    last day)): the next one by that name that has not ended, with what the question asks of it:
+    "before" (until it begins), "after" or "" (its own days)."""
+    for m in _break_phrases(message.casefold()):
+        for name, first, last in sorted(breaks, key=lambda b: b[1]):
+            if m.group(2) in name.casefold() and last >= today:
+                when = {"until": "before", "till": "before"}.get(m.group(1) or "", m.group(1) or "")
+                return name, first, last, when if when in ("before", "after") else ""
+    return None
+
+
+def window(message: str, now: datetime,
+           breaks: Sequence[tuple[str, date, date]] = ()) -> tuple[datetime, datetime, str]:
     """The span of campus time a question asks about, and its name; the next two weeks when the
-    question names no time. A part of the day ("friday night") narrows a one-day window."""
-    start, end, label = _days(message, now)
+    question names no time. A part of the day ("friday night") narrows a one-day window. A break
+    the question names is read from `breaks`, the academic calendar's (name, first day, last
+    day)."""
+    start, end, label = _days(message, now, breaks)
     if start.date() == end.date() and label != "tonight":
         for words, first, last, name in _PART_OF_DAY:
             if words.search(message.casefold()):
@@ -212,7 +293,23 @@ def window(message: str, now: datetime) -> tuple[datetime, datetime, str]:
     return start, end, label
 
 
-def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
+def _break_window(named: tuple[str, date, date, str], now: datetime,
+                  ) -> tuple[datetime, datetime, str]:
+    """A named break's window: its own days ("over Thanksgiving Break"), the days until it
+    begins, or the two weeks after it ends."""
+    name, first, last, when = named
+    said = re.sub(r"\s*\([^)]*\)", "", name).strip()
+    if when == "before":
+        return now, _end(max(first - timedelta(days=1), now.date()), now), f"before {said}"
+    if when == "after":
+        begins = last + timedelta(days=1)
+        return (max(now, _start(begins, now)),
+                _end(begins + timedelta(days=DEFAULT_DAYS - 1), now), f"after {said}")
+    return max(now, _start(first, now)), _end(last, now), f"over {said}"
+
+
+def _days(message: str, now: datetime,
+          breaks: Sequence[tuple[str, date, date]] = ()) -> tuple[datetime, datetime, str]:
     text = message.casefold()
     today = now.date()
     if "tonight" in text:
@@ -223,6 +320,9 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         return _start(day, now), _end(day, now), "tomorrow"
     if "today" in text:
         return _start(today, now), _end(today, now), "today"
+    named_break = break_asked(message, breaks, today)
+    if named_break is not None:
+        return _break_window(named_break, now)
     for n, name in enumerate(_DAYS):
         if re.search(rf"\b{name}s?\b", text):
             ahead = (n - today.weekday()) % 7
@@ -263,6 +363,12 @@ def _days(message: str, now: datetime) -> tuple[datetime, datetime, str]:
         last = (date(today.year + (today.month == 12), today.month % 12 + 1, 1)
                 - timedelta(days=1))
         return now, _end(last, now), "this month"
+    named_month = month_asked(message)
+    if named_month is not None:
+        year = today.year if named_month >= today.month else today.year + 1
+        first = date(year, named_month, 1)
+        last = date(year + (named_month == 12), named_month % 12 + 1, 1) - timedelta(days=1)
+        return max(now, _start(first, now)), _end(last, now), f"in {first:%B}"
     # A later part of the term ("finals", "before Thanksgiving break") is past the usual two
     # weeks: the rest of the semester's calendar is read.
     if _LATER_TERM.search(text):
@@ -353,7 +459,9 @@ def asked_topic(message: str) -> set[str]:
     text = message.casefold()
     food = _FOOD_ASK.findall(text)
     words = (topic_words(message) - (_stems(" ".join(food)) if food else set())
-             - _stems(" ".join(_LATER_TERM.findall(text))) - _stems(" ".join(_GENERIC_CLUB)))
+             - _stems(" ".join(_LATER_TERM.findall(text))) - _stems(" ".join(_GENERIC_CLUB))
+             - _stems(" ".join(m.group(0) for m in [*_month_phrases(text),
+                                                    *_break_phrases(text)])))
     return (words - _FORM) or words
 
 
