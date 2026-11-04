@@ -2704,7 +2704,12 @@ class ChatEngine:
 
     def _directory(self) -> list[dict[str, Any]]:
         """Every person's directory and profile entry with its id, read through the shared
-        reader once per release."""
+        reader once per release. A staff member known only from an office's page is left out:
+        the directory's fields, schools and leaders are read from faculty and directory titles,
+        and an office role's words are no field (fix check 11-04: once staff titles were read,
+        "who is in charge of residence life" was answered with whoever "leads in life", and
+        "the student accounts office" with everyone who "leads in student"). A staff member is
+        still read when a question names them (_read_people)."""
         version, identity_hash = self.facts.active_release()
 
         def read() -> list[dict[str, Any]]:
@@ -2713,8 +2718,10 @@ class ChatEngine:
             for start in range(0, len(ids), 6):
                 for facts in self.facts.get_person_facts(ids[start:start + 6], version,
                                                          identity_hash=identity_hash):
-                    entries.append({"id": facts["entity"]["id"],
-                                    **people_module.person_evidence(facts, 0)})
+                    entry = people_module.person_evidence(facts, 0)
+                    if entry.get("staff_page") and not entry.get("profile_url"):
+                        continue
+                    entries.append({"id": facts["entity"]["id"], **entry})
             return entries
 
         return self._per_release("_directory_cache", version, read)
