@@ -2,6 +2,11 @@
 
 import asyncio
 import logging
+import threading
+import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
@@ -36,14 +41,104 @@ def test_warm_fills_each_per_release_read_once() -> None:
     reader = counting()
     engine = ChatEngine(ScriptedGateway(), reader)
     seconds = engine.warm()
-    assert set(seconds) == {"meaning_index", "directory", "clubs", "events", "venues", "stops",
-                            "office_labels", "catalog"}
+    assert set(seconds) == {"meaning_index", "procedures", "names", "ordinary_words",
+                            "directory", "clubs", "events", "venues", "stops", "office_labels",
+                            "catalog"}
     assert reader.warmed == 1
     assert engine._directory_cache is not None and engine._club_cache is not None
     assert getattr(engine, "_labels_cache", None) is not None
+    assert reader._section_index is not None  # The office sections how-to questions search.
     listed = reader.offices_listed
     engine._offices_by_service("mailroom")  # Already read: only the cheap listing again.
     assert reader.offices_listed == listed + 1
+
+
+class SlowClubs(Counting):
+    """A reader whose club list takes a while and that counts how often it is read."""
+
+    def __init__(self, fail_first: bool = False, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.club_lists = 0
+        self.fail_first = fail_first
+
+    def club_directory_ids(self) -> list[str]:
+        self.club_lists += 1
+        time.sleep(0.05)
+        if self.fail_first and self.club_lists == 1:
+            raise EvidenceUnavailable("down")
+        return super().club_directory_ids()
+
+
+def slow_clubs(**kwargs: Any) -> SlowClubs:
+    base = facts()
+    return SlowClubs(dataset_version=base.dataset_version, identity_hash=base.identity_hash,
+                     entities=base.entities, contacts=base.contacts, now=base.now, **kwargs)
+
+
+def test_questions_asking_at_once_wait_for_one_build() -> None:
+    """After the 11-04 data release every question began its own copy of each list. Now one
+    builds it and the rest wait for that copy."""
+    reader = slow_clubs()
+    engine = ChatEngine(ScriptedGateway(), reader)
+    start = threading.Barrier(8)
+
+    def ask() -> list[dict[str, Any]]:
+        start.wait()
+        return engine._club_directory()
+
+    with ThreadPoolExecutor(8) as pool:
+        lists = list(pool.map(lambda _: ask(), range(8)))
+    assert reader.club_lists == 1
+    assert all(found is lists[0] for found in lists)  # The one copy built, shared.
+
+
+def test_a_failed_build_leaves_nothing_and_the_next_question_builds_it() -> None:
+    reader = slow_clubs(fail_first=True)
+    engine = ChatEngine(ScriptedGateway(), reader)
+    with pytest.raises(EvidenceUnavailable):
+        engine._club_directory()
+    assert engine._club_cache is None
+    assert engine._club_directory() is engine._club_directory()
+    assert engine._club_cache is not None and reader.club_lists == 2
+
+
+def test_how_to_sections_are_read_once_when_questions_ask_at_once() -> None:
+    reader = counting()
+    version, identity_hash = reader.active_release()
+    opened: list[int] = []
+    real = reader.snapshot
+
+    @contextmanager
+    def slow() -> Iterator[Any]:
+        opened.append(1)
+        time.sleep(0.05)
+        with real() as snapshot:
+            yield snapshot
+
+    reader.snapshot = slow  # type: ignore[method-assign]
+    start = threading.Barrier(8)
+
+    def ask() -> object:
+        start.wait()
+        return reader._procedure_sections(version, identity_hash)
+
+    with ThreadPoolExecutor(8) as pool:
+        found = list(pool.map(lambda _: ask(), range(8)))
+    assert len(opened) == 1 and all(sections is found[0] for sections in found)
+
+
+def test_a_value_is_built_once_per_release() -> None:
+    engine = ChatEngine(ScriptedGateway(), facts())
+    built: list[str] = []
+
+    def build(name: str) -> list[str]:
+        built.append(name)
+        return [name]
+
+    first = engine._per_release("_club_cache", "release-1", lambda: build("first"))
+    assert engine._per_release("_club_cache", "release-1", lambda: build("again")) is first
+    assert engine._per_release("_club_cache", "release-2", lambda: build("next")) == ["next"]
+    assert built == ["first", "next"]
 
 
 def test_a_failing_step_is_logged_and_the_rest_still_run(

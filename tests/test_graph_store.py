@@ -178,6 +178,43 @@ def test_the_graph_gives_the_reader_the_same_answers_as_its_source(
     assert operations(opened(memory, folder)) == expected
 
 
+def test_a_file_reads_and_checks_its_identities_once_for_every_reader(
+        folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each fact read used to re-read and re-check every identity in the file: filling the
+    engine's lists made 464 such reads, 49.7 of its 59 s on the 11-03 graph. A file never
+    changes, so one read serves every reader, with the same answers."""
+    memory = conflicts()
+    graph = opened(memory, folder)
+    queries: list[str] = []
+    real = graph._read  # noqa: SLF001 - counted, not changed.
+
+    def counted(connection: Any, query: str, params: dict[str, Any] | None = None) -> list[Any]:
+        queries.append(query)
+        return real(connection, query, params)
+
+    monkeypatch.setattr(graph, "_read", counted)
+    assert operations(graph) == operations(memory)
+    assert sum("MATCH (e:Entity)" in query for query in queries) == 1
+
+
+@pytest.mark.parametrize("name", list(SCENARIOS))
+def test_no_reader_changes_the_identities_that_every_read_shares(name: str, folder: Path,
+                                                                 ) -> None:
+    graph = opened(SCENARIOS[name](), folder)
+    with graph.snapshot() as first:
+        before = deepcopy(first.entities), deepcopy(first.alias_sources)
+    operations(graph)
+    graph.identities(("office", "person"))
+    graph.identity_statuses(("office", "person"), VERSION, identity_hash=IDENTITY)
+    graph.release_inputs(None)
+    graph.room_prefixes()
+    graph.list_topics()
+    graph.list_routes()
+    with graph.snapshot() as later:
+        assert later.entities is first.entities
+        assert (later.entities, later.alias_sources) == before
+
+
 def test_a_confirmed_absence_survives_the_graph_with_its_proof() -> None:
     memory = absences()
     expected = memory.get_office_facts("nursing", ["email", "hours", "offices"], VERSION,

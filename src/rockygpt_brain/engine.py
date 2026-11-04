@@ -10,12 +10,13 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, Protocol, get_args
+from typing import Any, Literal, Protocol, TypeVar, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -105,6 +106,10 @@ from rockygpt_brain.writer import (
 from rockygpt_brain.writer_view import writer_view
 
 LOG = logging.getLogger(__name__)
+_Value = TypeVar("_Value")
+# Each office with the words of a service label it lists and that label's last word (a
+# "Mailroom" contact is a mailroom), for the services no office is named after.
+_ServiceLabels = list[tuple[dict[str, Any], frozenset[str], frozenset[str]]]
 # A slow provider gets 52 s; with the emergency numbers' wait and 2 s the outer guard is 57 s,
 # inside the student and dev UIs' 60 s request timeout.
 TURN_SECONDS = 52.0
@@ -1374,6 +1379,43 @@ class ChatEngine:
         self._tracks: tuple[str, tuple[dict[str, str], dict[str, list[str]]]] | None = None
         # The buildings and every office's and venue's names, read once per release (_names).
         self._names_cache: tuple[tuple[str, str], dict[str, Any]] | None = None
+        # The dining venues, the shuttle stops and each office's service labels, per release.
+        self._venues_cache: tuple[tuple[str, str], list[dict[str, Any]] | None] | None = None
+        self._stops_cache: tuple[tuple[str, str], list[dict[str, Any]] | None] | None = None
+        self._labels_cache: tuple[tuple[str, str], _ServiceLabels] | None = None
+        # One lock per value above, so one caller builds it while the others wait (_per_release).
+        self._builders: dict[str, Any] = {}
+        self._builders_lock = threading.Lock()
+
+    def for_release(self, facts: EntityFacts) -> "ChatEngine":
+        """An engine with this one's settings over another release's facts, nothing read yet. A
+        new release is read in full in an engine of its own while this one keeps answering, and
+        the Brain switches engines once it is ready (api/releases.py)."""
+        return ChatEngine(self.gateway, facts, turn_seconds=self.turn_seconds,
+                          max_turn_nusd=self.max_turn_nusd, output=self.output,
+                          howto_one_call=self.howto_one_call, lookup_writer=self.lookup_writer,
+                          read_first=self.read_first, reads=self.reads, picks=self.picks)
+
+    def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
+        """A value read once per release (or per release and day), held as (key, value) in the
+        attribute name. One caller builds it and every other caller asking for it meanwhile waits
+        for that build instead of starting its own: after the 11-04 data release each question
+        began its own copy of the lists, and the copies kept running after their questions gave
+        up, all on Render's half CPU. A build that fails leaves nothing, so the next caller
+        tries. A build reads only the facts, never another of these values, so a builder never
+        waits on a second lock."""
+        held = getattr(self, name, None)
+        if held is not None and held[0] == key:
+            return cast(_Value, held[1])
+        with self._builders_lock:
+            lock = self._builders.setdefault(name, threading.RLock())
+        with lock:
+            held = getattr(self, name, None)
+            if held is not None and held[0] == key:
+                return cast(_Value, held[1])
+            value = build()
+            setattr(self, name, (key, value))
+            return value
 
     def _json(self, result: ChatResult, parts: list[dict[str, Any]], turn: Turn) -> ChatResult:
         """In JSON output the written answer is dropped and the facts go out as they are: the full
@@ -1400,14 +1442,19 @@ class ChatEngine:
 
     def warm(self) -> dict[str, float]:
         """Read, before the first question, what questions otherwise read on first use: the
-        meaning index and the once-per-release lists (directory, clubs, events, venues, stops,
-        office labels, catalog tracks). After a deploy the first answer took ~24 s, and how-to
-        questions asked before the meaning index loaded were searched by words alone.
+        meaning index, the office sections how-to questions search, and the once-per-release
+        lists (names, the pages' own words, directory, clubs, events, venues, stops, office
+        labels, catalog tracks). After a deploy the first answer took ~24 s, and how-to
+        questions asked before the meaning index loaded were searched by words alone. A new
+        release is warmed the same way in an engine of its own before it serves anyone.
 
         Each step stands alone: one that fails is logged and the Brain starts anyway, reading
         it on first use as before. Returns the seconds each step took."""
         steps: list[tuple[str, Callable[[], object]]] = [
             ("meaning_index", self.facts.warm_meaning_index),
+            ("procedures", self.facts.warm_procedure_sections),
+            ("names", self._names),
+            ("ordinary_words", self._ordinary),
             ("directory", self._directory),
             ("clubs", self._club_directory),
             ("events", lambda: self._upcoming_events(datetime.now(CAMPUS_TZ))),
@@ -1550,9 +1597,9 @@ class ChatEngine:
         "a / b" and "a or b" are tried as two parts. Labels are read once per release."""
         listing = self.facts.list_offices(limit=500, with_ids=True)
         key = (listing["dataset_version"], listing["identity_hash"])
-        cached = getattr(self, "_labels_cache", None)
-        if cached is None or cached[0] != key:
-            index: list[tuple[dict[str, Any], frozenset[str], frozenset[str]]] = []
+
+        def labelled() -> _ServiceLabels:
+            index: _ServiceLabels = []
             for office in listing["offices"]:
                 try:
                     facts = self.facts.get_office_facts(office["entity_id"],
@@ -1564,12 +1611,14 @@ class ChatEngine:
                           if (tokens := discovery_tokens(label))
                           and (head := next((last for word in reversed(label.split())
                                              if (last := discovery_tokens(word))), tokens))]
-            self._labels_cache = cached = (key, index)
+            return index
+
+        labels = self._per_release("_labels_cache", key, labelled)
         # One short word ("post", "hall") is in too many labels to name a service by itself.
         parts = [tokens for part in re.split(r"/|\bor\b", query.casefold())
                  if len(tokens := discovery_tokens(part)) > 1
                  or any(len(token) >= 5 for token in tokens)]
-        found = {office["entity_id"]: office for office, tokens, head in cached[1]
+        found = {office["entity_id"]: office for office, tokens, head in labels
                  for part in parts if part and part <= tokens and head <= part}
         return [{"entity_id": office["entity_id"], "name": office["name"], "match": "service"}
                 for office in found.values()]
@@ -1595,23 +1644,23 @@ class ChatEngine:
         """Read once per release: the buildings by name, other names and room-number prefixes
         (as the router reads names), every office's and venue's name and other names as said
         plainly and as the router reads them, and each office's and venue's id by its name."""
-        key = self.facts.active_release()
-        if self._names_cache is not None and self._names_cache[0] == key:
-            return self._names_cache[1]
-        rooms = self.facts.room_prefixes()
-        buildings = [{"name": b["name"], "also_called": list(b["aliases"]), "entity_id": b["id"],
-                      **({"room_prefixes": rooms[b["id"]]} if b["id"] in rooms else {})}
-                     for b in self.facts.identities(("building",))]
-        places = self.facts.identities(("office", "venue"))
-        names = {"buildings": buildings,
-                 "places": {_said_name(str(name)) for place in places
-                            for name in [place["name"], *place["aliases"]]},
-                 "ids": {str(place["name"]): place["id"] for place in places},
-                 **{f"{kind}s": [{"name": place["name"], "also_called": list(place["aliases"])}
-                                 for place in places if place["kind"] == kind]
-                    for kind in ("office", "venue")}}
-        self._names_cache = (key, names)
-        return names
+        def read() -> dict[str, Any]:
+            rooms = self.facts.room_prefixes()
+            buildings = [{"name": b["name"], "also_called": list(b["aliases"]),
+                          "entity_id": b["id"],
+                          **({"room_prefixes": rooms[b["id"]]} if b["id"] in rooms else {})}
+                         for b in self.facts.identities(("building",))]
+            places = self.facts.identities(("office", "venue"))
+            return {"buildings": buildings,
+                    "places": {_said_name(str(name)) for place in places
+                               for name in [place["name"], *place["aliases"]]},
+                    "ids": {str(place["name"]): place["id"] for place in places},
+                    **{f"{kind}s": [{"name": place["name"],
+                                     "also_called": list(place["aliases"])}
+                                    for place in places if place["kind"] == kind]
+                       for kind in ("office", "venue")}}
+
+        return self._per_release("_names_cache", self.facts.active_release(), read)
 
     def _buildings(self) -> list[dict[str, Any]]:
         """The campus buildings by name and other names, as the router reads names."""
@@ -1992,7 +2041,8 @@ class ChatEngine:
         has a track with its program's name, and each course code with the programs whose
         requirements list it."""
         version, identity_hash = self.facts.active_release()
-        if self._tracks is None or self._tracks[0] != version:
+
+        def read() -> tuple[dict[str, str], dict[str, list[str]]]:
             tracks: dict[str, str] = {}
             listed_in: dict[str, list[str]] = {}
             for program in self.facts.identities(("program",)):
@@ -2009,8 +2059,9 @@ class ChatEngine:
                             [value["value"] for value in prop["values"]])
                         for code in catalog.courses_listed(text):
                             listed_in.setdefault(code, []).append(str(program["name"]))
-            self._tracks = (version, (tracks, listed_in))
-        return self._tracks[1]
+            return tracks, listed_in
+
+        return self._per_release("_tracks", version, read)
 
     async def _pick_catalog(self, question: str, index: MeaningIndex,
                             vectors: Sequence[Sequence[float]],
@@ -2491,12 +2542,15 @@ class ChatEngine:
         shared reader once per release and day."""
         version, identity_hash = self.facts.active_release()
         key = (version, now.date().isoformat())
-        if self._upcoming_cache is None or self._upcoming_cache[0] != key:
+
+        def read() -> list[dict[str, Any]]:
             dated = events.events_in([e for e in self.facts.identities(("event",))],
                                      now, now + timedelta(days=366))
-            self._upcoming_cache = (key, self._event_values(dated, version, identity_hash, now))
+            return self._event_values(dated, version, identity_hash, now)
+
+        listed = self._per_release("_upcoming_cache", key, read)
         # Still to come, or still on now by its end time on the campus clock.
-        return events.in_window(self._upcoming_cache[1], now, now + timedelta(days=366))
+        return events.in_window(listed, now, now + timedelta(days=366))
 
     def _club_events(self, clubs: Sequence[dict[str, Any]], now: datetime, numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
@@ -2544,7 +2598,8 @@ class ChatEngine:
         """Every person's directory and profile entry with its id, read through the shared
         reader once per release."""
         version, identity_hash = self.facts.active_release()
-        if self._directory_cache is None or self._directory_cache[0] != version:
+
+        def read() -> list[dict[str, Any]]:
             ids = [e["id"] for e in self.facts.identities(("person",))]
             entries = []
             for start in range(0, len(ids), 6):
@@ -2552,8 +2607,9 @@ class ChatEngine:
                                                          identity_hash=identity_hash):
                     entries.append({"id": facts["entity"]["id"],
                                     **people_module.person_evidence(facts, 0)})
-            self._directory_cache = (version, entries)
-        return self._directory_cache[1]
+            return entries
+
+        return self._per_release("_directory_cache", version, read)
 
     def _people_listed(self, message: str, numbered_from: int,
                        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2607,16 +2663,22 @@ class ChatEngine:
     def _people_named(self, message: str) -> list[dict[str, Any]]:
         """The people a message names by their directory names (people.py); the published
         pages' own words (section headings, course titles) are never read as misspelt names."""
+        return people_module.find_people(self.facts.identities(("person",)), message,
+                                         self._ordinary())
+
+    def _ordinary(self) -> frozenset[str]:
+        """The published pages' own words (section headings, course titles), read once per
+        meaning index; none without one."""
         index = self.facts.meaning_index()
-        if index is not None and (self._ordinary_words is None
-                                  or self._ordinary_words[0] != index.dataset_version):
+        if index is None:
+            return frozenset()
+
+        def read() -> frozenset[str]:
             text = " ".join([*(" ".join(label) for label in index.labels.values()),
                              *index.course_titles.values()])
-            self._ordinary_words = (index.dataset_version,
-                                    frozenset(re.findall(r"[a-z]{3,}", text.casefold())))
-        return people_module.find_people(
-            self.facts.identities(("person",)), message,
-            self._ordinary_words[1] if index is not None and self._ordinary_words else frozenset())
+            return frozenset(re.findall(r"[a-z]{3,}", text.casefold()))
+
+        return self._per_release("_ordinary_words", index.dataset_version, read)
 
     def _read_people(self, people: Sequence[dict[str, Any]], numbered_from: int,
                      ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2639,14 +2701,15 @@ class ChatEngine:
     def _club_directory(self) -> list[dict[str, Any]]:
         """Every club's directory entry with its id, read once per release."""
         version, identity_hash = self.facts.active_release()
-        if self._club_cache is None or self._club_cache[0] != version:
+
+        def read() -> list[dict[str, Any]]:
             ids = self.facts.club_directory_ids()
-            entries = [{"id": facts["entity"]["id"], **facts["properties"][0]["values"][0]["value"]}
-                       for start in range(0, len(ids), 12)
-                       for facts in self.facts.get_club_facts(ids[start:start + 12], version,
-                                                              identity_hash=identity_hash)]
-            self._club_cache = (version, entries)
-        return self._club_cache[1]
+            return [{"id": facts["entity"]["id"], **facts["properties"][0]["values"][0]["value"]}
+                    for start in range(0, len(ids), 12)
+                    for facts in self.facts.get_club_facts(ids[start:start + 12], version,
+                                                           identity_hash=identity_hash)]
+
+        return self._per_release("_club_cache", version, read)
 
     def _clubs_by_kind(self, index: MeaningIndex, message: str,
                        ) -> tuple[list[dict[str, Any]], str] | None:
@@ -3525,69 +3588,69 @@ class ChatEngine:
         the Library's building. Read once per release: every office's location is read for it."""
         found = self.facts.list_offices(limit=100, kinds=("venue",), with_ids=True)
         key = (found["dataset_version"], found["identity_hash"])
-        cached = getattr(self, "_venues_cache", None)
-        if cached is not None and cached[0] == key:
-            return cached[1]  # type: ignore[no-any-return]
-        venues = published_offices(found)
-        if venues is not None:
-            def places(entity_id: str) -> list[str]:
-                try:
-                    facts = self.facts.get_office_facts(entity_id, ["offices"], key[0],
-                                                        identity_hash=key[1])
-                except (UnknownEntity, InvalidFactRequest, EvidenceUnavailable):
-                    return []  # A place that cannot be read is left out; the list still goes.
-                values = [value["value"] for prop in facts["properties"]
-                          if prop["status"] == "known" for value in prop["values"]]
-                items = [item for value in values
-                         for item in (value if isinstance(value, list) else [value])]
-                return [text for item in items
-                        if isinstance(text := item.get("location") if isinstance(item, dict)
-                                      else item, str) and text]
-            buildings = {venue["entity_id"]: places(venue["entity_id"])
-                         for venue in found["offices"]}
-            offices = self.facts.list_offices(limit=500, with_ids=True)["offices"]
-            at = {office["name"]: {p.casefold() for p in places(office["entity_id"])}
-                  for office in offices}
-            for venue, listed in zip(venues, found["offices"], strict=True):
-                inside = buildings[listed["entity_id"]]
-                if inside:
-                    venue["in"] = inside
-                    shared = sorted(name for name, where in at.items()
-                                    if where & {b.casefold() for b in inside})
-                    if shared:
-                        venue["with"] = shared
-        self._venues_cache = (key, venues)
-        return venues
+
+        def read() -> list[dict[str, Any]] | None:
+            venues = published_offices(found)
+            if venues is not None:
+                def places(entity_id: str) -> list[str]:
+                    try:
+                        facts = self.facts.get_office_facts(entity_id, ["offices"], key[0],
+                                                            identity_hash=key[1])
+                    except (UnknownEntity, InvalidFactRequest, EvidenceUnavailable):
+                        return []  # A place that cannot be read is left out; the list still goes.
+                    values = [value["value"] for prop in facts["properties"]
+                              if prop["status"] == "known" for value in prop["values"]]
+                    items = [item for value in values
+                             for item in (value if isinstance(value, list) else [value])]
+                    return [text for item in items
+                            if isinstance(text := item.get("location") if isinstance(item, dict)
+                                          else item, str) and text]
+                buildings = {venue["entity_id"]: places(venue["entity_id"])
+                             for venue in found["offices"]}
+                offices = self.facts.list_offices(limit=500, with_ids=True)["offices"]
+                at = {office["name"]: {p.casefold() for p in places(office["entity_id"])}
+                      for office in offices}
+                for venue, listed in zip(venues, found["offices"], strict=True):
+                    inside = buildings[listed["entity_id"]]
+                    if inside:
+                        venue["in"] = inside
+                        shared = sorted(name for name, where in at.items()
+                                        if where & {b.casefold() for b in inside})
+                        if shared:
+                            venue["with"] = shared
+            return venues
+
+        return self._per_release("_venues_cache", key, read)
 
     def _published_stops(self) -> tuple[list[dict[str, Any]] | None, list[str] | None]:
         """The shuttle stops and the route names the model is shown."""
         listing = self.facts.list_routes()
         key = (listing["dataset_version"], listing["identity_hash"])
         routes = [route["name"] for route in listing["routes"]] or None
-        cached = getattr(self, "_stops_cache", None)
-        if cached is not None and cached[0] == key:
-            return cached[1], routes
-        envelopes = [self.facts.get_route_facts(route["entity_id"], key[0], identity_hash=key[1])
-                     for route in listing["routes"]]
-        # What each stop is, in its stop-descriptions page's opening sentences, so a student's
-        # "the mall" or "the train" can be matched to the stop the page says it is.
-        about: dict[str, str] = {}
-        described = described_stops(envelopes)
-        for stop in described:
-            if sentence := stop_summary(stop.get("description")):
-                about.setdefault(stop_key(stop["stop"]), sentence)
-        names = stops_served(table_of(envelopes))
-        # A described stop no trip calls at is where the trips leave from (the campus stop).
-        origins = list(dict.fromkeys(stop["stop"] for stop in described
-                                     if stop_key(stop["stop"]) not in map(stop_key, names)))
-        listed: list[dict[str, Any]] = [
-            {"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about else {})}
-            for name in names]
-        listed += [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
-                                     else {}), "departs_here": True} for name in origins]
-        stops = listed or None
-        self._stops_cache = (key, stops)
-        return stops, routes
+
+        def read() -> list[dict[str, Any]] | None:
+            envelopes = [self.facts.get_route_facts(route["entity_id"], key[0],
+                                                    identity_hash=key[1])
+                         for route in listing["routes"]]
+            # What each stop is, in its stop-descriptions page's opening sentences, so a student's
+            # "the mall" or "the train" can be matched to the stop the page says it is.
+            about: dict[str, str] = {}
+            described = described_stops(envelopes)
+            for stop in described:
+                if sentence := stop_summary(stop.get("description")):
+                    about.setdefault(stop_key(stop["stop"]), sentence)
+            names = stops_served(table_of(envelopes))
+            # A described stop no trip calls at is where the trips leave from (the campus stop).
+            origins = list(dict.fromkeys(stop["stop"] for stop in described
+                                         if stop_key(stop["stop"]) not in map(stop_key, names)))
+            listed: list[dict[str, Any]] = [
+                {"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about else {})}
+                for name in names]
+            listed += [{"name": name, **({"is": about[stop_key(name)]} if stop_key(name) in about
+                                         else {}), "departs_here": True} for name in origins]
+            return listed or None
+
+        return self._per_release("_stops_cache", key, read), routes
 
     def _shuttle(self, request: ShuttleRequest, as_of: datetime,
                  graph: CampusGraph) -> OfficeResult:
@@ -4105,13 +4168,10 @@ class ChatEngine:
         if self._upcoming_cache is None:
             return []
         day, listed = self._upcoming_cache
-        if self._listing_words is None or self._listing_words[0] != day:
-            self._listing_words = (day, events.listing_words(listed))
-        if self._heading_words is None or self._heading_words[0] != index.dataset_version:
-            self._heading_words = (index.dataset_version,
-                                   events.heading_words(index.labels.values()))
-        return events.related_events(upcoming, words, now, self._listing_words[1],
-                                     self._heading_words[1])
+        counts = self._per_release("_listing_words", day, lambda: events.listing_words(listed))
+        headings = self._per_release("_heading_words", index.dataset_version,
+                                     lambda: events.heading_words(index.labels.values()))
+        return events.related_events(upcoming, words, now, counts, headings)
 
     async def _read_emergency(self, turn: Turn, request: ChatRequest, reading: triage.Reading,
                               trace: dict[str, Any], question: str | None,

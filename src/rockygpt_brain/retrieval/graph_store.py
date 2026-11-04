@@ -25,7 +25,7 @@ import os
 import secrets
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Hashable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timezone
 from pathlib import Path
@@ -287,6 +287,8 @@ class GraphEntityFacts(EntityFacts):
             self._alias_sources = meta["alias_sources"]
         except (KeyError, ValueError) as exc:
             raise GraphUnavailable("The release graph is missing its release details.") from exc
+        self._registry_lock = threading.Lock()
+        self._registry: tuple[list[dict[str, Any]], list[dict[str, Any]]] | None = None
 
     def _read(self, connection: Any, query: str, params: dict[str, Any] | None = None
               ) -> list[Any]:
@@ -312,6 +314,23 @@ class GraphEntityFacts(EntityFacts):
             raise
         return rows
 
+    def _identities(self, connection: Any
+                    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The release's identities and alias sources, read and checked once per file. A file
+        never changes, and every fact read needs them: read for each one, they were 49.7 of the
+        59 s the engine took to fill its lists (464 reads, the 11-03 graph). Readers share them,
+        so no reader may change them (test_graph_store holds every reader to that). A file whose
+        identities fail the checks keeps failing every read, as before."""
+        held = self._registry
+        if held is not None:
+            return held
+        with self._registry_lock:
+            if self._registry is None:
+                docs = self._read(connection, "MATCH (e:Entity) RETURN e.doc ORDER BY e.ord")
+                self._registry = (validate_entities([_loads(doc) for doc in docs]),
+                                  _loads(self._alias_sources))
+            return self._registry
+
     @contextmanager
     def snapshot(self) -> Iterator[Snapshot]:
         try:
@@ -319,14 +338,13 @@ class GraphEntityFacts(EntityFacts):
         except Exception as exc:
             raise EvidenceUnavailable("The release graph could not be read.") from exc
         try:
-            docs = self._read(connection, "MATCH (e:Entity) RETURN e.doc ORDER BY e.ord")
-            entities = validate_entities([_loads(doc) for doc in docs])
+            entities, alias_sources = self._identities(connection)
             yield Snapshot(
                 self.dataset_version,
                 self.identity_hash,
                 entities,
                 lambda entity: self._evidence(connection, entity, CONTACTS),
-                _loads(self._alias_sources),
+                alias_sources,
                 lambda entity: self._evidence(connection, entity, SCHEDULES),
                 lambda: self.fingerprint,
                 lambda entity, collection: (
@@ -383,16 +401,23 @@ class GraphOnlyFacts(EntityFacts):
     (POINTER), and every fact comes from the graph file it names. There is no fallback: a missing
     pointer, a missing or damaged file, or a failed read is an error for the question. The pointer
     is checked on every read, so a newly published release is served from the next question on.
+
+    Given a release (a pointer: its file, dataset_version and identity_hash), the reader serves
+    that release alone and never reads the pointer. The Brain reads each new release in a reader
+    and engine of its own and switches only once it is ready (api/releases.py), so a question
+    never meets a release whose lists are still being read.
     """
 
     backend = "graph (only)"
 
-    def __init__(self, directory: Path | str, *, now: Callable[[], datetime] | None = None) -> None:
+    def __init__(self, directory: Path | str, *, now: Callable[[], datetime] | None = None,
+                 release: Mapping[str, Any] | None = None) -> None:
         super().__init__(now=now)
         ladybug_module()  # Fail at startup, not on the first question, if it is not installed.
         self.directory = Path(directory)
+        self.release = dict(release) if release is not None else None
         self._lock = threading.Lock()
-        self._loaded: tuple[tuple[int, int], GraphEntityFacts] | None = None
+        self._loaded: tuple[Hashable, GraphEntityFacts] | None = None
         self._served = 0
         self._loads = 0
         self._last_error: str | None = None
@@ -419,11 +444,13 @@ class GraphOnlyFacts(EntityFacts):
 
     def _graph(self) -> GraphEntityFacts:
         pointer_path = self.directory / POINTER
-        try:
-            status = pointer_path.stat()
-        except OSError as exc:
-            raise self._fail(exc) from exc
-        key = (status.st_mtime_ns, status.st_size)
+        key: Hashable = "release"  # A reader given its release opens that file, and only it.
+        if self.release is None:
+            try:
+                status = pointer_path.stat()
+            except OSError as exc:
+                raise self._fail(exc) from exc
+            key = (status.st_mtime_ns, status.st_size)
         loaded = self._loaded
         if loaded is not None and loaded[0] == key and not loaded[1].broken:
             return loaded[1]
@@ -432,7 +459,8 @@ class GraphOnlyFacts(EntityFacts):
             if loaded is not None and loaded[0] == key and not loaded[1].broken:
                 return loaded[1]
             try:
-                pointer = json.loads(pointer_path.read_text())
+                pointer = (self.release if self.release is not None
+                           else json.loads(pointer_path.read_text()))
                 name = pointer["file"]
                 if not isinstance(name, str) or Path(name).name != name:
                     raise GraphUnavailable("The release pointer names a path, not a file.")
@@ -459,6 +487,11 @@ class GraphOnlyFacts(EntityFacts):
         if cached is not None and cached[0] == graph.path:
             return cached[1]
         with self._lock:
+            # Another question may have loaded it while this one waited: four asking at once made
+            # four loads, one after another.
+            cached = self._meaning
+            if cached is not None and cached[0] == graph.path:
+                return cached[1]
             try:
                 index = MeaningIndex.load(graph.path)
             except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -481,3 +514,26 @@ class GraphOnlyFacts(EntityFacts):
         with graph.snapshot() as snapshot:
             self._served += 1
             yield snapshot
+
+
+def read_pointer(directory: Path | str) -> dict[str, Any] | None:
+    """The release a folder's pointer names, or None when there is none to read."""
+    try:
+        pointer = json.loads((Path(directory) / POINTER).read_text())
+    except (OSError, ValueError):
+        return None
+    return pointer if isinstance(pointer, dict) else None
+
+
+def checked_release(directory: Path | str, pointer: Mapping[str, Any], *,
+                    now: Callable[[], datetime] | None = None) -> GraphOnlyFacts:
+    """A reader for the release pointer names, opened and checked before it serves anyone: its
+    file opens, is the release the pointer says, and its identities and an office's contacts
+    read and pass their checks. A release that fails is an error, never served in part."""
+    facts = GraphOnlyFacts(directory, now=now, release=pointer)
+    status = facts.readiness()
+    if not status.get("ready") or (status.get("dataset_version"), status.get("identity_hash")) != (
+            pointer.get("dataset_version"), pointer.get("identity_hash")):
+        raise GraphUnavailable(f"The release {pointer.get('dataset_version')} does not open or "
+                               f"pass its checks ({facts.stats()['lastError']}).")
+    return facts
