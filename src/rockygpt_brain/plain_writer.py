@@ -2,7 +2,7 @@
 
 Dan 11-02: a lookup answer (hours, contacts, rooms, menus) is said in code's own plain sentences,
 the same every time and never with a word the facts do not hold. An AI writer can come back later
-as a layer (BRAIN_LOOKUP_WRITER=1). `plain_text` says what the writer view holds by the AI writer's
+as a layer (BRAIN_LOOKUP_WRITER=ai). `plain_text` says what the writer view holds by the AI writer's
 own rules (writer.py WRITER_PROMPT) for the shapes it knows, and returns None for any shape it does
 not, so the code's full evidence text is the answer instead of a guess.
 """
