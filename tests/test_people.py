@@ -404,10 +404,15 @@ def test_who_teaches_a_course_is_every_profile_that_lists_it() -> None:
         {"name": "Chem All", "courses": ["Organic Chemistry"]},
         {"name": "Nobody", "courses": ["Psychology of Learning"]}]
     psych = course_teachers(directory, ["PSYC 101"], TITLES)
-    assert [p["name"] for p in psych] == ["Naseem Choudhury", "Ann Ishak", "Old Prof"]
+    # 11-04 live check: a retired professor's profile still lists what they taught, so they
+    # are left out while anyone else lists the course, and kept, said as retired, when no one
+    # else does.
+    assert [p["name"] for p in psych] == ["Naseem Choudhury", "Ann Ishak"]
+    assert [p["name"] for p in course_teachers(directory[2:], ["PSYC 101"], TITLES)] == [
+        "Old Prof"]
     orgo = course_teachers(directory, ["CHEM 213", "CHEM 213L"], TITLES)
     assert [p["name"] for p in orgo] == ["Chem One", "Chem All"]
-    people = [{**p, "n": k} for k, p in enumerate(psych, start=2)]
+    people = [{**p, "n": k} for k, p in enumerate([*psych, directory[2]], start=2)]
     assert course_teachers_text(["PSYC 101"], TITLES, people, ["office"]) == (
         "Faculty profiles that list PSYC 101 Introduction to Psychology among the courses they "
         "teach:\n"
@@ -425,3 +430,25 @@ def test_in_residence_is_a_role_not_a_field() -> None:
     directory = [{"title": "Entrepreneur in Residence"}, {"title": "Professor of Psychology"}]
     assert fields_asked("who is in charge of residence life", directory) == set()
     assert fields_asked("who is the psychology convener", directory) == {"psychology"}
+
+
+def test_a_staff_member_is_read_from_their_offices_page() -> None:
+    # Fix 4, 11-04: 170 staff were people in the graph whose facts the Brain could not read.
+    from datetime import UTC, datetime
+
+    from rockygpt_brain.people import page_of, person_text
+    from rockygpt_brain.retrieval.entity_facts import person_property
+    page = "https://www.ramapo.edu/facilities/facilities-contacts/"
+    staff = {"id": "staff:a@ramapo.edu", "source_record_key": "a@ramapo.edu",
+             "source_key": "office-pages", "collected_at": None,
+             "name": "Alan Kashian", "emails": ["a@ramapo.edu"], "source_url": page,
+             "roles": [{"title": "Director of Facilities", "office": "Facilities Management",
+                        "source_url": page}]}
+    prop, sources = person_property(None, None, datetime(2026, 11, 4, tzinfo=UTC), staff)
+    value = prop["values"][0]["value"]
+    assert (value["title"], value["email"], value["department"]) == (
+        "Director of Facilities", "a@ramapo.edu", "Facilities Management")
+    assert sources[0]["collection"] == "staff" and page_of(value) == page
+    assert person_text({**value, "n": 1}, "what is alan kashian's phone") == (
+        "Alan Kashian is Director of Facilities (Facilities Management). The office's staff "
+        "page lists no phone number. [1]")

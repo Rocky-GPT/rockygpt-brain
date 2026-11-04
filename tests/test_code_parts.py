@@ -224,6 +224,18 @@ def test_code_says_every_event_it_chose_for_a_topic_and_none_when_none_matches()
     # "What shows up on my transcript" asks about no show.
     assert not events.asks_events("what shows up on my transcript if i withdraw")
     assert events.asks_events("any shows this weekend")
+    # With no time named, the topic's later dates follow the window's (fix check 11-04: Clay it
+    # Cool, three weeks out, was missed); only near in meaning when none is named by its listing.
+    later = events.topic_text(events.DEFAULT_LABEL, start, end, 40,
+                              [line(2, "Ceramics and Tea", 5, "words")], True,
+                              [line(3, "Pottery Night", 25, "words")])
+    assert later is not None and later.endswith(
+        "Later on the calendar, also matching what you asked:\n\n"
+        "Wednesday, November 25:\n- 1 PM: Pottery Night (Mackin Hall) [3]")
+    near = events.topic_text(events.DEFAULT_LABEL, start, end, 40,
+                             [line(2, "Ceramics and Tea", 5, "words")], True,
+                             [line(3, "Clay it Cool", 23, "meaning")])
+    assert near is not None and "Later on the calendar, only near it in meaning:" in near
 
 
 def test_an_offices_page_sections_are_said_by_code_once_in_their_own_words() -> None:

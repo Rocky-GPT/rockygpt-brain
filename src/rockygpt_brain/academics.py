@@ -85,6 +85,37 @@ def _short_names(program: dict[str, Any], tokens: list[str], message: str) -> li
     return sorted(at)
 
 
+# Degrees too common to name a program alone: "a BS" or "an MA" is any of dozens.
+_COMMON_DEGREES = frozenset({"ba", "bs", "ms", "ma", "minor", "certificate",
+                             "graduate certificate", "4+1"})
+# A degree names its programs when it is theirs alone or nearly so ("the MPP" is Public Policy
+# MPP, "the BSN" the three Nursing BSNs): fix check 11-04, "tell me about the MPP" and "what's
+# the RN to BSN" named no program.
+MAX_DEGREE_PROGRAMS = 3
+
+
+def _degrees_named(programs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
+    """The programs a message names by their degree alone (_LEVEL_SUFFIX): by the whole degree
+    ("rn to bsn") or its last word ("bsn"), when at most MAX_DEGREE_PROGRAMS have it; a whole
+    degree said is preferred over the others its last word would name."""
+    text = " ".join(re.findall(r"[a-z0-9+]+", message.casefold()))
+    by_degree: dict[str, list[dict[str, Any]]] = {}
+    for program in programs:
+        found = _LEVEL_SUFFIX.search(str(program["name"]))
+        degree = " ".join(found.group(0).strip(" -").casefold().split()) if found else ""
+        if degree and degree not in _COMMON_DEGREES:
+            by_degree.setdefault(degree, []).append(program)
+    whole = [p for degree, group in by_degree.items() if len(group) <= MAX_DEGREE_PROGRAMS
+             and re.search(rf"(?<![a-z0-9]){re.escape(degree)}(?![a-z0-9])", text) for p in group]
+    if whole:
+        return whole
+    by_last: dict[str, list[dict[str, Any]]] = {}
+    for degree, group in by_degree.items():
+        by_last.setdefault(degree.split()[-1], []).extend(group)
+    return [p for last, group in by_last.items() if len(group) <= MAX_DEGREE_PROGRAMS
+            and re.search(rf"(?<![a-z0-9]){re.escape(last)}(?![a-z0-9])", text) for p in group]
+
+
 def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict[str, Any]]:
     """The programs (identities: {"id", "name", …}) a message names, best first, at most
     MAX_PROGRAMS. A program is named when every word of its core name is a word of the message
@@ -120,7 +151,8 @@ def find_programs(programs: Sequence[dict[str, Any]], message: str) -> list[dict
         if by_short := _short_names(program, tokens, message):
             named.append((program, core, by_short, set(by_short)))
     if not named:
-        return []
+        # Named by its degree alone ("the MPP"): the programs themselves, the level being theirs.
+        return _degrees_named(programs, message)[:MAX_PROGRAMS]
     # A short form several programs share stands for the shortest word it starts ("bio" is
     # Biology, not Biochemistry or Bioinformatics).
     longer = {i for matches in short.values() for length, i in matches
@@ -155,13 +187,15 @@ def named_in_full(programs: Sequence[dict[str, Any]], message: str) -> list[dict
     tokens = re.findall(r"[a-z0-9+]+", message.casefold())
     words = set(tokens)
     subjects = dict(asked_subjects(message))
+    # A degree that is its program's own ("the MPP") names it as fully as its name does.
+    by_degree = {id(p) for p in _degrees_named(programs, message)}
     kept: list[dict[str, Any]] = []
     for program in programs:
         name = str(program["name"])
         core = discovery_tokens(program_core(name))
         asked = subjects.get(program_level(name))
         if ((core and core <= words) or _short_names(program, tokens, message)
-                or (asked and set(asked) <= set(_core_words(name)))):
+                or (asked and set(asked) <= set(_core_words(name))) or id(program) in by_degree):
             kept.append(program)
     return kept
 
@@ -723,6 +757,10 @@ def _abbreviates(word: str, title_word: str) -> bool:
     if word == title_word:
         return True
     if word.isdigit() or title_word.isdigit() or len(word) < 3:
+        return False
+    # A word of its own that the title's word is made from is not a short form of it: "my
+    # account" is not Accounting, "market" not Marketing, "manage" not Management.
+    if title_word in (word + "ing", word + "ment", word + "ments"):
         return False
     return title_word.startswith(word) or (
         len(word) >= 4 and word[-1] in "so" and title_word.startswith(word[:-1]))
