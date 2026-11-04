@@ -255,6 +255,168 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     return Reading(str(social), str(danger), kept, str(limit), question)
 
 
+# The read's clean question is asked in place of the student's words only when code finds it keeps
+# every word the student typed, with spelling and text-speak fixed (keeps_words). 11-04 blind run:
+# 140 of 278 answers searched the read's rewrite, 70 of them had dropped a word the student wrote
+# ("accounting", "can't register for spring classes", "I have ADHD"), and 21 of 60 questions got
+# different rewrites across 5 tries, so their answers changed with them.
+# Words a student writes around a question that the read leaves out as small talk.
+SMALL_TALK_WORDS = frozenset("""
+hi hey hello hiya heya yo sup howdy thanks thank thx ty tysm please pls plz lol lmao haha hahaha
+hehe um umm uh uhh hmm ok okay ugh omg bruh smh idk tbh ngl
+""".split())
+# Short words a clean question may add or leave out for its grammar: none is a fact or a "not".
+GRAMMAR_WORDS = frozenset("""
+a an the is are am was were be been being do does did to of for in on at by with and or
+i me my you your it this that these those there here what when where who whom whose which how
+why can could should would will may might must if about from any some have has had get got
+""".split())
+# Text-speak and contractions, each with the words that spell it out (any one way, all its words).
+SPELLED_OUT: dict[str, tuple[tuple[str, ...], ...]] = {
+    "u": (("you",),), "ur": (("your",), ("you", "are"), ("youre",)), "r": (("are",),),
+    "y": (("why",),), "n": (("and",),), "wen": (("when",),), "wat": (("what",),),
+    "wut": (("what",),), "wht": (("what",),), "wats": (("what",), ("whats",)),
+    "whr": (("where",),), "abt": (("about",),), "bc": (("because",),), "cuz": (("because",),),
+    "cus": (("because",),), "thru": (("through",),), "tmrw": (("tomorrow",),),
+    "tmr": (("tomorrow",),), "tn": (("tonight",),), "tonite": (("tonight",),),
+    "rn": (("right", "now"),), "ppl": (("people",),), "w": (("with",),), "im": (("i", "am"),),
+    "ive": (("i", "have"),), "id": (("i", "would"), ("i", "had")), "ill": (("i", "will"),),
+    "dont": (("do", "not"),), "doesnt": (("does", "not"),), "didnt": (("did", "not"),),
+    "cant": (("cannot",), ("can", "not")), "wont": (("will", "not"),),
+    "isnt": (("is", "not"),), "arent": (("are", "not"),), "wasnt": (("was", "not"),),
+    "havent": (("have", "not"),), "hasnt": (("has", "not"),), "couldnt": (("could", "not"),),
+    "shouldnt": (("should", "not"),), "wouldnt": (("would", "not"),),
+    "whats": (("what",),), "wheres": (("where",),), "whos": (("who",),), "hows": (("how",),),
+    "whens": (("when",),), "thats": (("that",),), "theres": (("there",),), "its": (("it",),),
+    "youre": (("you", "are"),), "theyre": (("they", "are"),), "hrs": (("hours",),),
+    "hr": (("hour",),), "2day": (("today",),), "2nite": (("tonight",),),
+    "2morrow": (("tomorrow",),), "b4": (("before",),),
+}
+# Words that ask: a message with more of them, or more questions ending in "?", than the read's
+# question asks more than it does.
+QUESTION_WORDS = frozenset("""
+what whats wat wats wut when wen whens where wheres whr who whos which why how hows
+""".split())
+
+
+def _words(text: str) -> list[str]:
+    """The words of a text, without case or apostrophes, with "#", "&" and "@" said as words."""
+    text = text.casefold().replace("\u2019", "").replace("'", "")
+    for sign, word in (("#", " number "), ("&", " and "), ("@", " at ")):
+        text = text.replace(sign, word)
+    return re.findall(r"[a-z0-9]+", text)
+
+
+def _slips(a: str, b: str) -> int:
+    """Typing slips between two words: letters added, left out, changed or swapped."""
+    previous, current = list(range(len(b) + 1)), [0] * (len(b) + 1)
+    before: list[int] = []
+    for i in range(1, len(a) + 1):
+        current = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            current[j] = min(previous[j] + 1, current[j - 1] + 1,
+                             previous[j - 1] + (a[i - 1] != b[j - 1]))
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                current[j] = min(current[j], before[j - 2] + 1)
+        before, previous = previous, current
+    return previous[len(b)]
+
+
+def _one_or_many(a: str, b: str) -> bool:
+    """Whether two words are one word, singular and plural ("class", "classes")."""
+    return any(y in (x + "s", x + "es") or (x.endswith("y") and y == x[:-1] + "ies")
+               for x, y in ((a, b), (b, a)))
+
+
+def _shortened(typed: str, written: str) -> bool:
+    """Whether a word the student typed shortens the written one: its start, four letters or more
+    ("calc", "calculus"), or its consonants in order with no vowel after the first letter
+    ("brk", "break"; "mtg", "meeting")."""
+    if len(written) <= len(typed):
+        return False
+    if len(typed) >= 4 and written.startswith(typed):
+        return True
+    if len(typed) < 3 or typed[0] != written[0] or any(c in "aeiou" for c in typed[1:]):
+        return False
+    rest = iter(written[1:])
+    return all(c in rest for c in typed[1:])
+
+
+def _same_word(typed: str, written: str) -> bool:
+    """Whether `written` is the word the student typed with its spelling fixed: the same word,
+    singular or plural, a word it shortens, or one typing slip away (two in a word of seven
+    letters or more) starting with the same letter. Numbers must match exactly."""
+    if typed == written:
+        return True
+    if typed.isdigit() or written.isdigit():
+        return False
+    if _one_or_many(typed, written) or _shortened(typed, written):
+        return True
+    return (len(typed) >= 4 and typed[0] == written[0]
+            and _slips(typed, written) <= (2 if len(typed) >= 7 else 1))
+
+
+def keeps_words(latest: str, question: str, droppable: frozenset[str] = frozenset()) -> bool:
+    """Whether the read's clean question says the student's message in the student's own words:
+    every word they typed is in it, with its spelling or text-speak fixed, and every word it adds
+    is one of those or grammar. Small talk around the question, grammar words and `droppable`
+    words may be left out."""
+    typed = _words(latest)
+    written = set(_words(question))
+    if not written:
+        return False
+
+    def kept(word: str) -> bool:
+        return (word in GRAMMAR_WORDS or word in written
+                or any(all(w in written for w in way) for way in SPELLED_OUT.get(word, ()))
+                or any(_same_word(word, w) for w in written))
+
+    spelled = {w for word in typed for way in SPELLED_OUT.get(word, ()) for w in way}
+
+    def backed(word: str) -> bool:
+        return (word in GRAMMAR_WORDS or word in spelled
+                or any(_same_word(t, word) for t in typed))
+    return (all(kept(w) for w in typed if w not in SMALL_TALK_WORDS and w not in droppable)
+            and all(backed(w) for w in written))
+
+
+def asks_more(latest: str, question: str) -> bool:
+    """Whether the student's message asks more than the read's question: more words that ask
+    (QUESTION_WORDS) or more questions ending in "?"."""
+    def asks(text: str) -> tuple[int, int]:
+        return (sum(w in QUESTION_WORDS for w in _words(text)),
+                len(re.findall(r"[^?]+\?", text)))
+    (words, marks), (read_words, read_marks) = asks(latest), asks(question)
+    return words > read_words or marks > read_marks
+
+
+# A limit whose campus side is asked after the student's own words, never in their place: the
+# words around the request are the student's situation ("I have a hold and can't register for
+# spring classes"). Homework and writing are not: their request is the part not answered, so
+# only its campus side (tutoring, writing help) is asked; nor is off_topic, whose other part is
+# not about Ramapo.
+SIDE_AFTER_OWN_WORDS = ("my_records", "do_it_for_me", "opinion", "prediction", "live_status")
+
+
+def asked(latest: str, reading: "Reading") -> str | None:
+    """What the campus answer reads for a first message, None meaning the student's own words:
+    the read's clean question when it keeps every word the student typed (keeps_words; a clock
+    question's clock words are code's clock line); a limit's campus side after the student's own
+    words (SIDE_AFTER_OWN_WORDS). Beside an emergency, and for homework, writing and off_topic
+    asks, the question is as the read gave it: code's own text answers the rest."""
+    question = reading.question
+    if not question:
+        return None
+    if reading.danger != "none" or reading.limit in ("homework", "writing", "off_topic"):
+        return question
+    if keeps_words(latest, question, CLOCK_WORDS if reading.limit == "clock" else frozenset()):
+        return question
+    if reading.limit in SIDE_AFTER_OWN_WORDS:
+        own = latest.strip()
+        return f"{own}{'' if own[-1:] in '.?!' else '.'} {question}"
+    return None
+
+
 # What code says for each kind of message that is not a campus question. None holds a campus fact
 # (the graph-only rule): any office, phone or date in a reply comes from the graph.
 CAN_HELP = ("office hours and contacts, dining menus, the shuttle, events and clubs, programs and "

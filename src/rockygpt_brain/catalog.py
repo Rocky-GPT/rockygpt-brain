@@ -93,6 +93,21 @@ def read_pick(arguments: Mapping[str, Any] | None, programs: Mapping[str, dict[s
             "track": str(track).strip() if isinstance(track, str) and track.strip() else None}
 
 
+def with_named(pick: Mapping[str, Any], programs: Sequence[dict[str, Any]],
+               courses: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """The pick with the programs and courses the student named in full read first, so the pick
+    can add to them but never drop one: each list by identity, the named ones first, at most the
+    pick's own limit or as many as were named."""
+    def merged(named: Sequence[dict[str, Any]], picked: Sequence[dict[str, Any]],
+               limit: int) -> list[dict[str, Any]]:
+        kept: dict[str, dict[str, Any]] = {}
+        for item in [*named, *picked]:
+            kept.setdefault(str(item["id"]), item)
+        return list(kept.values())[:max(limit, len(named))]
+    return {**pick, "programs": merged(programs, pick["programs"], MAX_PICKED_PROGRAMS),
+            "courses": merged(courses, pick["courses"], MAX_PICKED_COURSES)}
+
+
 _CODE = re.compile(r"\b([A-Z]{2,6} \d{1,3}[A-Z]?)\b")
 # A picked course as the model may write it: its code, alone or before its title.
 _PICKED_CODE = re.compile(r"([A-Za-z]{2,6})\s*-?\s*(\d{1,3}[A-Za-z]?)\b")
