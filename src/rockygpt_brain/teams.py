@@ -91,14 +91,22 @@ def asked(message: str) -> list[str]:
     return asks
 
 
+# A schedule row whose "opponent" is a tournament round still to be drawn ("NJAC Tournament
+# Quarterfinal", "NJAC Championship Match"), not a team: it is said without "vs".
+_ROUND = re.compile(r"\b(?:tournament|championships?|quarterfinals?|semifinals?|finals?|"
+                    r"first round|second round|playoffs?)\b", re.IGNORECASE)
+
+
 def _game_line(game: Mapping[str, Any], played: bool) -> str:
     side = {"away": "at", "home": "vs", "neutral": "vs"}.get(str(game.get("site")), "vs")
+    if side == "vs" and _ROUND.search(str(game.get("opponent") or "")):
+        side = ""
     when = str(game.get("date_label") or "")
     if not played and game.get("time"):
         when += f", {game['time']}"
     place = ", ".join(p for p in (str(game.get("venue") or ""), str(game.get("location") or ""))
                       if p)
-    line = f"{when}: {side} {game.get('opponent')}"
+    line = f"{when}: {f'{side} ' if side else ''}{game.get('opponent')}"
     if game.get("note"):
         line += f" ({game['note']})"
     if place:
