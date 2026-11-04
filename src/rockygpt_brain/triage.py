@@ -75,7 +75,7 @@ Fill every field:
   (stress, anxiety, sadness, anger, grief, a breakup, feeling overwhelmed), lonely (lonely,
   homesick, no friends, left out), school_trouble (failing or failed a class or exam, missed an
   exam, behind in class), professor_trouble, roommate_trouble, health (feeling sick, an injury,
-  medicine, a medical question), alcohol_or_drugs, money (can't pay or afford something),
+  a request for medical advice), alcohol_or_drugs, money (can't pay or afford something),
   thinking_of_leaving (dropping out, transferring, quitting school), harassment (harassment,
   discrimination, sexual misconduct), food_or_housing (not enough to eat or no money for food,
   nowhere to live), disability
@@ -85,11 +85,14 @@ Fill every field:
   have, never one guessed from what they ask for: wanting something free or cheap, a job or a
   discount is a practical question. So is looking for a kind of food (halal, kosher, vegan) or
   asking what a dish contains because of an allergy or a diet: that is a question about the menu,
-  not health or food_or_housing. A medical question is health however plainly it is asked, with
-  or without a problem told: which medicine to take, whether medicines can be taken together, a
-  dose, whether a medicine or treatment is safe, what a symptom means. Asking where or whether
-  to get a health service on campus (a flu shot, an appointment, a test, a prescription) is a
-  practical question, with no need unless the student also says they are sick or hurt.
+  not health or food_or_housing. A request for medical advice is health however plainly it is
+  asked, with or without a problem told: which medicine to take, whether medicines can be taken
+  together, a dose, whether a medicine or treatment is safe, what a symptom means. Asking what
+  the college offers or says about a health topic is a practical question, with no need unless
+  the student also says they are sick or hurt: where or whether to get a health service on
+  campus (a flu shot, an appointment, a test, a prescription), or what there is about a
+  medicine, a health program or a health event (free naloxone or condoms, a training, health
+  insurance, a wellness workshop).
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
   off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
@@ -112,8 +115,8 @@ Fill every field:
   closings, when closings are asked. Homework and writing always have a campus side. Leave it
   empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
   current time or date, the weather, an opinion with no campus side, a feeling the student only
-  shares, and a medical question (which medicine to take, whether a medicine or treatment is
-  safe), which is no campus question.
+  shares, and a request for medical advice (which medicine to take, whether a medicine or
+  treatment is safe), which is no campus question.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
