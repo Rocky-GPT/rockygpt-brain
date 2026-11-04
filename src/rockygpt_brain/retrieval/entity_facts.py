@@ -12,6 +12,7 @@ import math
 import re
 import threading
 import unicodedata
+from array import array
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from copy import deepcopy
@@ -169,6 +170,19 @@ class ReleaseInputs:
     # entity id -> collection -> rows, for the kinds that were asked for and only where linked.
     records: dict[str, dict[str, list[dict[str, Any]]]] = dataclasses.field(
         default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProcedureSections:
+    """Every linked office section of a release, for how-to questions: each section's office id,
+    office name and page id (places), and for each word the sections whose heading (headings) or
+    text (texts) has it, in section order. An index of words, not a set of words per section:
+    the sets took 55 MB of a release on the 11-03 graph (11,121 sections, 569,024 words in all),
+    and the Brain holds two releases while it switches; the index takes 6 MB."""
+
+    places: list[tuple[str, str, str]]
+    headings: dict[str, array[int]]
+    texts: dict[str, array[int]]
 
 
 def _text(value: Any) -> str:
@@ -2512,11 +2526,9 @@ class EntityFacts:
 
     def __init__(self, *, now: Callable[[], datetime] | None = None) -> None:
         self.now = now or (lambda: datetime.now(UTC))
-        # Every linked office section with its heading and text words, per release, and the lock
-        # that lets one caller read them while the others wait (_procedure_sections).
-        self._section_index: tuple[tuple[str, str | None],
-                                   list[tuple[str, str, str, frozenset[str], frozenset[str]]]
-                                   ] | None = None
+        # Every linked office section and the words of each, per release, and the lock that
+        # lets one caller read them while the others wait (_procedure_sections).
+        self._section_index: tuple[tuple[str, str | None], ProcedureSections] | None = None
         self._section_lock = threading.Lock()
 
     @contextmanager
@@ -2692,10 +2704,10 @@ class EntityFacts:
             }
 
     def _procedure_sections(self, dataset_version: str, identity_hash: str | None,
-                            ) -> list[tuple[str, str, str, frozenset[str], frozenset[str]]]:
-        """Every linked office section of the release (office id, name, page id, heading words,
-        text words), read once per release. One caller reads them and the others asking at the
-        same time wait for that read instead of starting their own."""
+                            ) -> ProcedureSections:
+        """Every linked office section of the release and the words of each, read once per
+        release. One caller reads them and the others asking at the same time wait for that read
+        instead of starting their own."""
         key = (dataset_version, identity_hash)
         held = self._section_index
         if held is not None and held[0] == key:
@@ -2704,7 +2716,9 @@ class EntityFacts:
             held = self._section_index
             if held is not None and held[0] == key:
                 return held[1]
-            index: list[tuple[str, str, str, frozenset[str], frozenset[str]]] = []
+            places: list[tuple[str, str, str]] = []
+            headings: dict[str, list[int]] = {}
+            texts: dict[str, list[int]] = {}
             with self.snapshot() as snapshot:
                 self._pin(snapshot, dataset_version, identity_hash)
                 for entity in snapshot.entities:
@@ -2715,8 +2729,15 @@ class EntityFacts:
                                         "office_sections")
                     for row in pages:
                         for _, _, heading_words, text_words in _procedure_units(row):
-                            index.append((entity["id"], entity["name"], str(row["id"]),
-                                          frozenset(heading_words), frozenset(text_words)))
+                            at = len(places)
+                            places.append((entity["id"], entity["name"], str(row["id"])))
+                            for word in heading_words:
+                                headings.setdefault(word, []).append(at)
+                            for word in text_words:
+                                texts.setdefault(word, []).append(at)
+            index = ProcedureSections(
+                places, {word: array("I", at) for word, at in headings.items()},
+                {word: array("I", at) for word, at in texts.items()})
             self._section_index = (key, index)
             return index
 
@@ -2741,17 +2762,28 @@ class EntityFacts:
         if not wanted or not 1 <= limit <= 5:
             return []
         sections = self._procedure_sections(dataset_version, identity_hash)
-        seen = {word: sum(1 for *_, top, body in sections if word in top or word in body)
-                for word in wanted}
-        weight = {word: math.log(1 + len(sections) / count) for word, count in seen.items()
-                  if count}
-        excluded_pages = {page for entity_id, _, page, *_ in sections if entity_id in exclude}
+        weight: dict[str, float] = {}
+        in_headings: dict[int, set[str]] = {}
+        in_texts: dict[int, set[str]] = {}
+        for word in wanted:
+            top, body = sections.headings.get(word, ()), sections.texts.get(word, ())
+            if count := len({*top, *body}):  # The sections that have the word at all.
+                weight[word] = math.log(1 + len(sections.places) / count)
+            for at in top:
+                in_headings.setdefault(at, set()).add(word)
+            for at in body:
+                in_texts.setdefault(at, set()).add(word)
+        excluded_pages = {page for entity_id, _, page in sections.places if entity_id in exclude}
         best: dict[str, tuple[float, str, str]] = {}
-        for entity_id, name, page, top, body in sections:
-            in_heading, in_text = wanted & top, wanted & body
+        for at in sorted(in_headings.keys() | in_texts.keys()):
+            in_heading, in_text = in_headings.get(at, set()), in_texts.get(at, set())
             if not in_heading and len(in_text) < 2:
                 continue
-            score = sum(3 * weight[w] for w in in_heading) + sum(weight[w] for w in in_text)
+            entity_id, name, page = sections.places[at]
+            # Summed exactly, so two sections with the same words score the same, whatever order
+            # the words come in, and the first of them is the office's best.
+            score = math.fsum([*(3 * weight[w] for w in in_heading),
+                               *(weight[w] for w in in_text)])
             if score > best.get(entity_id, (0.0, "", ""))[0]:
                 best[entity_id] = (score, name, page)
         # Half of the best other office: the asked office's own pages always match best, and

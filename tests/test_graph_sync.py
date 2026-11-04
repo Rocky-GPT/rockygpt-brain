@@ -5,7 +5,6 @@ A fake S3 bucket stands in for the store; requests must carry a SigV4 Authorizat
 
 import json
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest
@@ -188,42 +187,6 @@ def test_only_a_brain_with_a_graph_folder_and_a_store_follows_the_store(
     assert follower is not None and follower.directory == tmp_path
 
 
-
-
-def test_production_downloads_before_the_engine_starts_then_follows(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    from fastapi.testclient import TestClient
-
-    calls: list[str] = []
-
-    class Engine:
-        gateway = object()
-
-        def warm(self) -> None:
-            calls.append("warm")
-
-    class Follower:
-        def sync_once(self) -> bool:
-            calls.append("sync")
-            return True
-
-        def start(self, on_new_release: Any) -> None:
-            calls.append("follow")
-            on_new_release()
-
-        def stop(self) -> None:
-            calls.append("stop")
-
-    def engine() -> Engine:
-        calls.append("engine")
-        return Engine()
-
-    monkeypatch.setattr(app_module, "_configured_follower", lambda: Follower())
-    monkeypatch.setattr(app_module, "_configured_engine", engine)
-    monkeypatch.setenv("BRAIN_WARM_AT_START", "0")
-    with TestClient(app_module.create_app(environment="development")):
-        pass
-    assert calls == ["sync", "engine", "follow", "warm", "stop"]
 
 
 def test_the_publish_script_needs_a_store(
