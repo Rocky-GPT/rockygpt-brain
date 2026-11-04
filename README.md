@@ -218,7 +218,8 @@ sentences now, an AI layer later if needed) that writer is code: `src/rockygpt_b
 says the shapes it knows (a day's hours and whether it is open now, a week, phones, emails, rooms,
 contact notes, a menu, what is not published or unknown) in plain sentences with their source
 marks, and leaves anything else (a conflict, an ambiguity, the shuttle, a menu filter) to the
-code-written evidence text. With `BRAIN_LOOKUP_WRITER=1` the writer is a model
+code-written evidence text. With `BRAIN_LOOKUP_WRITER=ai` (`template` is the default; `1` still
+means `ai`) the writer is a model
 (`src/rockygpt_brain/writer.py`):
 one model call that is handed only `writerInput` (no tools, no conversation, not even the
 question) and returns text. A verifier then holds the text to the view: every email and web
@@ -228,6 +229,19 @@ with nothing to say (a question back, an emergency, fixed wording) leave the cod
 the answer; `metrics.writer` says `used` or why not. The verifier is the floor, not the whole:
 what a number check cannot see (a wrong day, a reversed meaning) is audited by reading the
 answers against their views (a 71-answer audit on 2026-10-13 found no invented fact).
+
+Page answers (a policy or how-to from the pages) are written the same two ways, by
+`BRAIN_PAGE_WRITER` (Dan's two-stage plan, 2026-11-04; `src/rockygpt_brain/page_facts.py`). With
+`template` or `ai`, stage 1 numbers the sentences of the sections code read, a sentence pick
+made `BRAIN_PICKS` times at once returns only sentence numbers (the ones most picks choose are
+kept), and code adds the sentences of a kind the question asks for (deadlines, amounts, steps,
+contacts) next to them. The facts go out with the answer as `pageFacts`, with `writer` and
+`fell_back`. Stage 2 is the template (the pages' own words, by office, with their marks) or a
+model that sees only that JSON; code checks the model's reply says every fact's numbers,
+emails and links and nothing no fact holds, gives it one repair try, then sends the template's
+text instead. `one_call` (the default until the check set shows the two stages better) is the
+one model call that chooses the facts while it writes. A request's `writer` field (`template`
+or `ai`; `rocky ask --writer`) overrides both settings for that turn.
 
 A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
 that were read); a template or a model with no other context only needs what it can say.
