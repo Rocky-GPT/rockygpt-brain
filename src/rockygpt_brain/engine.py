@@ -2327,14 +2327,23 @@ class ChatEngine:
             chosen = numbered(ranked)
             outside: list[dict[str, Any]] = []
             outside_values: list[dict[str, Any]] = []
-            if matched is False:
+            if matched is False or (matched and label == events.DEFAULT_LABEL):
+                # The topic's next dates after the window: when none in it match, and when no
+                # time was named, so the two weeks are the calendar's default and not the
+                # student's (fix check 11-04: "is there a pottery or ceramics thing coming up"
+                # gave Ceramics and Tea and missed Clay it Cool, three weeks out). Beside the
+                # window's matches, the later ones are the most on-topic (rank_events by_share),
+                # and those only near it in meaning are said to be.
                 window_ids = {v.get("_id") for v in values}
                 later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
                 found, again = events.rank_events(later, message, now, now + timedelta(days=366),
                                                   scores, all_upcoming(), by_share=True,
                                                   kinds=kinds)
                 outside_values = found[:events.MAX_OUTSIDE] if again else []
-                outside = numbered(outside_values, outside_window=True)
+                outside = [{**line, **({"near_in_meaning": True}
+                                       if value.get("_matched_by") == "meaning" else {})}
+                           for line, value in zip(numbered(outside_values, outside_window=True),
+                                                  outside_values, strict=True)]
             words = events.asked_topic(message)
             asked_kinds, rest = (events.asked_kinds(message, words) if kinds and words
                                  else (frozenset(), []))
@@ -2755,7 +2764,7 @@ class ChatEngine:
                   **({"listed_first_of": len(found)}
                      if k == 0 and len(found) > people_module.MAX_LISTED else {})}
                  for k, entry in enumerate(found[:people_module.MAX_LISTED])]
-        return items, [{"n": i["n"], "url": i.get("profile_url"), "title": i.get("name")}
+        return items, [{"n": i["n"], "url": people_module.page_of(i), "title": i.get("name")}
                        for i in items]
 
     def _people_computed(self, message: str, people: list[dict[str, Any]],
@@ -2790,7 +2799,7 @@ class ChatEngine:
                         n = numbered_from + len(sources) + 1
                         people = [*people, {"n": n, **{k: v for k, v in entry.items()
                                                        if k not in ("id", "n")}}]
-                        sources.append({"n": n, "url": entry.get("profile_url"),
+                        sources.append({"n": n, "url": people_module.page_of(entry),
                                         "title": entry.get("name")})
                         given.add(key)
                 computed.append({"fact": line, **({"n": n} if n is not None else {})})
@@ -2830,7 +2839,7 @@ class ChatEngine:
             item = people_module.person_evidence(facts, numbered_from + len(sources) + 1,
                                                  facts["entity"]["id"] in near)
             found.append(item)
-            sources.append({"n": item["n"], "url": item.get("profile_url"),
+            sources.append({"n": item["n"], "url": people_module.page_of(item),
                             "title": item.get("name")})
         return found, sources
 
@@ -3243,7 +3252,7 @@ class ChatEngine:
                                      **{x: y for x, y in e.items() if x not in ("id", "n")}}
                                     for k, e in enumerate(taught)]
                             people = [*people, *more]
-                            sources = [*sources, *({"n": p["n"], "url": p.get("profile_url"),
+                            sources = [*sources, *({"n": p["n"], "url": people_module.page_of(p),
                                                     "title": p.get("name")} for p in more)]
                             computed = [*computed, {
                                 "fact": "By their own profiles' courses, interests and titles, "

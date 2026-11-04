@@ -2452,10 +2452,14 @@ _OFFICE_ROOM = re.compile(r"(?im)^\s*office\s*:\s*([A-Z]{1,4}[- ]?\d{2,4}[A-Z]?)
 
 
 def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | None,
-                    now: datetime) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+                    now: datetime, staff: dict[str, Any] | None = None,
+                    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """A person as the directory and their faculty profile publish them: name, title, school,
     email, phone, office room, the profile's office-hours lines as written, courses, research
-    and teaching interests, cited to the profile page (else the directory)."""
+    and teaching interests, cited to the profile page (else the directory); and, for a staff
+    member their offices' pages list (rockygpt-data office-staff.ts), each title with its
+    office and page, and their email, cited to those pages (fix 4, 11-04: 170 staff were people
+    in the graph with no facts the Brain could read)."""
     sources: list[dict[str, Any]] = []
     value: dict[str, Any] = {}
     if contact:
@@ -2492,6 +2496,23 @@ def person_property(contact: dict[str, Any] | None, profile: dict[str, Any] | No
                      teaching_interests=[clean(c) for c in record.get("teachingInterests") or []
                                          if isinstance(c, str)],
                      profile_url=url)
+    if staff:
+        page = _url(staff.get("source_url"))
+        source = _source({**staff, "canonical_url": page}, now)
+        source.update(collection="staff", source_record_keys=[staff["source_record_key"]],
+                      record_ids=[staff["id"]], content_hash=staff.get("content_hash"))
+        sources.append(source)
+        roles = [{"title": clean(role.get("title")), "office": clean(role.get("office")),
+                  "page": _url(role.get("source_url")) or page}
+                 for role in staff.get("roles") or []
+                 if isinstance(role, dict) and clean(role.get("title"))]
+        emails = [clean(e) for e in staff.get("emails") or [] if isinstance(e, str) and clean(e)]
+        value.update(name=value.get("name") or clean(staff.get("name")),
+                     title=value.get("title") or (roles[0]["title"] if roles else None),
+                     email=value.get("email") or (emails[0] if emails else None),
+                     department=value.get("department") or (roles[0]["office"] if roles else None),
+                     **({"roles": roles} if roles else {}),
+                     **({"staff_page": page} if page else {}))
     assertion_ids = [f"{source['id']}:person" for source in sources]
     assertions = [{"id": f"{source['id']}:person", "source_id": source["id"], "field": "person",
                    "raw_value": None, "value": _json_safe(value), "caveats": []}
@@ -3331,8 +3352,12 @@ class EntityFacts:
                 profiles = snapshot.record_reader(entity, "faculty")
                 if len(linked_rows(entity, profiles, "faculty")) != len(profiles):
                     raise EvidenceUnavailable("A profile has no exact canonical link.")
+                staff = snapshot.record_reader(entity, "staff")
+                if len(linked_rows(entity, staff, "staff")) != len(staff):
+                    raise EvidenceUnavailable("A staff record has no exact canonical link.")
                 prop, sources = person_property(contacts[0] if contacts else None,
-                                                profiles[0] if profiles else None, now)
+                                                profiles[0] if profiles else None, now,
+                                                staff[0] if staff else None)
                 found.append({
                     "schema_version": 4, "mapping_version": "entity-facts-7",
                     "dataset_version": snapshot.dataset_version,
