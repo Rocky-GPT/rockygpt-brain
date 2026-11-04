@@ -124,3 +124,16 @@ def test_a_coach_question_is_answered_by_code_with_no_model_call() -> None:
         f"Peter Bonilla, Assistant Coach [2].\n\nSources: [2]({SITE}/mens-soccer/coaches)")
     assert gateway.inputs == [] and result.trace is not None
     assert result.trace["decidedBy"] == "code"
+
+
+def test_a_team_question_is_not_read_first_so_it_is_never_called_off_topic() -> None:
+    # 11-04 live check: the read called "how did men's soccer do this season" sports scores and
+    # said it only knows about Ramapo. A question naming one of the release's teams is code's.
+    gateway = ScriptedGateway()  # The read is a model call: none is scripted.
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "how did men's soccer do this season"}]})
+    engine = ChatEngine(gateway, facts(), output="written", read_first=True)
+    result = asyncio.run(engine.answer(intake(request, now=TUESDAY), request))
+    assert gateway.inputs == [] and result.trace is not None
+    assert result.trace["decidedBy"] == "code"
+    assert "8-7-3" in result.body["answer"]

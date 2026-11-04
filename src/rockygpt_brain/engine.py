@@ -3295,6 +3295,15 @@ class ChatEngine:
                                  [{"n": 1, "url": url, "title": "Academic calendar"}], version,
                                  calendar=facts)
 
+    def _names_a_team(self, message: str) -> bool:
+        """Whether a message names one of the release's varsity teams (teams.py)."""
+        version, identity_hash = self.facts.active_release()
+        try:
+            return bool(teams.teams_named(message, self.facts.teams(version,
+                                                                    identity_hash=identity_hash)))
+        except (EvidenceUnavailable, DatasetChanged):
+            return False
+
     def _team_answer(self, turn: Turn, trace: dict[str, Any], message: str) -> ChatResult | None:
         """The coaches, next games or results of the teams a question names, said by code
         (teams.py); None when the release has no teams, none is named, or the check finds
@@ -3769,14 +3778,19 @@ class ChatEngine:
 
     async def _code_understands(self, context: Context) -> bool:
         """Whether code already understands the whole message, so it is not read first: one kind
-        of academic calendar date asked plainly ("when are finals?"), or a plain lookup of one
-        listed office, venue or the shuttle ("Registrar phone number"). Plain questions don't
-        wait for the read."""
+        of academic calendar date asked plainly ("when are finals?"), a varsity team's coaches,
+        games or results ("how did men's soccer do this season", which the read once called
+        sports scores, 11-04 live check), or a plain lookup of one listed office, venue or the
+        shuttle ("Registrar phone number"). Plain questions don't wait for the read."""
         latest = context.latest_message
         if context.recent_messages or names_a_danger(latest):
             return False
         if academic_calendar.kind_asked(latest) is not None:
             return True
+        if teams.asked(latest):
+            names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
+            if names_a_team:
+                return True
         _, offices, _, venues, _, _ = await self._lists()
         buildings = await asyncio.to_thread(self._buildings)
         return (code_route(latest, offices, venues, buildings) is not None
