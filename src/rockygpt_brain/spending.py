@@ -173,6 +173,52 @@ class PostgresLedger:
         except SpendingError:
             return False
 
+    async def balance(self, now: datetime) -> dict[str, Any]:
+        """What this month's allowance has left, counted exactly as `reserve` counts it: the cap
+        (plus, in development, the month's dated extra) minus this month's settled costs and every
+        unsettled hold, whatever its month. Read-only, without the account lock, so it never slows
+        an answer; a hold committed a moment later is not in it. Amounts are nUSD."""
+        month = now.astimezone(CAMPUS_TZ).date().replace(day=1)
+        async with self._connection() as connection:
+            async with self._transaction(connection):
+                await connection.execute("SET TRANSACTION READ ONLY")
+                account = await connection.execute(
+                    "SELECT cap_nusd, paused FROM brain_ops.accounts WHERE environment = %s",
+                    (self.environment,),
+                )
+                extra = await connection.execute(
+                    "SELECT COALESCE((SELECT extra_nusd FROM brain_ops.monthly_allowances "
+                    "WHERE environment = %s AND month = %s), 0)",
+                    (self.environment, month),
+                )
+                counted = await connection.execute(
+                    "SELECT "
+                    "COALESCE(SUM(cost_nusd) FILTER (WHERE state = 'settled'), 0), "
+                    "COALESCE(SUM(reserved_nusd) FILTER (WHERE state = 'reserved'), 0), "
+                    "COUNT(*) FILTER (WHERE state = 'reserved'), "
+                    "COALESCE(SUM(reserved_nusd) FILTER (WHERE state = 'uncertain'), 0), "
+                    "COUNT(*) FILTER (WHERE state = 'uncertain') "
+                    "FROM brain_ops.operations WHERE environment = %s "
+                    "AND (state <> 'settled' OR charged_month = %s)",
+                    (self.environment, month),
+                )
+            cap, paused = await self._account(account)
+            extra_row = await extra.fetchone()
+            totals = await counted.fetchone()
+        extra_nusd = int(extra_row[0]) if extra_row and self.environment == "development" else 0
+        settled, reserved, reserved_calls, uncertain, uncertain_calls = (
+            int(value) for value in (totals or (0, 0, 0, 0, 0)))
+        allowance = cap + extra_nusd
+        held = reserved + uncertain
+        return {
+            "environment": self.environment, "month": month.isoformat(), "paused": paused,
+            "capNusd": cap, "extraNusd": extra_nusd, "allowanceNusd": allowance,
+            "settledNusd": settled, "heldNusd": held,
+            "reservedNusd": reserved, "reservedCalls": reserved_calls,
+            "uncertainNusd": uncertain, "uncertainCalls": uncertain_calls,
+            "leftNusd": max(0, allowance - settled - held),
+        }
+
     async def reserve(
         self, request_id: str, amount_nusd: int, metadata: dict[str, Any], now: datetime,
     ) -> Reservation:

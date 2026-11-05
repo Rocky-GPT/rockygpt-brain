@@ -87,6 +87,22 @@ async def _exercise(url: str) -> None:
             await development.reserve("after-settlement", 750_000_000, {}, NOW)
             with pytest.raises(SpendingError, match="budget_exhausted"):
                 await development.reserve("after-settlement-full", 1, {}, NOW)
+            # The balance counts exactly what admission counts: nine $1 holds from September and
+            # the $0.75 hold, plus the $0.25 settled in October, fill the $10 cap.
+            balance = await development.balance(NOW)
+            assert balance["month"] == "2026-10-01"
+            assert balance["allowanceNusd"] == 10_000_000_000
+            assert balance["settledNusd"] == 250_000_000
+            assert balance["heldNusd"] == 9_750_000_000
+            assert balance["reservedCalls"] == 10
+            assert balance["leftNusd"] == 0
+            production_balance = await production.balance(NOW)
+            assert production_balance["heldNusd"] == 1_000_000_000
+            assert production_balance["leftNusd"] == 9_000_000_000
+            with pytest.raises(SpendingError, match="ledger_unavailable"):
+                await forbidden.balance(NOW)
+            with pytest.raises(SpendingError, match="ledger_unavailable"):
+                await overprivileged.balance(NOW)
             # Application roles cannot change the cap or create a supplement.
             async with await psycopg.AsyncConnection.connect(dev_url, autocommit=True) as app:
                 await app.execute("SET ROLE brain_development")
@@ -118,6 +134,20 @@ async def _exercise(url: str) -> None:
             )
             row: Any = await cursor.fetchone()
             assert row[0] == 11_000_000_000
+            # A dated extra is added to the month's allowance; a paused account still reads.
+            await admin.execute(
+                "INSERT INTO brain_ops.monthly_allowances "
+                "(environment, month, extra_nusd, approval_note) "
+                "VALUES ('development', '2026-10-01', 5000000000, 'test')",
+            )
+            balance = await development.balance(NOW)
+            assert balance["paused"] is True
+            assert balance["extraNusd"] == 5_000_000_000
+            assert balance["allowanceNusd"] == 15_000_000_000
+            assert balance["settledNusd"] == 2_250_000_000
+            assert balance["heldNusd"] == 8_750_000_000
+            assert balance["leftNusd"] == 4_000_000_000
+            assert (await development.balance(PREVIOUS_MONTH))["extraNusd"] == 0
         finally:
             for ledger in ledgers:
                 await ledger.close()
