@@ -21,6 +21,7 @@ from rockygpt_brain.retrieval import (
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
 from rockygpt_brain.retrieval.graph_browse import browse
+from rockygpt_brain.spending import PostgresLedger, SpendingError
 from rockygpt_brain.turn import new_id
 
 DIAGNOSTICS_HEADER = "x-rockygpt-diagnostics"
@@ -40,6 +41,25 @@ def add_dev_routes(application: FastAPI) -> None:
         if engine is None:
             return failure(503, "model_not_configured", "RockyGPT isn't configured.", new_id())
         return JSONResponse(engine.runtime(), headers=NO_STORE)
+
+    @router.get("/budget")
+    async def budget() -> JSONResponse:
+        """This month's spending allowance: allowed, spent, held and left (nUSD), from the ledger
+        the Brain admits every paid call against."""
+        engine = application.state.engine
+        ledger = getattr(getattr(engine, "gateway", None), "ledger", None)
+        if not isinstance(ledger, PostgresLedger):
+            return failure(503, "ledger_unavailable", "The spending ledger isn't configured.",
+                           new_id())
+        try:
+            async with asyncio.timeout(10):
+                balance = await ledger.balance(datetime.now(UTC))
+        except (SpendingError, TimeoutError):
+            return failure(503, "ledger_unavailable",
+                           "The spending ledger can't be read right now.", new_id(),
+                           retryable=True)
+        return JSONResponse({**balance, "checkedAt": datetime.now(UTC).isoformat()},
+                            headers=NO_STORE)
 
     @router.get("/offices")
     async def offices() -> JSONResponse:

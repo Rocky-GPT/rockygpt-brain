@@ -204,6 +204,14 @@ how many make a dollar.
   what each does, and `fixedTexts`: the reply texts the code writes, each with `pickedBy` (who
   chooses it: the model, the danger phrase list, a lookup result, a provider failure, or the code itself) and `when`.
   How facts are worded and the error messages are not in `fixedTexts`.
+- `GET /v1/dev/budget`: this month's spending allowance, read from the ledger the Brain admits
+  every paid call against and counted exactly as admission counts it: `environment`, `month` (the
+  campus month's first day), `paused`, `capNusd`, `extraNusd` (the month's dated development extra),
+  `allowanceNusd` (the two added), `settledNusd` (this month's settled costs), `heldNusd` (every
+  unsettled hold, whatever its month, split into `reservedNusd`/`reservedCalls` and
+  `uncertainNusd`/`uncertainCalls`), `leftNusd` (allowance minus settled and held, never below 0)
+  and `checkedAt`. It is read without the account lock, so it never delays an answer. 503
+  `ledger_unavailable` when the ledger can't be read.
 - `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, `truncated`, and each published office's
   `entityId`, `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
 - `GET /v1/dev/offices/search?q=`: `query`, `datasetVersion`, `identityHash`, `truncated`, the
