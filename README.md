@@ -242,12 +242,14 @@ never sends it). Then two things change, both in the how-to path (`engine._one_c
   clearly matches it: the card's best task scores 0.80 or more against the question and leads
   every other card but its near-copies by 0.08 or more (`card_answer.clear`; a card whose date
   has passed is marked down first, so today's card leads last year's). Plain means one ask, no
-  earlier message, and nothing the catalog, the calendar, the directory or other code already
-  answers a part of. On 90 practice questions (2026-11-11, never the blind set) the rule fires
-  on 25 of 70 how-to questions, each from a card that answers it, and on none of 20 look-alikes
-  (14 of 70 when a card had to lead its near-copies too); `card_answer.py` has the rest of what
-  was measured. Everything else, and every card code does not answer from, takes the page
-  answer as before. The trace's `answerCard` names the best card, its score and lead, the
+  earlier message, no program, course, person or club named, and nothing the calendar or other
+  code already answers a part of. The card is asked before the catalog's pick, which is a model
+  call: "how do I withdraw from a class" names no class the catalog holds. On 90 practice
+  questions (2026-11-11, never the blind set) the rule fires on 25 of 70 how-to questions and on
+  none of 20 look-alikes (14 of 70 when a card had to lead its near-copies too), and through the
+  whole chat path code answers 23 of the 70 (16 while the catalog's pick came first);
+  `card_answer.py` has the rest of what was measured, and which answers read weak. Everything
+  else, and every card code does not answer from, takes the page answer as before. The trace's `answerCard` names the best card, its score and lead, the
   near-copies that scored within the lead (`near`), the one of them whose page was said in
   place of the best card's own (`ahead`), and why nothing was said (`not_clear`,
   `needs_look`, `date_changed`, `no_steps`, `too_long`, `no_page`, `check`, `unreadable`,

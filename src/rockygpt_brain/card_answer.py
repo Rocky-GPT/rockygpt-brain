@@ -63,6 +63,16 @@ _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 # from a card that is not the question's own and were read: about 26 answer the question, about
 # 6 only in part, and 4 are a neighbour's answer ("I can't make my scheduled exam time" from the
 # CLEP card).
+#
+# The card is asked before the catalog's pick (engine._one_call). Through the whole chat path on
+# dev release v2-20261111194310, code then answers 23 of the 70 (16 with the pick first), none of
+# the 20 look-alikes, and 4 of 24 questions about classes and majors that are no how-to ("how
+# many credits is a full time student"). All 27 answers were read. The rule cannot see who a
+# card is for: 3 answer a general question from a card for a group it did not name ("do summer
+# classes count toward my gpa" from a card for EOF first-year students; "transfer credits from
+# another college" from one for returning students), each under its "Who it is for" line. Words
+# alone do not tell those from "the vehicle owner or driver" on the parking appeal's card, which
+# answers anyone; whether a task is for everyone is something the page read would have to say.
 MATCH_TOP = 0.80
 MATCH_MARGIN = 0.08
 
