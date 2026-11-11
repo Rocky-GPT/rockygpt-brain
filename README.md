@@ -220,7 +220,10 @@ The join asks a lot before it calls two tasks one, so one task worded apart on t
 two cards ("Apply for a parking permit" and "Obtain and display a campus parking permit"). Each
 card names those as its near-copies (`near`): the cards that pass every join rule at a lower
 average. Nothing is joined for it; it only tells a question's best card which other cards it
-does not have to lead.
+does not have to lead. A card also names the near-copies whose page is said in place of its own
+(`ahead`): a page that is not old in place of an old one, and the own page of an office that
+handles both cards in place of another office's page. "How do I connect to the campus wifi"
+matches a 2021 FAQ's card best, and is answered from its near-copy that names Ramapo-Secure.
 
 What the bot would say from a card is written by code (`card_answer.py`): the task's name, its
 term and who it is for, the winning page's steps in the page read's words with the page cited,
@@ -245,7 +248,8 @@ never sends it). Then two things change, both in the how-to path (`engine._one_c
   (14 of 70 when a card had to lead its near-copies too); `card_answer.py` has the rest of what
   was measured. Everything else, and every card code does not answer from, takes the page
   answer as before. The trace's `answerCard` names the best card, its score and lead, the
-  near-copies that scored within the lead (`near`), and why nothing was said (`not_clear`,
+  near-copies that scored within the lead (`near`), the one of them whose page was said in
+  place of the best card's own (`ahead`), and why nothing was said (`not_clear`,
   `needs_look`, `date_changed`, `no_steps`, `too_long`, `no_page`, `check`, `unreadable`,
   `no_cards`).
 - A page answer reads what the cards chose: among the sections chosen by meaning, a task its

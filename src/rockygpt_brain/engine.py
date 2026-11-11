@@ -2582,7 +2582,8 @@ class ChatEngine:
         leaves the question to the page answer: no card matches clearly, or code does not answer
         from the one that does. The trace's answerCard names the best card, its score, its
         lead over the best card that is no near-copy of it, the near-copies that scored within
-        the lead (`near`), and why nothing was said."""
+        the lead (`near`), the one of them whose page was said in place of the best card's own
+        (`ahead`: card_join.page_ahead), and why nothing was said."""
         found = self._card_tasks(index)
         match = (card_answer.best_card(index.scores(vector), found.card_of, found.passed,
                                        found.near) if found is not None else None)
@@ -2600,18 +2601,38 @@ class ChatEngine:
             note["why"] = "not_clear"
             return None
         today = turn.campus_now.date()
-        try:
-            read = answer_cards.view(self.facts, card, found.nodes, today,
-                                     dataset_version=index.dataset_version,
-                                     identity_hash=index.identity_hash)["card"]
-        except (InvalidFactRequest, UnknownEntity, EvidenceUnavailable, DatasetChanged):
+        cards, nodes = found.cards, found.nodes
+
+        def read(which: Mapping[str, Any]) -> dict[str, Any] | None:
+            try:
+                return dict(answer_cards.view(self.facts, which, nodes, today,
+                                              dataset_version=index.dataset_version,
+                                              identity_hash=index.identity_hash)["card"])
+            except (InvalidFactRequest, UnknownEntity, EvidenceUnavailable, DatasetChanged):
+                return None
+        own = read(card)
+        if own is None:
             note["why"] = "unreadable"
             return None
-        note["task"] = read["task"]["task"]
-        why = card_answer.refusal(read)
-        said = self.card_said(read, today) if why is None else None
+        note["task"] = own["task"]["task"]
+        why = card_answer.refusal(own)
+        if why is not None:
+            note["why"] = why
+            return None
+        # The question matched this card, and code answers from it. Which page is said: a
+        # near-copy's when its page is ahead of the card's own, the best-scoring first; the
+        # card's own when code answers from none of those.
+        ahead = set(card.get("ahead") or ())
+        said = None
+        for other in over:
+            copy = cards[other]
+            if copy.get("id") in ahead and (view := read(copy)) is not None and (
+                    said := self.card_said(view, today)) is not None:
+                note["ahead"] = {"card": copy.get("id"), "task": view["task"]["task"]}
+                break
+        said = said or self.card_said(own, today)
         if said is None:
-            note["why"] = why or "check"
+            note["why"] = "check"
             return None
         note["said"] = True
         trace.update(decidedBy="code", writer={"used": True, "by": "code"})

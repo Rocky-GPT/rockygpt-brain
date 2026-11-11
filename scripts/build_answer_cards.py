@@ -64,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
           f"{sum(len(card['members']) for card in joined)} tasks from two or more pages; "
           f"{status[card_join.READY]} ready, {status[card_join.NEEDS_LOOK]} need a look, "
           f"{status[card_join.DATE_PASSED]} date passed; "
-          f"{sum(1 for card in cards if card['near'])} have a near-copy; "
+          f"{sum(1 for card in cards if card['near'])} have a near-copy, "
+          f"{sum(1 for card in cards if card['ahead'])} of them one whose page is ahead; "
           f"{time.monotonic() - started:.0f} s")
     return 0
 

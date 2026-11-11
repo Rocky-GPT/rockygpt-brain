@@ -240,6 +240,47 @@ def test_build_gives_every_task_one_card_in_page_order() -> None:
         [tasks[1], task("d-rules", "Obtain and display a campus parking permit", (SAFETY,))],
         [unit(1, 0, 0), unit(0.8, 0.6, 0)], NAMES)
     assert [found["near"] for found in copies] == [[copies[1]["id"]], [copies[0]["id"]]]
+    assert [found["ahead"] for found in cards + apart + copies] == [[]] * 6
+    # The near-copy on a page that is not old is said in place of the card on an old one.
+    stale = card_join.build(
+        [task("a-safety", "Apply for a parking permit", (SAFETY, SAFETY_911),
+              updated=date(2021, 8, 17), old=True),
+         task("d-rules", "Obtain and display a campus parking permit", (SAFETY,),
+              updated=date(2026, 11, 6))],
+        [unit(1, 0, 0), unit(0.8, 0.6, 0)], NAMES)
+    assert [found["ahead"] for found in stale] == [[stale[1]["id"]], []]
+
+
+def test_a_near_copys_page_is_ahead_by_the_joins_two_plain_rules() -> None:
+    def ahead(own: Task, its: Task, owners: tuple[str, ...] = (REGISTRAR,),
+              its_owners: tuple[str, ...] = (REGISTRAR,)) -> bool:
+        return card_join.page_ahead(owners, own, its_owners, its)
+
+    forms = task("registrar/forms", "Change your major, minor, or concentration", (REGISTRAR,),
+                 updated=date(2026, 9, 10), steps=3)
+    eof = task("eof/freshman", "Change your major", (ORIENTATION,), updated=date(2026, 11, 2))
+    # Another office's page loses to the own page of the office that handles both cards.
+    assert ahead(eof, forms) and not ahead(forms, eof)
+    # Not to the own page of an office that handles only the other card: the two may differ.
+    assert not ahead(eof, forms, its_owners=(ADVISING,))
+    assert not ahead(eof, task("advising/faq", "Change a major", (ADVISING,)), (REGISTRAR,),
+                     (ADVISING,))
+    # An old page loses to one that is not old, whoever handles it, and never the other way.
+    faq = task("resnet/faq", "Connect to the wireless network", (REGISTRAR,),
+               updated=date(2021, 9, 7), old=True)
+    secure = task("its/wireless", "Connect to Ramapo-Secure", (ADVISING,),
+                  updated=date(2026, 3, 24))
+    assert ahead(faq, secure, its_owners=(ADVISING,))
+    assert not ahead(secure, faq, (ADVISING,), (REGISTRAR,))
+    assert not ahead(forms, faq)  # the owner's own page, but old
+    # The newest date and the most steps are not asked across cards.
+    newer = task("registrar/deadlines", "Withdraw from courses", (REGISTRAR,),
+                 updated=date(2026, 10, 1), steps=9)
+    assert not ahead(forms, newer) and not ahead(newer, forms)
+    # A term that is over is marked down by the match itself.
+    passed = task("registrar/2024", "Change your major", (REGISTRAR,), over="Fall 2024",
+                  old=True)
+    assert not ahead(passed, forms) and not ahead(eof, passed)
 
 
 def test_a_task_is_compared_by_the_questions_written_for_it() -> None:

@@ -14,9 +14,10 @@ date passed after the cards were built, one with no step or no page address, and
 to say are left to the path that reads the pages.
 
 A chat reply is a card's answer only when the question clearly matches that one card (`best_card`,
-`clear`; its near-copies, the same task on another page, do not count against it), and a page
-answer then keeps the cards' choice of page (`read_winners`); both are behind the engine's card
-setting, off by default (engine._card_answer, engine._read_winners).
+`clear`; its near-copies, the same task on another page, do not count against it, and one whose
+page is ahead of its own is said in its place: card_join.page_ahead), and a page answer then
+keeps the cards' choice of page (`read_winners`); both are behind the engine's card setting, off
+by default (engine._card_answer, engine._read_winners).
 """
 
 import re

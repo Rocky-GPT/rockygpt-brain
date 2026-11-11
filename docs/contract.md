@@ -237,8 +237,10 @@ how many make a dollar.
   `status` (`ready`, `needs_look` or `date_passed`), `flags` (why it needs a look:
   `owner_unclear`, `no_date`, `big_group`), `notes` (`old_page`, `owner_has_no_page`), `owners`
   (node ids), `near` (the ids of its near-copies: cards for the same task worded apart on
-  another page, which the join kept apart for its average alone; absent on cards built before
-  2026-11-11) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
+  another page, which the join kept apart for its average alone), `ahead` (the near-copies
+  whose winning page is said in place of its own: a page that is not old in place of an old
+  one, a shared owner's own page in place of another office's; both absent on cards built
+  before 2026-11-11) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
   with its `role`: `winner` (with `label`, the date or term that passed, on a `date_passed`
   card), `owner_page` (the owner's other current pages), `mentions` (another office's current
   page) or `left_out` (`why` is `over`, with the past term or date as `label`, or `old`). Every

@@ -45,11 +45,12 @@ class CardFacts(WithCards):
 
 
 def release(appeal: str = "ready", *, appeal_at: Sequence[float] = (0, 1, 0, 0, 0),
-            copies: bool = False) -> CardFacts:
+            copies: bool = False, ahead: bool = False) -> CardFacts:
     """Two cards: the permit card (its winner on Public Safety's page; an old page's task and a
     passed deadline left out) and the ticket appeal's. Each task and one plain section is a unit
     of the meaning index, each along its own axis unless the appeal's is given another place
-    (`appeal_at`). `copies` has the two cards name each other as near-copies."""
+    (`appeal_at`). `copies` has the two cards name each other as near-copies; `ahead` has the
+    permit card name the appeal's as the near-copy whose page is said in place of its own."""
     source = with_cards()
     safety = {**source.entities[0], "links": [
         {**source.entities[0]["links"][0],
@@ -71,10 +72,10 @@ def release(appeal: str = "ready", *, appeal_at: Sequence[float] = (0, 1, 0, 0, 
              {"record_id": OLD[0], "key": OLD[1], "role": "left_out", "why": "old"},
              {"record_id": FAQ[0], "key": FAQ[1], "role": "left_out", "why": "over",
               "label": "September 1, 2026"}],
-         "near": [LOOK_ID] if copies else []},
+         "near": [LOOK_ID] if copies or ahead else [], "ahead": [LOOK_ID] if ahead else []},
         {"id": LOOK_ID, "status": appeal, "flags": [], "notes": [], "owners": [SAFETY],
          "members": [{"record_id": APPEAL[0], "key": APPEAL[1], "role": "winner"}],
-         "near": [CARD_ID] if copies else []}])
+         "near": [CARD_ID] if copies or ahead else []}])
     held.index = index_of([(*WIN, [SAFETY], [[1, 0, 0, 0, 0]]),
                            (*APPEAL, [SAFETY], [list(appeal_at)]),
                            (*OLD, [SAFETY], [[0, 0, 1, 0, 0]]),
@@ -175,6 +176,39 @@ def test_a_card_does_not_have_to_lead_its_near_copies() -> None:
     assert note["score"] == pytest.approx(0.985, abs=0.002)
     # Nothing but its near-copy scored: the lead is over no card at all.
     assert note["lead"] == pytest.approx(1.985, abs=0.002)
+
+
+def test_a_near_copy_whose_page_is_ahead_is_said_in_place_of_the_best_card() -> None:
+    close, asked = [0.9, 0.436, 0, 0, 0], [0.985, 0.17, 0, 0, 0]
+    gateway = CardGateway(asked)
+    result = ask(gateway, held=release(appeal_at=close, ahead=True))
+    assert result.body["answer"].startswith("**Appeal a parking ticket**")
+    assert result.body["status"] == "answered" and gateway.inputs == []
+    # The trace still names the card the question matched, and the one whose page was said.
+    note = result.trace["answerCard"]
+    assert (note["card"], note["said"], note["near"], note["task"]) == (
+        CARD_ID, True, [LOOK_ID], "Get a student parking permit")
+    assert note["ahead"] == {"card": LOOK_ID, "task": "Appeal a parking ticket"}
+    # One that code does not answer from leaves the best card its own page.
+    own = ask(CardGateway(asked), held=release("needs_look", appeal_at=close, ahead=True))
+    assert own.body["answer"] == SAID and "ahead" not in own.trace["answerCard"]
+    # So does one that scored outside the lead: it is named ahead for its page, not its match.
+    far = ask(CardGateway(CLEAR), held=release(ahead=True))
+    assert far.body["answer"] == SAID and "ahead" not in far.trace["answerCard"]
+
+
+def test_a_best_card_code_does_not_answer_from_is_not_answered_from_a_near_copy() -> None:
+    # The question matched the appeal's card, which needs a look: its near-copy, the permit
+    # card, may be another task, so the pages are read.
+    close, asked = [0.9, 0.436, 0, 0, 0], [0.95, 0.31, 0, 0, 0]
+    held = release("needs_look", appeal_at=close, copies=True)
+    assert held.cards is not None
+    held.cards["cards"][1]["ahead"] = [CARD_ID]
+    result = ask(CardGateway(asked, one_reply(PAGE_REPLY, [1])), held=held)
+    assert result.trace["decidedBy"] == "one_call"
+    note = result.trace["answerCard"]
+    assert (note["card"], note["said"], note["why"], note["near"]) == (
+        LOOK_ID, False, "needs_look", [CARD_ID])
 
 
 @pytest.mark.parametrize(("change", "why"), [

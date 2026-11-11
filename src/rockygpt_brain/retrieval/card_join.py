@@ -43,6 +43,24 @@ names one, the office whose pages list it most. A term that is over has no say.
 
 Which page wins (`build`): never a past term while a current page exists, then the owner's own
 page, then the newest date, then the most steps.
+
+Whose page is said among near-copies (`page_ahead`). The best-matching card answers, unless a
+near-copy's page beats its own by one of the join's two plain rules for a winning page: an old
+page loses to one that is not old, and another office's page loses to the own page of an office
+that handles both cards. Read on the same release (11 practice questions and 40 written ones
+whose best card had a near-copy within the lead, each candidate's answer side by side):
+
+- The best-matching card alone gave the weaker page in 4 of the 11: "connect to the campus
+  wifi" from a 2021 FAQ ("scan for networks, and connect") while a near-copy names
+  Ramapo-Secure, "change my major" from an EOF page ("an admissions counselor will assist you")
+  while the Registrar's own page has the form and the 5 to 7 days.
+- The join's finer rules must not be asked across cards. The newest date picked "Do not
+  withdraw after the published deadline" (2 steps) over the Registrar's 6 steps; the most steps
+  picked a space committee's 5 steps for "request a space on campus for an event". Near-copies
+  are only probably one task, so the best match keeps its say unless its page is plainly worse.
+- The owner's page counts only for an owner both cards share: "am I required to have a meal
+  plan" matched its own card (Dining Services, on a Residence Life page), and a near-copy on
+  Student Accounts' own page lists prices, not who needs a plan.
 """
 
 import hashlib
@@ -366,16 +384,38 @@ def card(tasks: Sequence[Task], named: Mapping[str, tuple[str, ...]]) -> dict[st
             "notes": notes, "owners": list(owned_by), "members": members}
 
 
+def page_ahead(owners: Sequence[str], own: Task, its_owners: Sequence[str], its: Task) -> bool:
+    """Whether a near-copy's winning page (`its`) is said in place of a card's own (`own`), by
+    the two plain rules the join has for a winning page, asked across the two cards: a page that
+    is not old is ahead of an old one; when they are alike in that, the own page of an office
+    that handles both cards is ahead of a page that is no owner's. Not asked of a term that is
+    over (a match marks those down itself), and the finer rules, the newest date and the most
+    steps, are not asked across cards."""
+    if own.over is not None or its.over is not None:
+        return False
+    if own.old != its.old:
+        return own.old
+    shared = set(owners) & set(its_owners)
+    return bool(shared & set(its.nodes)) and not set(owners) & set(own.nodes)
+
+
 def build(tasks: Sequence[Task], vectors: Any,
           names: Mapping[str, Sequence[str]]) -> list[dict[str, Any]]:
     """Every card of a release, from its tasks, their question vectors (one per task, in order)
     and each node's names. Cards come in the order of their winning tasks' pages; each names its
-    near-copies by their ids (`near`)."""
+    near-copies by their ids (`near`), and those of them whose page is said in place of its own
+    (`ahead`)."""
     named = handlers(names)
     grouped = groups(tasks, vectors)
     cards = [card([tasks[i] for i in group], named) for group in grouped]
-    for found, others in zip(cards, near(tasks, vectors, grouped), strict=True):
-        found["near"] = sorted(cards[other]["id"] for other in others)
+    place = {(task.record_id, task.key): task for task in tasks}
+    won = [place[(found["members"][0]["record_id"], found["members"][0]["key"])]
+           for found in cards]
+    for at, others in enumerate(near(tasks, vectors, grouped)):
+        cards[at]["near"] = sorted(cards[other]["id"] for other in others)
+        cards[at]["ahead"] = sorted(
+            cards[other]["id"] for other in others
+            if page_ahead(cards[at]["owners"], won[at], cards[other]["owners"], won[other]))
     return sorted(cards, key=lambda found: (found["members"][0]["record_id"],
                                             found["members"][0]["key"]))
 
