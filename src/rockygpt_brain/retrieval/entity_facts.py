@@ -1843,11 +1843,14 @@ def past_page(url: str, today: date) -> str | None:
 _MONTHS = {m: n for n, m in enumerate(("january february march april may june july august "
                                         "september october november december").split(), 1)}
 # A deadline's date: a full date said after a deadline word ("due", "by", "deadline", "refund",
-# "last day"), not an effective or revision date.
+# "last day"), not an effective or revision date. The date is written out ("August 12, 2026") or
+# in numbers, month first ("9/23/26": the scholarships page's "apply by 9/23/26" was said as
+# today's on November 11).
 _DEADLINE_DATE = re.compile(
     r"\b(?:deadline|due|by|before|until|no later than|last day|refund|payment|pay|close[sd]?)\b"
-    r"[^.;|]{0,40}?\b(January|February|March|April|May|June|July|August|September|October|"
-    r"November|December)\s+(\d{1,2}),?\s+(20\d\d)", re.IGNORECASE)
+    r"[^.;|]{0,40}?\b(?:(January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)\s+(\d{1,2}),?\s+(20\d\d)|(\d{1,2})/(\d{1,2})/(20\d\d|\d\d)\b)",
+    re.IGNORECASE)
 
 
 def past_dates(text: str, today: date) -> str | None:
@@ -1855,9 +1858,10 @@ def past_dates(text: str, today: date) -> str | None:
     deadline date it names is before today; else None. "When is my bill due" was answered with
     August's deadline on October 21 while December's was published beside it."""
     named = []
-    for month, day, year in _DEADLINE_DATE.findall(text):
+    for month, day, year, month_number, day_number, short_year in _DEADLINE_DATE.findall(text):
         try:
-            named.append(date(int(year), _MONTHS[month.casefold()], int(day)))
+            named.append(date(int(year), _MONTHS[month.casefold()], int(day)) if month else
+                         date(int(short_year) % 100 + 2000, int(month_number), int(day_number)))
         except ValueError:
             continue
     if not named or max(named) >= today:
