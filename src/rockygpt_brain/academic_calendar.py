@@ -282,8 +282,8 @@ def last_day(entry: dict[str, Any]) -> date:
 def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
                n: int = 1) -> tuple[str, str, dict[str, Any]] | None:
     """Code's answer to when one kind of academic date is, from the calendar's own entries: its
-    text, the calendar page it cites as [n], and what it says (for the every-word check). None
-    when no term or entry fits, and the model reads the calendar pages.
+    text, the calendar page it cites as [n], and the entries it says (what its text is checked
+    against). None when no term or entry fits, and the model reads the calendar pages.
 
     Dates start from today (11-03: "wen is spring brk" got March 2028 from a housing page):
     - a date already over is marked as passed, and left out when the next one is asked;

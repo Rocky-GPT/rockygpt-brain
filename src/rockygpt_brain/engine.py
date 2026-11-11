@@ -3756,16 +3756,6 @@ class ChatEngine:
                  .strip()}, sources)
         if code_parts or after:
             trace["codeParts"] = len(code_parts) + len(after)
-        # The every-word check, report only: what it would cut, for measuring before it cuts.
-        calendar_events = (calendar or {}).get("events") or []
-        shared = " ".join([latest, *(o["office"] for o in offices),
-                           *(str(c.get("fact", "")) for c in computed if not c.get("n")),
-                           UNSUPPORTED_PART_MESSAGE, "differ different"])
-        flagged = one_call.unbacked(text.split("\n\nSources:")[0], one_call.evidence_by_mark(
-            offices, computed, people, academic, calendar_events, clubs), shared)
-        trace["wordCheck"] = {"statements": sum(1 for p in one_call.statements(text)
-                                                if p.strip()),
-                              "flaggedTotal": len(flagged), "flagged": flagged[:10]}
         # A reply that sends the reader to 911 ("if the student is in imminent danger ... call
         # 911", a counseling page's words) also gives Public Safety's published emergency line,
         # from the graph and in code's words, unless the reply already gives every number of it

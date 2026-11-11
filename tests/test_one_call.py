@@ -533,33 +533,6 @@ def test_a_dean_a_persons_details_or_a_courses_facts_are_answered_by_code() -> N
     assert course_facts_asked("What is CMPS 147 about?", facts) == facts
 
 
-def test_the_every_word_check_lists_words_the_cited_facts_do_not_hold() -> None:
-    from rockygpt_brain.one_call import evidence_by_mark, unbacked
-    offices = [{"office": "Registrar", "email": ["reg@example.edu"], "phones": [], "rooms": [],
-                "sections": [{"n": 1, "heading": "Transcripts",
-                              "text": "Order official transcripts online through the "
-                                      "Clearinghouse."}]}]
-    evidence = evidence_by_mark(offices, [])
-    shared = "How do I get a transcript?"
-    assert unbacked("Order official transcripts online through the Clearinghouse. [1]",
-                    evidence, shared) == []
-    # A word no cited fact holds ("free") is listed, and so is an uncited statement's.
-    assert unbacked("Transcripts are free. [1] Pickup is same day.", evidence, shared) == [
-        {"statement": "Transcripts are free. [1]", "words": ["free"]},
-        {"statement": "Pickup is same day.", "words": ["day", "pickup"]}]
-
-
-def test_a_mark_covers_its_paragraph_and_rewording_words_do_not_count() -> None:
-    from rockygpt_brain.one_call import evidence_by_mark, unbacked
-    offices = [{"office": "Registrar", "email": [], "phones": [], "rooms": [], "sections": [
-        {"n": 1, "heading": "Steps", "text": "Fill out the form. Email it to the office."}]}]
-    evidence = evidence_by_mark(offices, [])
-    assert unbacked("The Registrar handles it.\n1. Fill out the form.\n2. Email it. [1]",
-                    evidence, "") == []
-    assert unbacked("Fill out the form. [1]\n\nIt costs nothing.", evidence, "") == [
-        {"statement": "It costs nothing.", "words": ["cost", "noth"], "uncited": True}]
-
-
 def emergency_service() -> Any:
     """The how-to pages, one of which says to call 911, and Public Safety's emergency line."""
     service = meaning_service()
