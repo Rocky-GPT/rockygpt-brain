@@ -224,11 +224,24 @@ how many make a dollar.
   (about 4 KB for 34 offices; names only when the list passes 12 KB, `null` when it still
   does, when it was cut off, or when it cannot be read), and the reader still matches only
   published names, so a name the model gets wrong is a `not_found`, never a guess.
-- `GET /v1/dev/answer-cards`: every how-to task the release holds, as its page lists it (joining
-  the same task across pages into one answer card is not built, so `cards` is `null`).
-  `dataset_version`, `identity_hash`, `totals` (`pages_read`, `pages_with_tasks`, `tasks`,
-  `steps`), `nodes` (every node that links a page with a task: `entity_id`, `name`, `kind`, and
-  its `pages` and `tasks` counts) and `pages` (only pages with a task, by address): `record_id`,
+- `GET /v1/dev/answer-cards`: every how-to task the release holds, as its page lists it, and
+  the answer cards joined from them. `cards` is `null` for a release built without cards; else
+  it has `built_on` (the day the cards were built: a term is over and a page is old as of that
+  day), `rules` (`join_mean`, `join_least`, `big_group`) and `items`, one per card: `id`,
+  `status` (`ready`, `needs_look` or `date_passed`), `flags` (why it needs a look:
+  `owner_unclear`, `no_date`, `big_group`), `notes` (`old_page`, `owner_has_no_page`), `owners`
+  (node ids) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
+  with its `role`: `winner` (with `label`, the date or term that passed, on a `date_passed`
+  card), `owner_page` (the owner's other current pages), `mentions` (another office's current
+  page) or `left_out` (`why` is `over`, with the past term or date as `label`, or `old`). Every
+  task is in exactly one card; only the winner's steps are a card's steps. The cards are joined
+  by rules alone (`retrieval/card_join.py`), written beside the release by
+  `scripts/build_answer_cards.py` as `release-<hash>.cards.json`, and shared like its meaning
+  index. Also `dataset_version`, `identity_hash`, `totals` (`pages_read`, `pages_with_tasks`,
+  `tasks`, `steps`), `nodes` (every node that links a page with a task, and every node a card
+  names as an owner: `entity_id`, `name`, `kind`, and its `pages` and `tasks` counts, both 0
+  for an owner none of whose pages lists a task) and `pages` (only pages with a task, by
+  address): `record_id`,
   `url`, `path`, `updated` (the day the page says it last changed, or `null`), `collected_at`,
   `nodes` (the ids of the nodes linking it) and `tasks`, each with its `key` (`e<n>`, the key the
   meaning index and a how-to answer give it), `task`, `steps` (a count) and, when the page says

@@ -18,6 +18,9 @@ art event whatever its listing says. --kinds-only gives them to an index already
 release's, or a copy on a laptop) without embedding anything again:
 
     python scripts/build_meaning_index.py --dir PUBLISHED_DIR --cache CACHE_DIR --kinds-only
+
+A full build ends by joining the release's how-to tasks into answer cards from the questions'
+vectors it just wrote (scripts/build_answer_cards.py: rules only, no model call).
 """
 
 import argparse
@@ -552,6 +555,28 @@ def save_vectors(cache_dir: Path, cache: dict[str, list[float]], used: list[str]
     path.with_suffix(".keys.json").write_text(json.dumps(keys))
 
 
+def join_answer_cards(published: Path) -> bool:
+    """Join the release's how-to tasks into answer cards from the index just written, and say
+    whether they were built (scripts/build_answer_cards.py: rules only, no model call, a few
+    seconds). It runs at the end of every index build and not as a job step of its own: the
+    hourly dev build runs the main branch's workflow file, so a step added on dev would build the
+    cards on some dev graphs and not on others (2026-11-11).
+
+    An index never fails for its cards. Nothing answers from a card yet, so when they cannot be
+    built the log says why, the day's release still goes out, and the Brain serves it without
+    them (`cards` is null on the Answer Cards page)."""
+    try:
+        import build_answer_cards
+        built = build_answer_cards.main(["--dir", str(published)]) == 0
+    except Exception as error:  # noqa: BLE001 - whatever stops the cards never stops the index
+        print(f"{type(error).__name__}: {error}", file=sys.stderr)
+        built = False
+    if not built:
+        print("::warning::The answer cards were not built for this release; it goes out "
+              "without them.")
+    return built
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the meaning index for the active release.")
     parser.add_argument("--dir", required=True, type=Path, help="the published graph directory")
@@ -650,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{kinds_read} event and "
           f"club cards given kinds, {kinds_failed} failed), "
           f"{time.monotonic() - started:.0f} s")
+    join_answer_cards(args.dir)
     return 0
 
 

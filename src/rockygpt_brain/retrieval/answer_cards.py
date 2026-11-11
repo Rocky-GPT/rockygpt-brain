@@ -1,10 +1,12 @@
-"""The how-to tasks a release holds, for the dev UI's Answer Cards page.
+"""The how-to tasks a release holds and the answer cards joined from them, for the dev UI's
+Answer Cards page.
 
-An answer card will be one task a student asks about ("Get a student parking permit"): who it is
-for, the office that handles it, its steps and the pages behind them. The night job lists tasks
-page by page (an office page's how-to entries). Joining the same task across pages into one card
-is not built yet, so this reader shows the raw material: every task as its page lists it, under
-its page, with the nodes whose links hold that page.
+An answer card is one task a student asks about ("Apply for a parking permit"): the office that
+handles it, the page whose steps are said and the other pages that list it. The night job lists
+tasks page by page (an office page's how-to entries), then joins the same task across pages into
+one card by rules (retrieval/card_join.py, scripts/build_answer_cards.py) and writes the cards
+beside the release. This reader shows both: every task as its page lists it, under its page, with
+the nodes whose links hold that page; and the cards, when the release has them.
 
 A task is keyed as the meaning index keys it, by its page's record id and "e<n>" (its place in the
 page's list, see `_procedure_units`), so a task here is exactly a unit a how-to read can offer. A
@@ -12,9 +14,11 @@ page no node links is not in a release graph, so it is not listed. This reads, n
 nothing here feeds a chat reply.
 """
 
+from datetime import date
 from typing import Any
 from urllib.parse import urlsplit
 
+from rockygpt_brain.retrieval.card_join import Task
 from rockygpt_brain.retrieval.entity_facts import (
     DatasetChanged,
     EntityFacts,
@@ -23,7 +27,9 @@ from rockygpt_brain.retrieval.entity_facts import (
     _json_safe,
     _procedure_units,
     linked_rows,
+    old_page,
     page_updated,
+    unit_over,
 )
 from rockygpt_brain.retrieval.projection import clean
 
@@ -84,8 +90,10 @@ def listing(facts: EntityFacts, *, dataset_version: str | None = None,
             identity_hash: str | None = None) -> dict[str, Any]:
     """Every task of the active release, under its page: the page, the nodes that link it, and
     each task's name, who it is for, who the page says handles it, its term and its step count.
-    `nodes` lists every node that links a page with a task. `cards` is null until tasks are
-    joined into cards."""
+    `nodes` lists every node that links a page with a task, and every node a card names as its
+    owner. `cards` holds the release's answer cards (the day they were built, the rules'
+    settings, and each card's status, flags, owners and tasks by page record and key, the winner
+    first); it is null for a release built without them."""
     pages: dict[str, dict[str, Any]] = {}
     nodes: dict[str, dict[str, Any]] = {}
     pages_read: set[str] = set()
@@ -112,14 +120,65 @@ def listing(facts: EntityFacts, *, dataset_version: str | None = None,
                                                            "tasks": 0})
                     node["pages"] += 1
                     node["tasks"] += len(page["tasks"])
+        cards = facts.answer_cards()
+        if cards is not None and (cards.get("dataset_version"), cards.get("identity_hash")) != (
+                version, identity):
+            cards = None
+        if cards is not None:
+            # A card's owner can be an office none of whose pages lists the task (the page says
+            # "Dining Services handles it"): it is named here too, with no page and no task.
+            owning = {node for found in cards["cards"] for node in found.get("owners") or []}
+            for entity in snapshot.entities:
+                if entity["id"] in owning and entity["id"] not in nodes:
+                    nodes[entity["id"]] = {**_node(entity), "pages": 0, "tasks": 0}
     with_tasks = sorted((page for page in pages.values() if page["tasks"]),
                         key=lambda page: (page["url"] or "", page["record_id"]))
     totals = {"pages_read": len(pages_read), "pages_with_tasks": len(with_tasks),
               "tasks": sum(len(page["tasks"]) for page in with_tasks), "steps": steps}
-    return {"dataset_version": version, "identity_hash": identity, "cards": None,
+    return {"dataset_version": version, "identity_hash": identity,
+            "cards": None if cards is None else {
+                "built_on": cards.get("built_on"), "rules": cards.get("rules") or {},
+                "items": cards["cards"]},
             "totals": totals,
             "nodes": sorted(nodes.values(), key=lambda n: (n["name"].casefold(), n["entity_id"])),
             "pages": with_tasks}
+
+
+def join_input(facts: EntityFacts, today: date,
+               ) -> tuple[str, str, list[Task], dict[str, list[str]]]:
+    """What the cards are joined from (card_join.build): the active release, its tasks in the
+    order of their pages' record ids, and each node's names (its name and its other names) for
+    every office and every node that links a page. Whether a task's term is over and whether its
+    page is old are as of `today`, by the rules a how-to read uses."""
+    found: dict[str, list[dict[str, Any]]] = {}
+    linking: dict[str, list[str]] = {}
+    names: dict[str, list[str]] = {}
+    with facts.snapshot() as snapshot:
+        for entity in snapshot.entities:
+            links = _links_pages(entity)
+            if links or entity.get("kind") == "office":
+                names[entity["id"]] = [entity["name"], *(entity.get("aliases") or [])]
+            if not links:
+                continue
+            for row in _pages(snapshot, entity):
+                record_id = str(row["id"])
+                if record_id not in found:
+                    updated = page_updated(row)
+                    steps = {item["key"]: len(item["steps"]) for item in _tasks(row)}
+                    found[record_id] = [
+                        {"record_id": record_id, "key": key, "name": unit["heading"],
+                         "url": str(row.get("url") or ""), "steps": steps[key],
+                         "applies_to": unit.get("applies_to"),
+                         "handled_by": unit.get("handled_by"), "section": unit.get("section"),
+                         "updated": updated, "over": unit_over(row, unit, today),
+                         "old": old_page(updated, today)}
+                        for key, unit, _, _ in _procedure_units(row) if key.startswith("e")]
+                nodes = linking.setdefault(record_id, [])
+                if entity["id"] not in nodes:
+                    nodes.append(entity["id"])
+        tasks = [Task(**item, nodes=tuple(linking[record_id]))
+                 for record_id in sorted(found) for item in found[record_id]]
+        return snapshot.dataset_version, snapshot.identity_hash, tasks, names
 
 
 def task(facts: EntityFacts, node_id: str, record_id: str, key: str, *,
