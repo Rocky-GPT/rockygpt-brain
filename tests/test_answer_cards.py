@@ -295,3 +295,39 @@ def test_the_build_writes_the_cards_beside_the_release_and_the_reader_finds_them
     release_file.with_suffix(MEANING_SUFFIX).write_text(
         json.dumps({**meta, "dataset_version": "release-0"}))
     assert build.main(["--dir", str(folder)]) == 1
+
+
+def test_an_index_build_joins_its_cards_and_never_fails_for_them(
+        tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    import build_answer_cards
+    import build_meaning_index
+
+    folder = tmp_path / "published"
+    publish_release_graph(facts(), folder)
+    release_file = folder / json.loads((folder / POINTER).read_text())["file"]
+    cards_file = release_file.with_suffix(card_join.CARDS_SUFFIX)
+    # No index beside the release: the cards are not built, and the index build is told so
+    # without failing.
+    assert build_meaning_index.join_answer_cards(folder) is False
+    said = capsys.readouterr()
+    assert "::warning::The answer cards were not built" in said.out
+    assert "No meaning index" in said.err and not cards_file.exists()
+    # With the index written, the same call builds them.
+    meta = {"dataset_version": "release-1", "identity_hash": "identities-1", "model": "test",
+            "dimensions": 3, "units": [["page-faq", "e0", [ORIENTATION]]], "owner": [0, 0],
+            "offsets": [0, -1]}
+    release_file.with_suffix(MEANING_SUFFIX).write_text(json.dumps(meta))
+    release_file.with_suffix(VECTORS_SUFFIX).write_bytes(
+        array.array("f", [1, 0, 0, 1, 0, 0]).tobytes())
+    assert build_meaning_index.join_answer_cards(folder) is True
+    assert "3 cards from 3 tasks on 2 pages" in capsys.readouterr().out and cards_file.exists()
+
+    # Whatever goes wrong in the join is said and kept from the index build.
+    def broken(argv: list[str]) -> int:
+        raise ValueError("a card could not be ranked")
+
+    monkeypatch.setattr(build_answer_cards, "main", broken)
+    assert build_meaning_index.join_answer_cards(folder) is False
+    said = capsys.readouterr()
+    assert "ValueError: a card could not be ranked" in said.err and "::warning::" in said.out

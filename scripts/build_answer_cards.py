@@ -3,11 +3,12 @@ by page, joined into one card per task by rules (rockygpt_brain/retrieval/card_j
 
     python scripts/build_answer_cards.py --dir PUBLISHED_DIR
 
-Run it after scripts/build_meaning_index.py: two tasks are the same task when the questions
-written for them mean the same, and those vectors are in the meaning index. It calls no model and
-needs no key. It writes release-*.cards.json next to the active release file; scripts/
-publish_graph.py shares it with the other release files. Which term is over and which page is old
-are as of the day it runs (--today for another day).
+scripts/build_meaning_index.py runs it at the end of every index build; run it alone to join an
+index already built again (after a change to the rules, or on a laptop's copy of a release). Two
+tasks are the same task when the questions written for them mean the same, and those vectors are
+in the meaning index. It calls no model and needs no key. It writes release-*.cards.json next to
+the active release file; scripts/publish_graph.py shares it with the other release files. Which
+term is over and which page is old are as of the day it runs (--today for another day).
 """
 
 import argparse

@@ -202,15 +202,21 @@ production's, for testing).
 ### Answer cards
 
 A page read lists how-to tasks one page at a time, so one task sits on many pages ("Apply for a
-parking permit" is on eleven). After the meaning index, `python scripts/build_answer_cards.py
---dir DIR` joins the same task across pages into one card and writes the cards beside the
-release (`release-<hash>.cards.json`), where `publish_graph.py` shares them like the index. It
-calls no model: two tasks are one when the questions written for them mean the same
+parking permit" is on eleven). Every index build ends by joining the same task across pages into
+one card (`scripts/build_answer_cards.py`, which also runs alone on an index already built) and
+writes the cards beside the release (`release-<hash>.cards.json`), where `publish_graph.py`
+shares them like the index. An index never fails for its cards: a release that could not get
+them goes out without them.
+
+The join calls no model. Two tasks are one when the questions written for them mean the same
 (`retrieval/card_join.py` has the rule and what it was measured on), the owner is the office the
 pages name as handling it, and the winning page is never a past term while a current one is
 listed, then the owner's own page, then the newest. What the rules cannot settle is flagged
-(`needs_look`), and a card whose only date has passed says so (`date_passed`). Nothing answers
-from a card yet: `GET /v1/dev/answer-cards` shows them to the dev UI's Answer Cards page.
+(`needs_look`), and a card whose only date has passed says so (`date_passed`). The same graph
+always gives the same cards; an index whose questions were written again gives slightly
+different ones (about 1 card in 100 on 2026-11-11), because the questions are a model's words.
+Nothing answers from a card yet: `GET /v1/dev/answer-cards` shows them to the dev UI's Answer
+Cards page.
 
 ## Fact Packet output (optional, off by default)
 
