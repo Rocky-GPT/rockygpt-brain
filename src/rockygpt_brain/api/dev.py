@@ -7,7 +7,7 @@ They are left out of the OpenAPI schema, so the route count the dev UI shows sta
 
 import asyncio
 from datetime import UTC, date, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -15,9 +15,11 @@ from fastapi.responses import JSONResponse
 from rockygpt_brain.failures import failure
 from rockygpt_brain.retrieval import (
     DatasetChanged,
+    EntityFacts,
     EvidenceUnavailable,
     InvalidFactRequest,
     UnknownEntity,
+    answer_cards,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
 from rockygpt_brain.retrieval.graph_browse import browse
@@ -145,6 +147,80 @@ def add_dev_routes(application: FastAPI) -> None:
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
                            retryable=True)
         return JSONResponse(node, headers=NO_STORE)
+
+    def cards_listing(facts: EntityFacts) -> dict[str, Any]:
+        """The active release's tasks. A release never changes, so its list is read once and
+        kept; the next release replaces it."""
+        with facts.snapshot() as snapshot:
+            active = (snapshot.dataset_version, snapshot.identity_hash)
+        held: tuple[tuple[str, str], dict[str, Any]] | None = getattr(
+            application.state, "answer_cards", None)
+        if held is None or held[0] != active:
+            found = answer_cards.listing(facts)
+            held = ((found["dataset_version"], found["identity_hash"]), found)
+            application.state.answer_cards = held
+        return held[1]
+
+    @router.get("/answer-cards")
+    async def answer_cards_list(
+        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+    ) -> JSONResponse:
+        """Every how-to task the release holds, under its page, with the nodes that link the
+        page. `cards` is null: joining tasks into answer cards is not built yet."""
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        if (dataset_version is None) != (identity_hash is None):
+            return failure(422, "invalid_request", "Supply both publication pins or neither.",
+                           new_id())
+        try:
+            # The first read of a release opens every office page (about 2,500); later reads
+            # of the same release are the kept list.
+            async with asyncio.timeout(30):
+                found = await asyncio.to_thread(cards_listing, engine.facts)
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        if dataset_version is not None and (dataset_version, identity_hash) != (
+                found["dataset_version"], found["identity_hash"]):
+            return failure(409, "dataset_changed",
+                           "This publication is no longer active; open the current list.",
+                           new_id())
+        return JSONResponse(found, headers=NO_STORE)
+
+    @router.get("/answer-cards/task")
+    async def answer_cards_task(
+        node_id: Annotated[str, Query(min_length=1, max_length=160)],
+        record_id: Annotated[str, Query(min_length=1, max_length=160)],
+        key: Annotated[str, Query(pattern=r"^e\d{1,4}$")],
+        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+    ) -> JSONResponse:
+        """One task in full: each step beside the page's own words, its page, the other tasks
+        on that page, and the nodes that link the page. `node_id` is any node the list names
+        for the page."""
+        engine = application.state.engine
+        if engine is None:
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
+        if (dataset_version is None) != (identity_hash is None):
+            return failure(422, "invalid_request", "Supply both publication pins or neither.",
+                           new_id())
+        try:
+            async with asyncio.timeout(10):
+                found = await asyncio.to_thread(
+                    answer_cards.task, engine.facts, node_id, record_id, key,
+                    dataset_version=dataset_version, identity_hash=identity_hash)
+        except DatasetChanged:
+            return failure(409, "dataset_changed",
+                           "This publication is no longer active; open the current list.",
+                           new_id())
+        except InvalidFactRequest:
+            return failure(422, "invalid_request", "This task is not in the release.", new_id())
+        except (EvidenceUnavailable, TimeoutError):
+            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                           retryable=True)
+        return JSONResponse(found, headers=NO_STORE)
 
     @router.get("/offices/search")
     async def search(q: Annotated[str, Query(min_length=1, max_length=200)]) -> JSONResponse:

@@ -224,6 +224,24 @@ how many make a dollar.
   (about 4 KB for 34 offices; names only when the list passes 12 KB, `null` when it still
   does, when it was cut off, or when it cannot be read), and the reader still matches only
   published names, so a name the model gets wrong is a `not_found`, never a guess.
+- `GET /v1/dev/answer-cards`: every how-to task the release holds, as its page lists it (joining
+  the same task across pages into one answer card is not built, so `cards` is `null`).
+  `dataset_version`, `identity_hash`, `totals` (`pages_read`, `pages_with_tasks`, `tasks`,
+  `steps`), `nodes` (every node that links a page with a task: `entity_id`, `name`, `kind`, and
+  its `pages` and `tasks` counts) and `pages` (only pages with a task, by address): `record_id`,
+  `url`, `path`, `updated` (the day the page says it last changed, or `null`), `collected_at`,
+  `nodes` (the ids of the nodes linking it) and `tasks`, each with its `key` (`e<n>`, the key the
+  meaning index and a how-to answer give it), `task`, `steps` (a count) and, when the page says
+  them, `applies_to`, `handled_by`, `term` and `section`. A page no node links is not in a
+  release graph and is not listed. The first read of a release opens every office page and is
+  kept; later reads of that release are that list. Paired `dataset_version` and `identity_hash`
+  pins are optional; an inactive publication returns 409.
+- `GET /v1/dev/answer-cards/task?node_id=&record_id=&key=`: one task in full. `node_id` is any
+  node the list names for the page. `task` has the list's fields with `steps` as a list of
+  `text` and `quote` (the page's own words for that step, `null` when the page read gave none),
+  `page` has the list's page fields and `other_tasks` (the `key` and `task` of the page's other
+  tasks), and `nodes` names every node that links the page. 422 for a task that is not in the
+  release, 409 for an inactive publication. Both routes read only; neither feeds a chat reply.
 
 ## Failure envelope
 
