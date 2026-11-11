@@ -14,8 +14,10 @@ date passed after the cards were built, one with no step or no page address, and
 to say are left to the path that reads the pages.
 
 A chat reply is a card's answer only when the question clearly matches that one card (`best_card`,
-`clear`), and a page answer then keeps the cards' choice of page (`read_winners`); both are behind
-the engine's card setting, off by default (engine._card_answer, engine._read_winners).
+`clear`; its near-copies, the same task on another page, do not count against it, and one whose
+page is ahead of its own is said in its place: card_join.page_ahead), and a page answer then
+keeps the cards' choice of page (`read_winners`); both are behind the engine's card setting, off
+by default (engine._card_answer, engine._read_winners).
 """
 
 import re
@@ -51,6 +53,16 @@ _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 #   With the question's whole card taken out, so no right card exists, it still fires for 8.4%.
 # Below 0.80 the best card is often narrower than the question ("take a leave of absence"
 # matched only the medical leave, at 0.79).
+#
+# A card does not have to lead its near-copies (card_join.near: the same task worded apart on
+# another page, which the join left as its own card). Of the 70 practice how-to questions, 28
+# reached 0.80 and lost on the lead, most of them to such a card: "how do i get a parking
+# permit" scored 0.905 on two Public Safety cards. With near-copies passed over the rule fires
+# on 25 of the 70, every one on a card that answers it, and still on none of the look-alikes.
+# Of the written questions it then answers 22.1% (19.7% before); 36 of the new answers came
+# from a card that is not the question's own and were read: about 26 answer the question, about
+# 6 only in part, and 4 are a neighbour's answer ("I can't make my scheduled exam time" from the
+# CLEP card).
 MATCH_TOP = 0.80
 MATCH_MARGIN = 0.08
 
@@ -59,16 +71,22 @@ Key = tuple[str, str]  # A page record's id and a task's key on it: a how-to uni
 
 
 def tasks_of(cards: Sequence[Mapping[str, Any]], known: Collection[Key],
-             ) -> tuple[dict[Key, int], frozenset[int], dict[Key, tuple[Key, str]]]:
+             ) -> tuple[dict[Key, int], frozenset[int], dict[Key, tuple[Key, str]],
+                        dict[int, frozenset[int]]]:
     """What a release's cards say of its tasks: each task's card (its place in `cards`); the
-    cards whose date has passed; and, for each task a card leaves out, the card's winning task
-    and why it was left out ("over": its term or date is; "old": its page is, beside a newer
-    one). Only tasks the meaning index holds (`known`) are named. A card whose own date has
-    passed has no current page to read in place of a term that is over: its winning task is the
-    newest of the passed ones (Spring 2026's refund dates for Spring 2022's)."""
+    cards whose date has passed; for each task a card leaves out, the card's winning task and
+    why it was left out ("over": its term or date is; "old": its page is, beside a newer one);
+    and each card's near-copies, by their places (only for a card that has some). Only tasks
+    the meaning index holds (`known`) are named. A card whose own date has passed has no
+    current page to read in place of a term that is over: its winning task is the newest of the
+    passed ones (Spring 2026's refund dates for Spring 2022's)."""
     card_of: dict[Key, int] = {}
     left_out: dict[Key, tuple[Key, str]] = {}
     passed = frozenset(at for at, card in enumerate(cards) if card.get("status") == "date_passed")
+    place = {card.get("id"): at for at, card in enumerate(cards)}
+    near = {at: copies for at, card in enumerate(cards)
+            if (copies := frozenset(place[other] for other in card.get("near") or []
+                                    if other in place and place[other] != at))}
     for at, card in enumerate(cards):
         keys = [(str(m.get("record_id")), str(m.get("key"))) for m in card.get("members") or []]
         for member, key in zip(card.get("members") or [], keys, strict=True):
@@ -79,16 +97,19 @@ def tasks_of(cards: Sequence[Mapping[str, Any]], known: Collection[Key],
             if (member.get("role") == "left_out" and keys[0] in known
                     and (why == "old" or (why == "over" and at not in passed))):
                 left_out[key] = (keys[0], str(why))
-    return card_of, passed, left_out
+    return card_of, passed, left_out, near
 
 
 def best_card(scores: Mapping[Key, float], card_of: Mapping[Key, int],
-              passed: Collection[int] = ()) -> tuple[int, float, float] | None:
-    """The card a question's unit scores (MeaningIndex.scores) match best, its score and its lead
-    over the next card; None when no unit is a card's. A card's score is its best task's. A card
-    whose date has passed (`passed`) is marked down as a how-to read marks down a term that is
-    over, so today's card leads last year's ("change my meal plan" matched Fall 2024's card at
-    0.93 and Spring 2027's at 0.87)."""
+              passed: Collection[int] = (), near: Mapping[int, Collection[int]] | None = None,
+              ) -> tuple[int, float, float, list[int]] | None:
+    """The card a question's unit scores (MeaningIndex.scores) match best, its score, its lead
+    over the next card, and the near-copies it was not asked to lead; None when no unit is a
+    card's. A card's score is its best task's. A card whose date has passed (`passed`) is marked
+    down as a how-to read marks down a term that is over, so today's card leads last year's
+    ("change my meal plan" matched Fall 2024's card at 0.93 and Spring 2027's at 0.87). The lead
+    is over the best card that is no near-copy of the best one (`near`): its near-copies are the
+    same task on another page, and those within MATCH_MARGIN of it are named, the best first."""
     best: dict[int, float] = {}
     for key, score in scores.items():
         at = card_of.get(key)
@@ -102,7 +123,11 @@ def best_card(scores: Mapping[Key, float], card_of: Mapping[Key, int],
         return None
     first = max(best, key=best.__getitem__)
     top = best.pop(first)
-    return first, top, top - max(best.values(), default=-1.0)
+    copies = (near or {}).get(first, ())
+    over = sorted((at for at in best if at in copies and top - best[at] < MATCH_MARGIN),
+                  key=lambda at: (-best[at], at))
+    rest = max((score for at, score in best.items() if at not in copies), default=-1.0)
+    return first, top, top - rest, over
 
 
 def clear(top: float, lead: float) -> bool:

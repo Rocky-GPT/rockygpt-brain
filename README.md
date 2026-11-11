@@ -216,6 +216,15 @@ listed, then the owner's own page, then the newest. What the rules cannot settle
 always gives the same cards; an index whose questions were written again gives slightly
 different ones (about 1 card in 100 on 2026-11-11), because the questions are a model's words.
 
+The join asks a lot before it calls two tasks one, so one task worded apart on two pages stays
+two cards ("Apply for a parking permit" and "Obtain and display a campus parking permit"). Each
+card names those as its near-copies (`near`): the cards that pass every join rule at a lower
+average. Nothing is joined for it; it only tells a question's best card which other cards it
+does not have to lead. A card also names the near-copies whose page is said in place of its own
+(`ahead`): a page that is not old in place of an old one, and the own page of an office that
+handles both cards in place of another office's page. "How do I connect to the campus wifi"
+matches a 2021 FAQ's card best, and is answered from its near-copy that names Ramapo-Secure.
+
 What the bot would say from a card is written by code (`card_answer.py`): the task's name, its
 term and who it is for, the winning page's steps in the page read's words with the page cited,
 the deadlines its left-out pages name that have passed, and the owning offices' contacts from
@@ -231,15 +240,18 @@ never sends it). Then two things change, both in the how-to path (`engine._one_c
 
 - A plain how-to question is answered from a card by code, with no model call, when one card
   clearly matches it: the card's best task scores 0.80 or more against the question and leads
-  every other card by 0.08 or more (`card_answer.clear`; a card whose date has passed is marked
-  down first, so today's card leads last year's). Plain means one ask, no earlier message, and
-  nothing the catalog, the calendar, the directory or other code already answers a part of. On
-  90 practice questions (2026-11-11, never the blind set) that was 15 of 70 how-to questions,
-  all 15 from a card that answers them, and none of 20 look-alikes; `card_answer.py` has the
-  rest of what was measured. Everything else, and every card code does not answer from, takes
-  the page answer as before. The trace's `answerCard` names the best card, its score and lead,
-  and why nothing was said (`not_clear`, `needs_look`, `date_changed`, `no_steps`, `too_long`,
-  `no_page`, `check`, `unreadable`, `no_cards`).
+  every other card but its near-copies by 0.08 or more (`card_answer.clear`; a card whose date
+  has passed is marked down first, so today's card leads last year's). Plain means one ask, no
+  earlier message, and nothing the catalog, the calendar, the directory or other code already
+  answers a part of. On 90 practice questions (2026-11-11, never the blind set) the rule fires
+  on 25 of 70 how-to questions, each from a card that answers it, and on none of 20 look-alikes
+  (14 of 70 when a card had to lead its near-copies too); `card_answer.py` has the rest of what
+  was measured. Everything else, and every card code does not answer from, takes the page
+  answer as before. The trace's `answerCard` names the best card, its score and lead, the
+  near-copies that scored within the lead (`near`), the one of them whose page was said in
+  place of the best card's own (`ahead`), and why nothing was said (`not_clear`,
+  `needs_look`, `date_changed`, `no_steps`, `too_long`, `no_page`, `check`, `unreadable`,
+  `no_cards`).
 - A page answer reads what the cards chose: among the sections chosen by meaning, a task its
   card left out for an old page gives its place to the card's winning task, and one left out for
   a date that is over is read after the winning task (`card_answer.read_winners`). The trace's

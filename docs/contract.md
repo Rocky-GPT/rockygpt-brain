@@ -232,10 +232,15 @@ how many make a dollar.
 - `GET /v1/dev/answer-cards`: every how-to task the release holds, as its page lists it, and
   the answer cards joined from them. `cards` is `null` for a release built without cards; else
   it has `built_on` (the day the cards were built: a term is over and a page is old as of that
-  day), `rules` (`join_mean`, `join_least`, `big_group`) and `items`, one per card: `id`,
+  day), `rules` (`join_mean`, `join_least`, `big_group`, `near_mean`, `near_least`) and
+  `items`, one per card: `id`,
   `status` (`ready`, `needs_look` or `date_passed`), `flags` (why it needs a look:
   `owner_unclear`, `no_date`, `big_group`), `notes` (`old_page`, `owner_has_no_page`), `owners`
-  (node ids) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
+  (node ids), `near` (the ids of its near-copies: cards for the same task worded apart on
+  another page, which the join kept apart for its average alone), `ahead` (the near-copies
+  whose winning page is said in place of its own: a page that is not old in place of an old
+  one, a shared owner's own page in place of another office's; both absent on cards built
+  before 2026-11-11) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
   with its `role`: `winner` (with `label`, the date or term that passed, on a `date_passed`
   card), `owner_page` (the owner's other current pages), `mentions` (another office's current
   page) or `left_out` (`why` is `over`, with the past term or date as `label`, or `old`). Every

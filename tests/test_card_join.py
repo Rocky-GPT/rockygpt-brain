@@ -90,6 +90,39 @@ def test_a_group_needs_every_pair_near_and_the_average_nearer() -> None:
     assert card_join.groups(tasks[:1], [at(1.0)]) == [[0]]
 
 
+def test_near_copies_pass_every_join_rule_but_the_average() -> None:
+    tasks = [
+        task("safety", "Apply for a parking permit", (SAFETY,)),
+        task("rules", "Obtain and display a campus parking permit", (SAFETY,)),
+        task("safety", "Get a visitor parking permit", (SAFETY,), key="e1"),
+        task("rotary", "Donate to the Rotary Memorial Endowed Scholarship", ()),
+        task("dwyer", "Donate to the Marie Dwyer Memorial Scholarship", ()),
+        task("registrar", "Request a transcript", (REGISTRAR,)),
+    ]
+    # The second is 0.8 like the first: under the join's average, over a near-copy's. The third
+    # is as like the first and shares its page. The scholarships are 0.8 alike and each names
+    # its own.
+    vectors = [unit(1, 0, 0, 0, 0, 0), unit(0.8, 0.6, 0, 0, 0, 0), unit(0.8, 0, 0.6, 0, 0, 0),
+               unit(0, 0, 0, 1, 0, 0), unit(0, 0, 0, 0.8, 0.6, 0), unit(0, 0, 0, 0, 0, 1)]
+    grouped = card_join.groups(tasks, vectors)
+    assert grouped == [[0], [1], [2], [3], [4], [5]]
+    assert card_join.near(tasks, vectors, grouped) == [[1], [0], [], [], [], []]
+    assert card_join.near([], numpy.zeros((0, 3)), []) == []
+
+
+def test_a_near_copy_is_near_every_task_of_the_group() -> None:
+    tasks = [task(f"page-{n}", "Apply for housing", ()) for n in range(3)]
+    # The first two join (0.95). The third is 0.88 like the first and 0.69 like the second:
+    # 0.785 on average, with one pair under the least a near-copy may have.
+    vectors = [[1.0, 0.0, 0.0], [0.95, 0.3122, 0.0], [0.88, -0.4677, 0.083]]
+    grouped = card_join.groups(tasks, vectors)
+    assert grouped == [[0, 1], [2]]
+    assert card_join.near(tasks, vectors, grouped) == [[], []]
+    # 0.74 like the second: every pair is near enough.
+    vectors[2] = [0.88, -0.3076, 0.3616]
+    assert card_join.near(tasks, vectors, card_join.groups(tasks, vectors)) == [[1], [0]]
+
+
 def test_the_pages_own_word_names_the_owner() -> None:
     listed = [
         task("orientation", "Get a parking permit", (ORIENTATION,), handled_by="Public Safety"),
@@ -199,6 +232,55 @@ def test_build_gives_every_task_one_card_in_page_order() -> None:
         [("a-safety", "winner"), ("b-accounts", "mentions")], [("c-registrar", "winner")]]
     assert all(found["status"] == card_join.READY for found in cards)
     assert sum(len(found["members"]) for found in cards) == len(tasks)
+    assert [found["near"] for found in cards] == [[], []]
+    # Two cards the join keeps apart for the average alone name each other.
+    apart = card_join.build(tasks[1:], [unit(1, 0, 0), unit(0, 0, 1)], NAMES)
+    assert [found["near"] for found in apart] == [[], []]
+    copies = card_join.build(
+        [tasks[1], task("d-rules", "Obtain and display a campus parking permit", (SAFETY,))],
+        [unit(1, 0, 0), unit(0.8, 0.6, 0)], NAMES)
+    assert [found["near"] for found in copies] == [[copies[1]["id"]], [copies[0]["id"]]]
+    assert [found["ahead"] for found in cards + apart + copies] == [[]] * 6
+    # The near-copy on a page that is not old is said in place of the card on an old one.
+    stale = card_join.build(
+        [task("a-safety", "Apply for a parking permit", (SAFETY, SAFETY_911),
+              updated=date(2021, 8, 17), old=True),
+         task("d-rules", "Obtain and display a campus parking permit", (SAFETY,),
+              updated=date(2026, 11, 6))],
+        [unit(1, 0, 0), unit(0.8, 0.6, 0)], NAMES)
+    assert [found["ahead"] for found in stale] == [[stale[1]["id"]], []]
+
+
+def test_a_near_copys_page_is_ahead_by_the_joins_two_plain_rules() -> None:
+    def ahead(own: Task, its: Task, owners: tuple[str, ...] = (REGISTRAR,),
+              its_owners: tuple[str, ...] = (REGISTRAR,)) -> bool:
+        return card_join.page_ahead(owners, own, its_owners, its)
+
+    forms = task("registrar/forms", "Change your major, minor, or concentration", (REGISTRAR,),
+                 updated=date(2026, 9, 10), steps=3)
+    eof = task("eof/freshman", "Change your major", (ORIENTATION,), updated=date(2026, 11, 2))
+    # Another office's page loses to the own page of the office that handles both cards.
+    assert ahead(eof, forms) and not ahead(forms, eof)
+    # Not to the own page of an office that handles only the other card: the two may differ.
+    assert not ahead(eof, forms, its_owners=(ADVISING,))
+    assert not ahead(eof, task("advising/faq", "Change a major", (ADVISING,)), (REGISTRAR,),
+                     (ADVISING,))
+    # An old page loses to one that is not old, whoever handles it, and never the other way.
+    faq = task("resnet/faq", "Connect to the wireless network", (REGISTRAR,),
+               updated=date(2021, 9, 7), old=True)
+    secure = task("its/wireless", "Connect to Ramapo-Secure", (ADVISING,),
+                  updated=date(2026, 3, 24))
+    assert ahead(faq, secure, its_owners=(ADVISING,))
+    assert not ahead(secure, faq, (ADVISING,), (REGISTRAR,))
+    assert not ahead(forms, faq)  # the owner's own page, but old
+    # The newest date and the most steps are not asked across cards.
+    newer = task("registrar/deadlines", "Withdraw from courses", (REGISTRAR,),
+                 updated=date(2026, 10, 1), steps=9)
+    assert not ahead(forms, newer) and not ahead(newer, forms)
+    # A term that is over is marked down by the match itself.
+    passed = task("registrar/2024", "Change your major", (REGISTRAR,), over="Fall 2024",
+                  old=True)
+    assert not ahead(passed, forms) and not ahead(eof, passed)
 
 
 def test_a_task_is_compared_by_the_questions_written_for_it() -> None:

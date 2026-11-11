@@ -44,10 +44,13 @@ class CardFacts(WithCards):
         return self.index
 
 
-def release(appeal: str = "ready") -> CardFacts:
+def release(appeal: str = "ready", *, appeal_at: Sequence[float] = (0, 1, 0, 0, 0),
+            copies: bool = False, ahead: bool = False) -> CardFacts:
     """Two cards: the permit card (its winner on Public Safety's page; an old page's task and a
     passed deadline left out) and the ticket appeal's. Each task and one plain section is a unit
-    of the meaning index, each along its own axis."""
+    of the meaning index, each along its own axis unless the appeal's is given another place
+    (`appeal_at`). `copies` has the two cards name each other as near-copies; `ahead` has the
+    permit card name the appeal's as the near-copy whose page is said in place of its own."""
     source = with_cards()
     safety = {**source.entities[0], "links": [
         {**source.entities[0]["links"][0],
@@ -68,11 +71,13 @@ def release(appeal: str = "ready") -> CardFacts:
              {"record_id": WIN[0], "key": WIN[1], "role": "winner"},
              {"record_id": OLD[0], "key": OLD[1], "role": "left_out", "why": "old"},
              {"record_id": FAQ[0], "key": FAQ[1], "role": "left_out", "why": "over",
-              "label": "September 1, 2026"}]},
+              "label": "September 1, 2026"}],
+         "near": [LOOK_ID] if copies or ahead else [], "ahead": [LOOK_ID] if ahead else []},
         {"id": LOOK_ID, "status": appeal, "flags": [], "notes": [], "owners": [SAFETY],
-         "members": [{"record_id": APPEAL[0], "key": APPEAL[1], "role": "winner"}]}])
+         "members": [{"record_id": APPEAL[0], "key": APPEAL[1], "role": "winner"}],
+         "near": [CARD_ID] if copies or ahead else []}])
     held.index = index_of([(*WIN, [SAFETY], [[1, 0, 0, 0, 0]]),
-                           (*APPEAL, [SAFETY], [[0, 1, 0, 0, 0]]),
+                           (*APPEAL, [SAFETY], [list(appeal_at)]),
                            (*OLD, [SAFETY], [[0, 0, 1, 0, 0]]),
                            (*FAQ, [ORIENTATION], [[0, 0, 0, 1, 0]]),
                            (*SECTION, [SAFETY], [[0, 0, 0, 0, 1]])],
@@ -154,6 +159,58 @@ def test_no_card_leading_leaves_the_question_to_the_page_answer() -> None:
                                           "said": False, "why": "not_clear"}
 
 
+def test_a_card_does_not_have_to_lead_its_near_copies() -> None:
+    # The appeal's task is worded close to the permit's (0.9 alike), so a question that is the
+    # permit's (0.985) matches the appeal's too (0.961): neither card leads the other.
+    close, asked = [0.9, 0.436, 0, 0, 0], [0.985, 0.17, 0, 0, 0]
+    apart = ask(CardGateway(asked, one_reply(PAGE_REPLY, [1])), held=release(appeal_at=close))
+    assert apart.trace["decidedBy"] == "one_call"
+    assert apart.trace["answerCard"]["why"] == "not_clear" and "near" not in apart.trace[
+        "answerCard"]
+    # Named as near-copies, the same task on another page, the better match answers.
+    gateway = CardGateway(asked)
+    result = ask(gateway, held=release(appeal_at=close, copies=True))
+    assert result.body["answer"] == SAID and gateway.inputs == []
+    note = result.trace["answerCard"]
+    assert (note["card"], note["said"], note["near"]) == (CARD_ID, True, [LOOK_ID])
+    assert note["score"] == pytest.approx(0.985, abs=0.002)
+    # Nothing but its near-copy scored: the lead is over no card at all.
+    assert note["lead"] == pytest.approx(1.985, abs=0.002)
+
+
+def test_a_near_copy_whose_page_is_ahead_is_said_in_place_of_the_best_card() -> None:
+    close, asked = [0.9, 0.436, 0, 0, 0], [0.985, 0.17, 0, 0, 0]
+    gateway = CardGateway(asked)
+    result = ask(gateway, held=release(appeal_at=close, ahead=True))
+    assert result.body["answer"].startswith("**Appeal a parking ticket**")
+    assert result.body["status"] == "answered" and gateway.inputs == []
+    # The trace still names the card the question matched, and the one whose page was said.
+    note = result.trace["answerCard"]
+    assert (note["card"], note["said"], note["near"], note["task"]) == (
+        CARD_ID, True, [LOOK_ID], "Get a student parking permit")
+    assert note["ahead"] == {"card": LOOK_ID, "task": "Appeal a parking ticket"}
+    # One that code does not answer from leaves the best card its own page.
+    own = ask(CardGateway(asked), held=release("needs_look", appeal_at=close, ahead=True))
+    assert own.body["answer"] == SAID and "ahead" not in own.trace["answerCard"]
+    # So does one that scored outside the lead: it is named ahead for its page, not its match.
+    far = ask(CardGateway(CLEAR), held=release(ahead=True))
+    assert far.body["answer"] == SAID and "ahead" not in far.trace["answerCard"]
+
+
+def test_a_best_card_code_does_not_answer_from_is_not_answered_from_a_near_copy() -> None:
+    # The question matched the appeal's card, which needs a look: its near-copy, the permit
+    # card, may be another task, so the pages are read.
+    close, asked = [0.9, 0.436, 0, 0, 0], [0.95, 0.31, 0, 0, 0]
+    held = release("needs_look", appeal_at=close, copies=True)
+    assert held.cards is not None
+    held.cards["cards"][1]["ahead"] = [CARD_ID]
+    result = ask(CardGateway(asked, one_reply(PAGE_REPLY, [1])), held=held)
+    assert result.trace["decidedBy"] == "one_call"
+    note = result.trace["answerCard"]
+    assert (note["card"], note["said"], note["why"], note["near"]) == (
+        LOOK_ID, False, "needs_look", [CARD_ID])
+
+
 @pytest.mark.parametrize(("change", "why"), [
     ({"appeal": "needs_look"}, "needs_look"),
     ({}, "check"),
@@ -163,7 +220,7 @@ def test_a_clear_card_code_does_not_answer_from_is_left_to_the_page_answer(
     if why == "check":  # The reply held something its facts do not.
         monkeypatch.setattr(ChatEngine, "card_said", lambda self, card, today: None)
     reply = one_reply("Public Safety: File the appeal form. [1]", [1])
-    result = ask(CardGateway([0, 1, 0, 0, 0], reply), held=release(**change))
+    result = ask(CardGateway([0, 1, 0, 0, 0], reply), held=release(change.get("appeal", "ready")))
     assert result.trace["decidedBy"] == "one_call"
     assert result.trace["answerCard"] == {
         "card": LOOK_ID, "score": 1.0, "lead": 1.0, "said": False, "why": why,
@@ -220,23 +277,36 @@ def test_the_cards_tasks_and_the_best_card() -> None:
     held = release()
     cards = held.cards["cards"]  # type: ignore[index]
     known = {WIN, APPEAL, OLD, FAQ, SECTION}
-    card_of, passed, left_out = card_answer.tasks_of(cards, known)
+    card_of, passed, left_out, near = card_answer.tasks_of(cards, known)
     assert card_of == {WIN: 0, OLD: 0, FAQ: 0, APPEAL: 1} and passed == frozenset()
-    assert left_out == {OLD: (WIN, "old"), FAQ: (WIN, "over")}
+    assert left_out == {OLD: (WIN, "old"), FAQ: (WIN, "over")} and near == {}
     # A task the index does not hold is no one's; one whose winner it lacks is not swapped.
     assert card_answer.tasks_of(cards, known - {WIN})[2] == {}
     assert card_answer.tasks_of(cards, known - {OLD})[0] == {WIN: 0, FAQ: 0, APPEAL: 1}
     # A card whose own date has passed has no current page to read before a term that is over.
     over = [{**cards[0], "status": "date_passed"}, cards[1]]
-    assert card_answer.tasks_of(over, known)[1:] == (frozenset({0}), {OLD: (WIN, "old")})
+    assert card_answer.tasks_of(over, known)[1:3] == (frozenset({0}), {OLD: (WIN, "old")})
+    # Near-copies are named by their places; an id no card has, and a card's own, name none.
+    copies = [{**cards[0], "near": [LOOK_ID, "c-gone", CARD_ID]}, {**cards[1], "near": [CARD_ID]}]
+    assert card_answer.tasks_of(copies, known)[3] == {0: frozenset({1}), 1: frozenset({0})}
+
+    def best(*given: Any, **more: Any) -> tuple[int, float, float, list[int]] | None:
+        found = card_answer.best_card(*given, **more)
+        return found and (found[0], round(found[1], 6), round(found[2], 6), found[3])
 
     scores = {WIN: 0.5, OLD: 0.9, APPEAL: 0.84, SECTION: 0.99}
     # A card's score is its best task's; a section that is no task is no card's.
-    assert card_answer.best_card(scores, card_of) == pytest.approx((0, 0.9, 0.06))
+    assert best(scores, card_of) == (0, 0.9, 0.06, [])
     # A card whose date has passed is marked down, so today's card leads.
-    assert card_answer.best_card(scores, card_of, passed={0}) == pytest.approx((1, 0.84, 0.04))
-    assert card_answer.best_card({SECTION: 0.9}, card_of) is None
-    assert card_answer.best_card({WIN: 0.9}, card_of) == pytest.approx((0, 0.9, 1.9))
+    assert best(scores, card_of, passed={0}) == (1, 0.84, 0.04, [])
+    assert best({SECTION: 0.9}, card_of) is None
+    assert best({WIN: 0.9}, card_of) == (0, 0.9, 1.9, [])
+    # A card does not have to lead its near-copies: the lead is over the best card that is none,
+    # and the near-copies that scored within the lead are named.
+    both = {0: frozenset({1}), 1: frozenset({0})}
+    assert best(scores, card_of, near=both) == (0, 0.9, 1.9, [1])
+    assert best({WIN: 0.9, APPEAL: 0.7}, card_of, near=both) == (0, 0.9, 1.9, [])
+    assert best(scores, card_of, near={1: frozenset({0})}) == (0, 0.9, 0.06, [])
 
     assert card_answer.clear(0.80, 0.08) and card_answer.clear(0.95, 0.5)
     assert not card_answer.clear(0.79, 0.5) and not card_answer.clear(0.95, 0.07)
