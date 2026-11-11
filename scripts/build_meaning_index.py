@@ -82,6 +82,32 @@ KINDS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["i
 MAX_KINDS = 3
 
 
+class NoCredit(Exception):
+    """The model service refused a call because the account's prepaid balance is used up. Not a
+    RuntimeError: a failed call is skipped and tried by the next build, but no call after this
+    one can succeed, here or anywhere else the key is used (the live Brain included)."""
+
+    def __init__(self) -> None:
+        super().__init__("The model account has no credit left: the build stopped. Nothing that "
+                         "uses this key can call the model until credit is added, the live Brain "
+                         "included. Add credit, then run the build again; it keeps what it paid "
+                         "for.")
+
+
+def _no_credit(error: urllib.error.HTTPError) -> bool:
+    """Whether a refusal says the account is out of credit. It comes as HTTP 429 like "slow down"
+    (2026-11-11: type "insufficient_quota", code "credit_balance_exhausted"), but waiting does
+    not help."""
+    if error.code != 429:
+        return False
+    try:
+        detail = json.loads(error.read()).get("error") or {}
+    except (ValueError, AttributeError, OSError):
+        return False
+    return bool({detail.get("type"), detail.get("code")}
+                & {"insufficient_quota", "credit_balance_exhausted"})
+
+
 def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
     headers = {"content-type": "application/json",
                "authorization": "Bearer " + os.environ["BRAIN_OPENAI_API_KEY"]}
@@ -94,6 +120,8 @@ def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
             with urllib.request.urlopen(request, timeout=180) as response:  # noqa: S310
                 return json.load(response)  # type: ignore[no-any-return]
         except urllib.error.HTTPError as error:
+            if _no_credit(error):
+                raise NoCredit from None
             if error.code not in (429, 500, 502, 503) or attempt == 4:
                 raise RuntimeError(f"OpenAI {path} failed with HTTP {error.code}") from None
         except (urllib.error.URLError, TimeoutError):
@@ -417,7 +445,9 @@ def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
     """Three student questions for each how-to entry not already in the cache, read 12 entries at
     a time per page, until the calls have cost `budget_nusd` (the rest wait for the next build).
     `save` is called every QUESTIONS_SAVE_EVERY batches and at the end, so a run that is stopped
-    keeps what it paid for. Returns how many entries were read and what the calls cost."""
+    keeps what it paid for. Returns how many entries were read and what the calls cost. Raises
+    NoCredit, after saving, when the account has no credit left: on 2026-11-11 each of about
+    1,900 calls was instead retried for 30 seconds and skipped, an hour that wrote nothing."""
     due: dict[str, list[dict[str, Any]]] = {}
     for unit in units:
         if unit["entry"] and _digest(unit["heading"], unit["text"]) not in cache:
@@ -455,24 +485,27 @@ def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
 
     spent = read_count = finished = 0
     pending: set[Future[tuple[dict[str, list[str]], int, int]]] = set()
-    with ThreadPoolExecutor(16) as pool:
-        while True:
-            while len(pending) < 16 and spent < budget_nusd:
-                batch = next(batches, None)
-                if batch is None:
+    try:
+        with ThreadPoolExecutor(16) as pool:
+            while True:
+                while len(pending) < 16 and spent < budget_nusd:
+                    batch = next(batches, None)
+                    if batch is None:
+                        break
+                    pending.add(pool.submit(read, batch))
+                if not pending:
                     break
-                pending.add(pool.submit(read, batch))
-            if not pending:
-                break
-            done, pending = wait(pending, return_when=FIRST_COMPLETED)
-            for future in done:
-                found, cost, count = future.result()
-                cache.update(found)
-                spent, read_count, finished = spent + cost, read_count + count, finished + 1
-                if save is not None and finished % QUESTIONS_SAVE_EVERY == 0:
-                    save()
-    if save is not None:
-        save()
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    found, cost, count = future.result()
+                    cache.update(found)
+                    spent, read_count, finished = spent + cost, read_count + count, finished + 1
+                    if save is not None and finished % QUESTIONS_SAVE_EVERY == 0:
+                        save()
+    finally:
+        # Also when the build is stopped (NoCredit): the questions it paid for are kept.
+        if save is not None:
+            save()
     return read_count, spent
 
 
@@ -575,8 +608,13 @@ def main(argv: list[str] | None = None) -> int:
     cache = load_vectors(args.cache)
     every = ([t for _, t in texts] + [card for _, _, card in cards]
              + [card for _, _, card in academic])
-    embedded = embed_all(every, cache)
-    save_vectors(args.cache, cache, [_digest(EMBED_MODEL, str(DIMENSIONS), t) for t in every])
+    try:
+        embedded = embed_all(every, cache)
+    finally:
+        # A build stopped part way (the account out of credit, the service refusing) keeps the
+        # vectors it paid for, so the next build embeds only the rest.
+        save_vectors(args.cache, cache, [key for key in (_digest(EMBED_MODEL, str(DIMENSIONS), t)
+                                                         for t in every) if key in cache])
     flat = array.array("f")
     # The office cards' vectors follow the units' vectors, in the order of "cards"; then the
     # program and course cards, in the order of "academic".
@@ -616,4 +654,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except NoCredit as stopped:
+        # One plain line, marked as an error for a workflow run's summary, not a traceback.
+        sys.exit(f"::error::{stopped}")

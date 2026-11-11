@@ -1,7 +1,12 @@
 import array
+import io
 import json
 import math
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
+from email.message import Message
 from pathlib import Path
 from typing import Any
 
@@ -419,6 +424,72 @@ def test_how_to_entries_are_given_student_questions_until_the_build_spends_its_b
     assert build.write_questions(broken, cache) == (1, 0)
     assert build._digest("Hours", "Open 9 to 5.") not in cache
     assert build.write_questions(broken, cache) == (1, 0) and len(asked) == 42
+
+
+def test_a_build_stops_at_once_when_the_model_account_has_no_credit(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # 11-11: the first read of every office page used up the account's prepaid balance. The
+    # service then refused every call with HTTP 429, the status of "slow down"; the build
+    # retried each of about 1,900 question calls for 30 seconds, skipped it, and failed an hour
+    # later at its first embedding, having lost nothing but the hour and said nothing of money.
+    import build_meaning_index as build
+
+    refusals: list[dict[str, Any]] = []
+    sent: list[str] = []
+
+    def urlopen(request: Any, timeout: float) -> Any:
+        sent.append(request.full_url)
+        raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", Message(),
+                                     io.BytesIO(json.dumps(refusals[0]).encode()))
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setenv("BRAIN_OPENAI_API_KEY", "test-key")
+    # The refusal as the service sent it: not tried again.
+    refusals[:] = [{"error": {"type": "insufficient_quota", "code": "credit_balance_exhausted"}}]
+    with pytest.raises(build.NoCredit, match="no credit left"):
+        build._post("embeddings", {"input": ["a"]})
+    assert len(sent) == 1
+    # "Slow down" is still tried five times, then fails as a call that the next build repeats.
+    sent.clear()
+    refusals[:] = [{"error": {"type": "tokens", "code": "rate_limit_exceeded"}}]
+    with pytest.raises(RuntimeError, match="HTTP 429"):
+        build._post("embeddings", {"input": ["a"]})
+    assert len(sent) == 5
+
+    # Writing questions stops too, and keeps the questions already paid for.
+    asked: list[str] = []
+
+    def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        asked.append(path)
+        raise build.NoCredit
+
+    monkeypatch.setattr(build, "_post", post)
+    units = [{"page": f"https://www.ramapo.edu/page-{n}/", "heading": f"Heading {n}",
+              "text": f"Text {n}.", "entry": True} for n in range(200)]
+    questions = {build._digest("Paid for", "Earlier."): ["how do i", "b", "c"]}
+    saved: list[int] = []
+    with pytest.raises(build.NoCredit):
+        build.write_questions(units, questions, lambda: saved.append(len(questions)))
+    # Only the calls already out were made (16 at once), not one for each of the 200 pages.
+    assert len(asked) <= 16 and saved == [1]
+
+    # Embedding stops at the refused call; the vectors of the calls before it can be saved.
+    def embeddings(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        if len(body["input"]) < 300:
+            raise build.NoCredit
+        return {"data": [{"index": n, "embedding": [float(n)] * build.DIMENSIONS}
+                         for n in range(len(body["input"]))]}
+
+    monkeypatch.setattr(build, "_post", embeddings)
+    texts = [f"text {n}" for n in range(301)]
+    vectors: dict[str, list[float]] = {}
+    with pytest.raises(build.NoCredit):
+        build.embed_all(texts, vectors)
+    keys = [build._digest(build.EMBED_MODEL, str(build.DIMENSIONS), text) for text in texts]
+    assert [key in vectors for key in keys] == [True] * 300 + [False]
+    build.save_vectors(tmp_path, vectors, [key for key in keys if key in vectors])
+    assert build.load_vectors(tmp_path).keys() == set(keys[:300])
 
 
 def test_who_leads_an_office_reads_its_own_sections_whatever_fields_were_asked() -> None:
