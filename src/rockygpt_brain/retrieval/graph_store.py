@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from rockygpt_brain.retrieval.card_join import CARDS_SUFFIX, read_cards
 from rockygpt_brain.retrieval.entity_facts import (
     RECORD_COLLECTIONS,
     EntityFacts,
@@ -386,7 +387,7 @@ def publish_release_graph(
                        key=lambda f: f.stat().st_mtime, reverse=True)
         for old in files[KEEP_RELEASES - 1:]:
             _remove(old)
-            for sidecar in (MEANING_SUFFIX, VECTORS_SUFFIX):
+            for sidecar in (MEANING_SUFFIX, VECTORS_SUFFIX, CARDS_SUFFIX):
                 _remove(old.with_suffix(sidecar))
     except OSError as exc:
         _remove(temp)
@@ -422,6 +423,7 @@ class GraphOnlyFacts(EntityFacts):
         self._loads = 0
         self._last_error: str | None = None
         self._meaning: tuple[Path, MeaningIndex | None] | None = None
+        self._cards: tuple[Path, dict[str, Any] | None] | None = None
 
     @property
     def serving(self) -> str:
@@ -504,6 +506,24 @@ class GraphOnlyFacts(EntityFacts):
                 index = None
             self._meaning = (graph.path, index)
             return index
+
+    def answer_cards(self) -> dict[str, Any] | None:
+        """The answer cards published beside the active release file, read once per file; cards
+        built for another release are never used."""
+        graph = self._graph()
+        cached = self._cards
+        if cached is not None and cached[0] == graph.path:
+            return cached[1]
+        try:
+            found = read_cards(json.loads(graph.path.with_suffix(CARDS_SUFFIX).read_text()),
+                               graph.dataset_version, graph.identity_hash)
+        except FileNotFoundError:
+            found = None
+        except (OSError, ValueError) as exc:
+            LOG.warning("brain_answer_cards_unavailable exception_type=%s", type(exc).__name__)
+            found = None
+        self._cards = (graph.path, found)
+        return found
 
     def evidence_fingerprint(self) -> str:
         return self._graph().fingerprint

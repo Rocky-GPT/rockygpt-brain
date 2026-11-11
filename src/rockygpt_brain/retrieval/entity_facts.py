@@ -1875,6 +1875,17 @@ def past_heading(heading: str, today: date) -> str | None:
     return str(max(years))
 
 
+def unit_over(row: Mapping[str, Any], unit: Mapping[str, Any], today: date) -> str | None:
+    """The term, year or deadline a how-to unit is for, when it is over by today; else None. The
+    unit's own term, heading and opening words are read, then its page's address, then a year in
+    its heading, then its deadline dates."""
+    url = str(row.get("url") or "")
+    return (past_term(f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {url}", today)
+            or past_page(url, today)
+            or past_heading(f"{unit['heading']} {unit.get('section', '')}", today)
+            or past_dates(f"{unit['heading']} {unit['text'][:600]}", today))
+
+
 def _stem(word: str) -> str:
     """A word without its common ending, then by its first six letters: fund, funds, funded and
     funding are one word, as are withdraw, withdrawing and withdrawal, and house and housing."""
@@ -2072,11 +2083,7 @@ def procedures_property(
         # By meaning when the question was embedded (the student's words and the page's need share
         # none: "excused for a funeral", "attendance is determined by the instructor"); else by
         # the asked words.
-        over = past_term(
-            f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
-            today) or past_page(str(row.get("url") or ""), today) or past_heading(
-            f"{unit['heading']} {unit.get('section', '')}", today) or past_dates(
-            f"{unit['heading']} {unit['text'][:600]}", today)
+        over = unit_over(row, unit, today)
         old = old_page(page_updated(row), today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))
@@ -2532,6 +2539,11 @@ class EntityFacts:
     def meaning_index(self) -> "MeaningIndex | None":
         """The how-to units' embeddings for the active release, when one was published beside it;
         without one, how-to sections are found by the asked words."""
+        return None
+
+    def answer_cards(self) -> dict[str, Any] | None:
+        """The answer cards built beside the active release (retrieval/card_join.py), when the
+        reader's release has them."""
         return None
 
     def warm_meaning_index(self) -> None:
