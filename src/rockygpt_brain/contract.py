@@ -6,7 +6,15 @@ before a turn exists, so the rest of the Brain only ever sees a request that fit
 
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StringConstraints,
+    model_validator,
+)
 
 MAX_MESSAGES = 80
 MAX_MESSAGE_CHARS = 16_000
@@ -39,6 +47,10 @@ class ChatRequest(BaseModel):
     # Which writer says this answer's facts, for trying both on one question (`rocky ask
     # --writer`, the dev UI); the student app never sends it, so students get the Brain's setting.
     writer: Literal["template", "ai"] | None = None
+    # Whether the answer cards are used for this answer, for trying a question with and without
+    # them (`rocky ask --cards`); the student app never sends it, so students get the Brain's
+    # setting (BRAIN_CARD_ANSWERS).
+    cards: StrictBool | None = None
 
     @model_validator(mode="after")
     def fits_a_conversation(self) -> Self:

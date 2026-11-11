@@ -282,6 +282,12 @@ def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
     assert past_dates("The Spring 2027 payment deadline is December 16, 2026.", today) is None
     # An effective or revision date is not a deadline.
     assert past_dates("Effective date: July 1, 2019. Revised March 3, 2021.", today) is None
+    # A date in numbers, month first, with a short or a full year.
+    assert past_dates("Apply for scholarships by 9/23/26 at the site.", today) == (
+        "September 23, 2026")
+    assert past_dates("Apply by 9/23/2026. The spring round is due 2/15/27.", today) is None
+    assert past_dates("Due 13/45/26.", today) is None  # not a date
+    assert past_dates("Staff are paid 1/2/26 of their salary each period.", today) is None
 
 
 def test_an_index_stored_in_8_bits_ranks_as_the_float_index_does() -> None:

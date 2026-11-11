@@ -222,9 +222,28 @@ the deadlines its left-out pages name that have passed, and the owning offices' 
 the directory. No model writes any of it, and the reply is checked against the card's facts like
 every code answer. Code does not answer from a card that needs a look, one whose date passed
 since the cards were built, or a list of more than 12 steps; those stay with the path that reads
-the pages. No chat reply uses it yet: `GET /v1/dev/answer-cards` and
-`GET /v1/dev/answer-cards/card` show the cards and each card's answer to the dev UI's Answer
-Cards page.
+the pages. `GET /v1/dev/answer-cards` and `GET /v1/dev/answer-cards/card` show the cards and
+each card's answer to the dev UI's Answer Cards page.
+
+A chat reply uses the cards only with `BRAIN_CARD_ANSWERS=1`, which is off by default and not
+set in production, or when a request sends `"cards": true` (`rocky ask --cards`; the student app
+never sends it). Then two things change, both in the how-to path (`engine._one_call`):
+
+- A plain how-to question is answered from a card by code, with no model call, when one card
+  clearly matches it: the card's best task scores 0.80 or more against the question and leads
+  every other card by 0.08 or more (`card_answer.clear`; a card whose date has passed is marked
+  down first, so today's card leads last year's). Plain means one ask, no earlier message, and
+  nothing the catalog, the calendar, the directory or other code already answers a part of. On
+  90 practice questions (2026-11-11, never the blind set) that was 15 of 70 how-to questions,
+  all 15 from a card that answers them, and none of 20 look-alikes; `card_answer.py` has the
+  rest of what was measured. Everything else, and every card code does not answer from, takes
+  the page answer as before. The trace's `answerCard` names the best card, its score and lead,
+  and why nothing was said (`not_clear`, `needs_look`, `date_changed`, `no_steps`, `too_long`,
+  `no_page`, `check`, `unreadable`, `no_cards`).
+- A page answer reads what the cards chose: among the sections chosen by meaning, a task its
+  card left out for an old page gives its place to the card's winning task, and one left out for
+  a date that is over is read after the winning task (`card_answer.read_winners`). The trace's
+  `answerCardWinners` names the winning tasks brought in.
 
 ## Fact Packet output (optional, off by default)
 
