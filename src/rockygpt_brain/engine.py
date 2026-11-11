@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from rockygpt_brain import (
     academic_calendar,
     academics,
+    card_answer,
     catalog,
     contacts,
     events,
@@ -2499,6 +2500,31 @@ class ChatEngine:
         if len(lines) > 1:
             lines = [f"- {line}" for line in lines]
         return ("\n".join(lines) if lines else None), sources, listed
+
+    def card_said(self, card: Mapping[str, Any], today: date,
+                  ) -> tuple[str, list[dict[str, Any]], dict[str, Any]] | None:
+        """What the bot says from one answer card (the `card` of retrieval/answer_cards.view),
+        written by code (card_answer.py) and followed by the directory contacts of the offices
+        that handle it: the reply, its citations and the facts it was checked against. None
+        when code does not answer from this card (card_answer.refusal), or the check finds
+        something in the reply the facts do not hold."""
+        if card_answer.refusal(card) is not None:
+            return None
+        said, sources = card_answer.say(card)
+        owners = [{"id": owner["entity_id"], "name": owner["name"]}
+                  for owner in card.get("owners") or [] if owner.get("kind") == "office"]
+        try:
+            lines, found, listed = self._office_contacts(owners, len(sources))
+        except (UnknownEntity, EvidenceUnavailable, DatasetChanged):
+            lines, found, listed = None, [], []
+        if lines:
+            said, sources = f"{said}\n\n{lines}", [*sources, *found]
+        text, citations = one_call.reply({"text": said}, sources)
+        view = {"today": today.isoformat(), "card": dict(card), "offices": listed,
+                "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
+        if not citations or unsupported_by(text, view):
+            return None
+        return text, citations, view
 
     def _faculty_part(self, found: Sequence[dict[str, Any]], numbered_from: int,
                       conveners_only: bool = False, message: str = "",

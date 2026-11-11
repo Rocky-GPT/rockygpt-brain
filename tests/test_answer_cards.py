@@ -9,10 +9,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from rockygpt_brain import card_answer
 from rockygpt_brain.api.app import create_app
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.retrieval import MemoryEntityFacts, card_join
-from rockygpt_brain.retrieval.answer_cards import join_input, listing, task
+from rockygpt_brain.retrieval.answer_cards import join_input, listing, page_nodes, task, view
 from rockygpt_brain.retrieval.entity_facts import (
     DatasetChanged,
     InvalidFactRequest,
@@ -257,6 +258,155 @@ def test_the_list_carries_the_releases_cards() -> None:
     # Cards built for another release are never shown.
     held.cards = card_join.cards_file("release-0", "identities-1", TODAY, cards)
     assert listing(held)["cards"] is None
+
+
+DIRECTORY = "https://www.ramapo.edu/directory/"
+CARD_ID = card_join.card_id("page-permits", "e0")
+LOOK_ID = card_join.card_id("page-permits", "e2")
+
+
+def with_cards(now: datetime = NOW) -> WithCards:
+    """The release with two cards and Public Safety's directory contact: the permit card (its
+    winner on Public Safety's page, a left-out page whose deadline passed) and a flagged one."""
+    source = facts()
+    safety = {**source.entities[0], "links": [
+        *source.entities[0]["links"],
+        {"collection": "contacts", "source_key": "campus-directory",
+         "source_record_keys": ["office:safety"]}]}
+    held = WithCards(
+        dataset_version=source.dataset_version, identity_hash=source.identity_hash,
+        entities=[safety, *source.entities[1:]], records=source.records, now=lambda: now,
+        contacts=[{"id": "contact-1", "source_key": "campus-directory",
+                   "source_record_key": "office:safety", "name": "Public Safety",
+                   "phone": "(201) 684-7432", "email": "publicsafety@ramapo.edu",
+                   "office": "C-102", "collected_at": NOW, "freshness_sla_hours": 24,
+                   "canonical_url": DIRECTORY, "content_hash": "h"}])
+    held.cards = card_join.cards_file("release-1", "identities-1", TODAY, [
+        {"id": CARD_ID, "status": "ready", "flags": [], "notes": [],
+         "owners": [SAFETY, "an owner the release no longer has"],
+         "members": [
+             {"record_id": "page-permits", "key": "e0", "role": "winner"},
+             {"record_id": "page-faq", "key": "e0", "role": "left_out", "why": "over",
+              "label": "September 1, 2026"},
+             # A past term is an old page, not a deadline: it is not said.
+             {"record_id": "page-permits", "key": "e2", "role": "left_out", "why": "over",
+              "label": "Fall 2022"}]},
+        {"id": LOOK_ID, "status": "needs_look", "flags": ["owner_unclear"], "notes": [],
+         "owners": [SAFETY, ORIENTATION],
+         "members": [{"record_id": "page-permits", "key": "e2", "role": "winner"}]}])
+    return held
+
+
+def test_one_card_is_read_in_full_from_the_release() -> None:
+    held = with_cards()
+    nodes = page_nodes(listing(held))
+    assert nodes == {"page-faq": ORIENTATION, "page-permits": SAFETY}
+    found = view(held, held.cards["cards"][0], nodes, TODAY)  # type: ignore[index]
+    assert (found["dataset_version"], found["identity_hash"]) == ("release-1", "identities-1")
+    card = found["card"]
+    assert (card["id"], card["status"], card["flags"], card["notes"]) == (CARD_ID, "ready", [], [])
+    assert card["owners"] == [{"entity_id": SAFETY, "name": "Public Safety", "kind": "office"}]
+    # The winning page's task, exactly as the task reader gives it, and that page.
+    assert card["task"] == task(held, SAFETY, "page-permits", "e0")["task"]
+    assert card["page"]["url"] == PERMITS and card["page"]["updated"] == "2026-08-17"
+    assert card["label"] is None and card["over_now"] is None
+    assert card["passed"] == [{"task": "Find your orientation date",
+                               "label": "September 1, 2026",
+                               "url": "https://www.ramapo.edu/orientation/faq/"}]
+    # The same page asked on a later day: its term is over though the card was built before.
+    later = view(held, held.cards["cards"][0], nodes, date(2027, 1, 2))  # type: ignore[index]
+    assert later["card"]["label"] is None and later["card"]["over_now"] == "Fall 2026"
+
+
+def test_a_card_whose_winning_page_cannot_be_read_is_refused() -> None:
+    held = with_cards()
+    card = held.cards["cards"][0]  # type: ignore[index]
+    with pytest.raises(InvalidFactRequest):
+        view(held, card, {}, TODAY)  # no node is known to link its page
+    with pytest.raises(InvalidFactRequest):
+        view(held, {**card, "members": [{"record_id": "page-permits", "key": "e9"}]},
+             {"page-permits": SAFETY}, TODAY)
+    with pytest.raises(InvalidFactRequest):
+        view(held, {**card, "members": []}, {"page-permits": SAFETY}, TODAY)
+    with pytest.raises(DatasetChanged):
+        view(held, card, {"page-permits": SAFETY}, TODAY, dataset_version="release-0",
+             identity_hash="identities-1")
+
+
+SAID = (
+    "**Get a student parking permit**\n\n"
+    "Term: Fall 2026.\n\n"
+    "Who it is for: Students who park on campus.\n\n"
+    "1. Register online. [1]\n"
+    "2. Pick up at check-in. [1]\n\n"
+    "Already passed: Find your orientation date (September 1, 2026). [2]\n\n"
+    "**Public Safety**: Phone: (201) 684-7432. Email: publicsafety@ramapo.edu. "
+    "Office: C-102. [3]\n\n"
+    f"Sources: [1]({PERMITS}) [2](https://www.ramapo.edu/orientation/faq/) [3]({DIRECTORY})")
+
+
+def test_the_engine_says_a_card_by_code_with_the_owners_directory_contact(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    held = with_cards()
+    engine = ChatEngine(NoGateway(), held)
+    card = view(held, held.cards["cards"][0], page_nodes(listing(held)),  # type: ignore[index]
+                TODAY)["card"]
+    said = engine.card_said(card, TODAY)
+    assert said is not None
+    text, citations, checked = said
+    assert text == SAID
+    assert [c["url"] for c in citations] == [PERMITS, "https://www.ramapo.edu/orientation/faq/",
+                                             DIRECTORY]
+    assert checked["card"] == card and checked["offices"][0]["office"] == "Public Safety"
+    # A card with no office to name has no contact line; a flagged card is not said.
+    alone = engine.card_said({**card, "owners": []}, TODAY)
+    assert alone is not None and "Public Safety" not in alone[0]
+    assert engine.card_said({**card, "status": "needs_look"}, TODAY) is None
+    # The check every code answer passes: a reply holding a number its facts do not is not sent.
+    monkeypatch.setattr(card_answer, "say", lambda card, numbered_from=0: (
+        "Call (201) 555-0199. [1]", [{"n": 1, "url": PERMITS, "title": "Permits"}]))
+    assert engine.card_said(card, TODAY) is None
+
+
+def test_the_card_route_shows_the_card_and_what_the_bot_would_say() -> None:
+    held = with_cards()
+    one = f"/v1/dev/answer-cards/card?card_id={CARD_ID}"
+    with TestClient(create_app(ChatEngine(NoGateway(), held), service_token="",
+                               environment="development")) as http:
+        assert http.get(one).status_code == 404
+        opened = http.get(one, headers=ASKED)
+        assert opened.status_code == 200 and opened.headers["cache-control"] == "no-store"
+        body = opened.json()
+        assert body["card"]["id"] == CARD_ID and body["card"]["task"]["key"] == "e0"
+        assert body["answer"]["text"] == SAID and body["not_said"] is None
+        assert [c["url"] for c in body["answer"]["citations"]][0] == PERMITS
+        # A card the rules flagged is shown, and code says nothing from it.
+        flagged = http.get(f"/v1/dev/answer-cards/card?card_id={LOOK_ID}", headers=ASKED).json()
+        assert flagged["card"]["status"] == "needs_look"
+        assert flagged["answer"] is None and flagged["not_said"] == "needs_look"
+        unknown = http.get("/v1/dev/answer-cards/card?card_id=c000000000000", headers=ASKED)
+        assert unknown.status_code == 422
+        assert http.get("/v1/dev/answer-cards/card?card_id=nope", headers=ASKED).status_code == 422
+        pinned = http.get(f"{one}&dataset_version=release-0&identity_hash=identities-1",
+                          headers=ASKED)
+        assert pinned.status_code == 409
+    # A release built without cards has none to open.
+    with client() as http:
+        assert http.get(one, headers=ASKED).status_code == 422
+    application = create_app(ChatEngine(NoGateway(), held), service_token="t",  # noqa: S106
+                             environment="production")
+    with TestClient(application) as http:
+        assert http.get(one, headers={**ASKED, "x-rockygpt-environment-token": "t"}
+                        ).status_code == 404
+
+
+def test_a_card_whose_date_passed_since_the_build_is_not_said_by_code() -> None:
+    held = with_cards(datetime(2027, 1, 2, 12, tzinfo=UTC))
+    with TestClient(create_app(ChatEngine(NoGateway(), held), service_token="",
+                               environment="development")) as http:
+        body = http.get(f"/v1/dev/answer-cards/card?card_id={CARD_ID}", headers=ASKED).json()
+    assert body["card"]["over_now"] == "Fall 2026"
+    assert body["answer"] is None and body["not_said"] == "date_changed"
 
 
 def test_the_build_writes_the_cards_beside_the_release_and_the_reader_finds_them(

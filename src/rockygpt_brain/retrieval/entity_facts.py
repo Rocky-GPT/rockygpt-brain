@@ -1878,11 +1878,12 @@ def past_heading(heading: str, today: date) -> str | None:
 def unit_over(row: Mapping[str, Any], unit: Mapping[str, Any], today: date) -> str | None:
     """The term, year or deadline a how-to unit is for, when it is over by today; else None. The
     unit's own term, heading and opening words are read, then its page's address, then a year in
-    its heading, then its deadline dates."""
+    its term or heading (a task whose term is "2019" is not today's), then its deadline dates."""
     url = str(row.get("url") or "")
-    return (past_term(f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {url}", today)
+    named = f"{unit.get('term', '')} {unit['heading']}"
+    return (past_term(f"{named} {unit['text'][:600]} {url}", today)
             or past_page(url, today)
-            or past_heading(f"{unit['heading']} {unit.get('section', '')}", today)
+            or past_heading(f"{named} {unit.get('section', '')}", today)
             or past_dates(f"{unit['heading']} {unit['text'][:600]}", today))
 
 

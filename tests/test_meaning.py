@@ -256,6 +256,19 @@ def test_a_section_heading_naming_only_an_old_year_is_past() -> None:
     assert past_heading("Fall 2025 deadlines", today) is None
 
 
+def test_a_task_whose_term_is_an_old_year_alone_is_over() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import unit_over
+    today = date(2026, 11, 11)
+    row = {"url": "https://www.ramapo.edu/international/diversity-in-health-care/"}
+    unit = {"heading": "Request a parking permit for the conference", "text": "Email the host."}
+    assert unit_over(row, unit, today) is None
+    assert unit_over(row, {**unit, "term": "2019"}, today) == "2019"
+    assert unit_over(row, {**unit, "term": "2026"}, today) is None
+    assert unit_over(row, {**unit, "term": "Fall 2026/Spring 2027"}, today) is None
+
+
 def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
     from datetime import date
 
