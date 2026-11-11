@@ -63,9 +63,12 @@ def tasks_of(cards: Sequence[Mapping[str, Any]], known: Collection[Key],
     """What a release's cards say of its tasks: each task's card (its place in `cards`); the
     cards whose date has passed; and, for each task a card leaves out, the card's winning task
     and why it was left out ("over": its term or date is; "old": its page is, beside a newer
-    one). Only tasks the meaning index holds (`known`) are named."""
+    one). Only tasks the meaning index holds (`known`) are named. A card whose own date has
+    passed has no current page to read in place of a term that is over: its winning task is the
+    newest of the passed ones (Spring 2026's refund dates for Spring 2022's)."""
     card_of: dict[Key, int] = {}
     left_out: dict[Key, tuple[Key, str]] = {}
+    passed = frozenset(at for at, card in enumerate(cards) if card.get("status") == "date_passed")
     for at, card in enumerate(cards):
         keys = [(str(m.get("record_id")), str(m.get("key"))) for m in card.get("members") or []]
         for member, key in zip(card.get("members") or [], keys, strict=True):
@@ -73,9 +76,9 @@ def tasks_of(cards: Sequence[Mapping[str, Any]], known: Collection[Key],
                 continue
             card_of[key] = at
             why = member.get("why")
-            if member.get("role") == "left_out" and why in ("over", "old") and keys[0] in known:
+            if (member.get("role") == "left_out" and keys[0] in known
+                    and (why == "old" or (why == "over" and at not in passed))):
                 left_out[key] = (keys[0], str(why))
-    passed = frozenset(at for at, card in enumerate(cards) if card.get("status") == "date_passed")
     return card_of, passed, left_out
 
 

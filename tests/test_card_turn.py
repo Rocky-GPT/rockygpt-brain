@@ -226,6 +226,9 @@ def test_the_cards_tasks_and_the_best_card() -> None:
     # A task the index does not hold is no one's; one whose winner it lacks is not swapped.
     assert card_answer.tasks_of(cards, known - {WIN})[2] == {}
     assert card_answer.tasks_of(cards, known - {OLD})[0] == {WIN: 0, FAQ: 0, APPEAL: 1}
+    # A card whose own date has passed has no current page to read before a term that is over.
+    over = [{**cards[0], "status": "date_passed"}, cards[1]]
+    assert card_answer.tasks_of(over, known)[1:] == (frozenset({0}), {OLD: (WIN, "old")})
 
     scores = {WIN: 0.5, OLD: 0.9, APPEAL: 0.84, SECTION: 0.99}
     # A card's score is its best task's; a section that is no task is no card's.
