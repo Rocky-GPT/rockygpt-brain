@@ -199,6 +199,19 @@ An index built before kinds has none, and kind questions are then answered as be
 `build_meaning_index.py --kinds-only` gives an index already built its kinds (a laptop's copy of
 production's, for testing).
 
+### Answer cards
+
+A page read lists how-to tasks one page at a time, so one task sits on many pages ("Apply for a
+parking permit" is on eleven). After the meaning index, `python scripts/build_answer_cards.py
+--dir DIR` joins the same task across pages into one card and writes the cards beside the
+release (`release-<hash>.cards.json`), where `publish_graph.py` shares them like the index. It
+calls no model: two tasks are one when the questions written for them mean the same
+(`retrieval/card_join.py` has the rule and what it was measured on), the owner is the office the
+pages name as handling it, and the winning page is never a past term while a current one is
+listed, then the owner's own page, then the newest. What the rules cannot settle is flagged
+(`needs_look`), and a card whose only date has passed says so (`date_passed`). Nothing answers
+from a card yet: `GET /v1/dev/answer-cards` shows them to the dev UI's Answer Cards page.
+
 ## Fact Packet output (optional, off by default)
 
 The design is two steps with a hard wall between them: the Brain understands the question,

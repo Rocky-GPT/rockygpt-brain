@@ -130,7 +130,7 @@ def test_a_card_ranks_its_pages_and_says_why_each_is_not_said() -> None:
     places = [(m["record_id"], m["role"], m.get("why"), m.get("label")) for m in found["members"]]
     assert places == [
         ("publicsafety/how-to-apply", "winner", None, None),  # the owner's, and more steps
-        ("publicsafety/parking-permits", "used", None, None),
+        ("publicsafety/parking-permits", "owner_page", None, None),
         ("orientation/faq-2", "mentions", None, None),
         ("orientation/faq", "left_out", "old", None),
         ("orientation/checklist", "left_out", "over", "Fall 2022"),
@@ -150,8 +150,9 @@ def test_a_card_for_a_term_that_is_over_keeps_its_latest_term() -> None:
     ]
     found = card_join.card(refunds, NAMED)
     assert found["status"] == card_join.DATE_PASSED
+    # The winner says which date passed.
     assert [(m["record_id"], m.get("label")) for m in found["members"]] == [
-        ("previous", None), ("costs", "2025-2026"), ("previous-2025", "Fall 2025"),
+        ("previous", "September 1, 2026"), ("costs", "2025-2026"), ("previous-2025", "Fall 2025"),
         ("previous-2024", "Fall 2024")]
     # A current page wins over every past term, whoever owns it.
     current = task("deadlines", "Get a Spring 2027 meal plan refund", (ORIENTATION,))
@@ -163,9 +164,16 @@ def test_what_the_rules_cannot_settle_is_flagged() -> None:
                      old=True)
     advising = task("advising", "Plan when to declare your major", (ADVISING,),
                     updated=date(2026, 4, 20))
-    tied = card_join.card([registrar, advising], NAMED)
+    accounts = task("accounts", "Declare your major", (ACCOUNTS,), updated=date(2026, 1, 9))
+    tied = card_join.card([accounts, advising], NAMED)
     assert tied["status"] == card_join.NEEDS_LOOK and tied["flags"] == ["owner_unclear"]
     assert tied["members"][0]["record_id"] == "advising"  # the newest date, for want of an owner
+    # An old page has no say beside a newer one: its office does not tie the current page's.
+    settled = card_join.card([registrar, advising], NAMED)
+    assert settled["status"] == card_join.READY and settled["owners"] == [ADVISING]
+    assert settled["members"][1] == {"record_id": "registrar", "key": "e0", "role": "left_out",
+                                     "why": "old"}
+    assert card_join.card([registrar], NAMED)["owners"] == [REGISTRAR]  # alone, it still owns
     undated = card_join.card([task("registrar", "Request a transcript", (REGISTRAR,))], NAMED)
     assert undated["flags"] == ["no_date"] and undated["status"] == card_join.NEEDS_LOOK
     many = [task(f"page-{n}", "Apply", (REGISTRAR,), updated=date(2026, 1, 1))
@@ -191,3 +199,26 @@ def test_build_gives_every_task_one_card_in_page_order() -> None:
         [("a-safety", "winner"), ("b-accounts", "mentions")], [("c-registrar", "winner")]]
     assert all(found["status"] == card_join.READY for found in cards)
     assert sum(len(found["members"]) for found in cards) == len(tasks)
+
+
+def test_a_task_is_compared_by_the_questions_written_for_it() -> None:
+    tasks = [task("asked", "Apply for a permit", ()), task("new", "Request a transcript", ()),
+             task("absent", "Not in the index", ())]
+    # Vectors in the index's order: the first unit's opening and its two questions, a section's
+    # opening, then the second unit's opening (no questions written yet).
+    meta = {"dimensions": 2, "units": [["asked", "e0", []], ["asked", "0", []], ["new", "e0", []]],
+            "owner": [0, 0, 0, 1, 2], "offsets": [0, -1, -1, 0, 0]}
+    flat = numpy.array([[0, 1], [1, 0], [0.6, 0.8], [0, 1], [0, 1]], dtype=numpy.float32)
+    found = card_join.task_vectors(meta, flat.ravel(), tasks)
+    mean = numpy.array([0.8, 0.4]) / numpy.linalg.norm([0.8, 0.4])
+    assert numpy.allclose(found[0], mean) and numpy.allclose(found[1], [0, 1])
+    assert not found[2].any()  # a task the index does not hold joins nothing
+
+
+def test_a_cards_file_is_only_read_for_its_own_release() -> None:
+    written = card_join.cards_file("release-1", "identities-1", date(2026, 11, 11), [{"id": "c1"}])
+    assert written["built_on"] == "2026-11-11" and written["rules"]["join_mean"] == 0.85
+    assert card_join.read_cards(written, "release-1", "identities-1") == written
+    assert card_join.read_cards(written, "release-2", "identities-1") is None
+    assert card_join.read_cards({"cards": "none"}, "release-1", "identities-1") is None
+    assert card_join.read_cards([], "release-1", "identities-1") is None

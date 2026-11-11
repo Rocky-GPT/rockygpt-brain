@@ -211,10 +211,12 @@ def owners(tasks: Sequence[Task], named: Mapping[str, tuple[str, ...]],
            ) -> tuple[tuple[str, ...], bool]:
     """The nodes that handle a group's task, and whether that is clear. The pages' own word wins
     (`handled_by`, when it names a node); else the nodes whose pages list the task. A task for a
-    term that is over has no say while a current one is listed. The nodes named most are the
-    owners; it is clear when they always come together (Public Safety's two nodes), unclear when
-    two offices tie."""
-    voters = [task for task in tasks if task.over is None] or list(tasks)
+    term that is over has no say while a current one is listed, nor has an old page beside a
+    newer one (a 2018 Summer Session page tied Student Accounts for its own refund deadline).
+    The nodes named most are the owners; it is clear when they always come together (Public
+    Safety's two nodes), unclear when two offices tie."""
+    current = [task for task in tasks if task.over is None]
+    voters = [task for task in current if not task.old] or current or list(tasks)
     said = [named[office_key(task.handled_by)] for task in voters
             if task.handled_by and office_key(task.handled_by) in named]
     votes = said or [task.nodes for task in voters if task.nodes]
@@ -256,9 +258,11 @@ def card(tasks: Sequence[Task], named: Mapping[str, tuple[str, ...]]) -> dict[st
     """One card from the tasks of one group: its owners, its tasks in the order their pages rank
     (the winner first) with why each other one is not said, its flags and its status.
 
-    A task's place: "winner"; "used" for the owner's other current pages; "left_out" for a term
-    that is over or a page old beside a newer winner (`why`: "over" with its `label`, or "old");
-    "mentions" for another office's current page."""
+    Only the winner's steps are said; steps are never mixed from two pages. A task's place:
+    "winner" (with its `label` when its own term is over: the card is then for a date that
+    passed); "owner_page" for the owner's other current pages; "left_out" for a term that is over
+    or a page old beside a newer winner (`why`: "over" with its `label`, or "old"); "mentions"
+    for another office's current page."""
     owned_by, clear = owners(tasks, named)
     owning = set(owned_by)
 
@@ -274,13 +278,13 @@ def card(tasks: Sequence[Task], named: Mapping[str, tuple[str, ...]]) -> dict[st
     for task in ranked:
         place: dict[str, Any] = {"record_id": task.record_id, "key": task.key}
         if task is winner:
-            place["role"] = "winner"
+            place |= {"role": "winner"} | ({"label": task.over} if task.over is not None else {})
         elif task.over is not None:
             place |= {"role": "left_out", "why": "over", "label": task.over}
         elif task.old and not winner.old:
             place |= {"role": "left_out", "why": "old"}
         else:
-            place["role"] = "used" if owning & set(task.nodes) else "mentions"
+            place["role"] = "owner_page" if owning & set(task.nodes) else "mentions"
         members.append(place)
     flags = []
     if not clear:
