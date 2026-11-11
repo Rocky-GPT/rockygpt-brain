@@ -250,7 +250,9 @@ def test_the_list_carries_the_releases_cards() -> None:
     assert found["cards"] == {"built_on": "2026-11-11", "items": cards,
                               "rules": {"join_mean": card_join.JOIN_MEAN,
                                         "join_least": card_join.JOIN_LEAST,
-                                        "big_group": card_join.BIG_GROUP}}
+                                        "big_group": card_join.BIG_GROUP,
+                                        "near_mean": card_join.NEAR_MEAN,
+                                        "near_least": card_join.NEAR_LEAST}}
     # The owner is named even though none of its pages lists a task.
     assert {"entity_id": REGISTRAR, "name": "Registrar", "kind": "office", "pages": 0,
             "tasks": 0} in found["nodes"]

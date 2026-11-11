@@ -131,6 +131,7 @@ class _CardTasks(NamedTuple):
     passed: frozenset[int]  # The cards whose date has passed.
     # Each task a card leaves out: the card's winning task, and why ("over" or "old").
     left_out: dict[tuple[str, str], tuple[tuple[str, str], str]]
+    near: dict[int, frozenset[int]]  # A card's near-copies: the same task on another page.
     nodes: dict[str, str]  # For a page's record id, a node that links it.
 
 
@@ -2579,18 +2580,21 @@ class ChatEngine:
         """A how-to question answered from the one answer card it clearly matches
         (card_answer.clear), by code: the card's reply (card_said) with no model call. None
         leaves the question to the page answer: no card matches clearly, or code does not answer
-        from the one that does. The trace's answerCard names the best card, its score and its
-        lead, and why nothing was said."""
+        from the one that does. The trace's answerCard names the best card, its score, its
+        lead over the best card that is no near-copy of it, the near-copies that scored within
+        the lead (`near`), and why nothing was said."""
         found = self._card_tasks(index)
-        match = (card_answer.best_card(index.scores(vector), found.card_of, found.passed)
-                 if found is not None else None)
+        match = (card_answer.best_card(index.scores(vector), found.card_of, found.passed,
+                                       found.near) if found is not None else None)
         if found is None or match is None:
             trace["answerCard"] = {"said": False, "why": "no_cards"}
             return None
-        at, top, lead = match
+        at, top, lead, over = match
         card = found.cards[at]
         note: dict[str, Any] = {"card": card.get("id"), "score": round(top, 3),
                                 "lead": round(lead, 3), "said": False}
+        if over:
+            note["near"] = [found.cards[other].get("id") for other in over]
         trace["answerCard"] = note
         if not card_answer.clear(top, lead):
             note["why"] = "not_clear"
