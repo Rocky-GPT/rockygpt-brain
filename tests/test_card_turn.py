@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from rockygpt_brain import card_answer
+from rockygpt_brain import academics, card_answer
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.provider import TurnBudget
@@ -45,12 +45,13 @@ class CardFacts(WithCards):
 
 
 def release(appeal: str = "ready", *, appeal_at: Sequence[float] = (0, 1, 0, 0, 0),
-            copies: bool = False, ahead: bool = False) -> CardFacts:
+            copies: bool = False, ahead: bool = False, catalog: bool = False) -> CardFacts:
     """Two cards: the permit card (its winner on Public Safety's page; an old page's task and a
     passed deadline left out) and the ticket appeal's. Each task and one plain section is a unit
     of the meaning index, each along its own axis unless the appeal's is given another place
     (`appeal_at`). `copies` has the two cards name each other as near-copies; `ahead` has the
-    permit card name the appeal's as the near-copy whose page is said in place of its own."""
+    permit card name the appeal's as the near-copy whose page is said in place of its own;
+    `catalog` gives the index a course card, as a release with the college catalog has."""
     source = with_cards()
     safety = {**source.entities[0], "links": [
         {**source.entities[0]["links"][0],
@@ -81,7 +82,8 @@ def release(appeal: str = "ready", *, appeal_at: Sequence[float] = (0, 1, 0, 0, 
                            (*OLD, [SAFETY], [[0, 0, 1, 0, 0]]),
                            (*FAQ, [ORIENTATION], [[0, 0, 0, 1, 0]]),
                            (*SECTION, [SAFETY], [[0, 0, 0, 0, 1]])],
-                          {SAFETY: "Public Safety", ORIENTATION: "Orientation"})
+                          {SAFETY: "Public Safety", ORIENTATION: "Orientation"},
+                          academic=[("course-1", "course", [0, 0, 0, 0, 1])] if catalog else ())
     return held
 
 
@@ -247,6 +249,19 @@ def test_only_a_plain_single_question_is_answered_from_a_card(
         question: str, before: list[dict[str, str]]) -> None:
     result = ask(CardGateway(CLEAR, one_reply(PAGE_REPLY, [1])), question, before=before)
     assert result.trace["decidedBy"] == "one_call" and "answerCard" not in result.trace
+
+
+def test_the_card_is_asked_before_the_catalogs_pick() -> None:
+    # "class" makes it a question the catalog's pick reads first when the release has catalog
+    # cards; it names no program or course, and its card answers it with no model call.
+    question = "how do i get a parking permit for my night class"
+    held = release(catalog=True)
+    assert held.index is not None and held.index.academic
+    assert academics.asks_academics(question)
+    gateway = CardGateway(CLEAR)
+    result = ask(gateway, question, held=held)
+    assert result.body["answer"] == SAID and gateway.inputs == []
+    assert result.trace["answerCard"]["said"] and "catalogPick" not in result.trace
 
 
 # Nearest the old page's task, then the appeal and the page's own section: with two units of the

@@ -3343,6 +3343,22 @@ class ChatEngine:
                     with measure("Embed the question's parts"):
                         vectors = await embed_many(one_call.parts_of(question),
                                                    dimensions=index.dimensions, budget=budget)
+                # A plain how-to question (one ask, nothing before it, no program, course or
+                # person named, nothing code or the calendar answers a part of) that clearly
+                # matches one answer card is answered from the card by code. The card is asked
+                # before the catalog's pick: "how do I withdraw from a class" names no class the
+                # catalog holds, and with the pick first its one model call came before every
+                # such answer and, when it named a program anyway, in place of it.
+                if (self._cards_now() and searchable and index is not None
+                        and len(vectors) == 1 and earlier is None and kind is None
+                        and not calendar_asked and not people_asked and not named_people
+                        and not (programs and any(programs)) and not code_parts
+                        and not computed and not academic and not people and not clubs):
+                    with measure("Match an answer card"):
+                        done = await asyncio.to_thread(self._card_answer, turn, trace, index,
+                                                       vectors[0])
+                    if done is not None:
+                        return done
                 if calendar_asked:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
@@ -3511,19 +3527,6 @@ class ChatEngine:
                 # offices read, so "who do I talk to" reaches the right school.
                 named = list(dict.fromkeys([*self._school_offices(
                     [p.get("school") for p in [*people, *academic]]), *named]))
-                # A plain how-to question (one ask, nothing before it, nothing code or the
-                # catalog, calendar or directory already answers a part of) that clearly matches
-                # one answer card is answered from the card by code.
-                if (self._cards_now() and searchable and index is not None
-                        and len(vectors) == 1 and earlier is None and kind is None
-                        and not calendar_asked and not people_asked and not named_people
-                        and not (programs and any(programs)) and not code_parts
-                        and not computed and not academic and not people and not clubs):
-                    with measure("Match an answer card"):
-                        done = await asyncio.to_thread(self._card_answer, turn, trace, index,
-                                                       vectors[0])
-                    if done is not None:
-                        return done
                 chosen = None
                 # A page answer in two stages reads the same sections on every try: the usual
                 # choice by meaning, each policy whole, and no section pick (11-04 check run: with
