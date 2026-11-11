@@ -254,7 +254,24 @@ how many make a dollar.
   `text` and `quote` (the page's own words for that step, `null` when the page read gave none),
   `page` has the list's page fields and `other_tasks` (the `key` and `task` of the page's other
   tasks), and `nodes` names every node that links the page. 422 for a task that is not in the
-  release, 409 for an inactive publication. Both routes read only; neither feeds a chat reply.
+  release, 409 for an inactive publication.
+- `GET /v1/dev/answer-cards/card?card_id=`: one card in full, and what the bot would say from
+  it. `card` has the list's `id`, `status`, `flags` and `notes`; `owners` (`entity_id`, `name`,
+  `kind`); `task`, the winning page's task with its steps as `text` and `quote`; `page`, that
+  page; `label`, the date or term that had passed when the cards were built; `over_now`, the
+  same judged today; and `passed`, at most two deadlines its left-out pages name that are over
+  (`task`, `label`, `url`). `answer` is the reply code writes from the card, with no model
+  call: `text` (the task's name; its term and who it is for; the winning page's steps in the
+  page read's words, each citing the page, with a link the page gives beside a step that names
+  none; the passed deadlines; then the owning offices' directory contacts; then the sources)
+  and `citations`. `answer` is `null` when code does not answer from the card, and `not_said`
+  says why: `needs_look`, `date_changed` (its date passed, or stopped being past, since the
+  cards were built), `no_steps`, `too_long` (more than 12 steps: a table, not a procedure),
+  `no_page`, or `check` (the reply held a number, address or phone its facts do not). 422 for
+  a card that is not in the release or whose winning page cannot be read, 409 for an inactive
+  publication.
+
+  The three routes read only; none feeds a chat reply.
 
 ## Failure envelope
 

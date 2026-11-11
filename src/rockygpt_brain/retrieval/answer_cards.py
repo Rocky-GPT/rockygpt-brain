@@ -10,10 +10,13 @@ the nodes whose links hold that page; and the cards, when the release has them.
 
 A task is keyed as the meaning index keys it, by its page's record id and "e<n>" (its place in the
 page's list, see `_procedure_units`), so a task here is exactly a unit a how-to read can offer. A
-page no node links is not in a release graph, so it is not listed. This reads, never answers:
-nothing here feeds a chat reply.
+page no node links is not in a release graph, so it is not listed. `view` reads one card in
+full, the way an answer is written from it (card_answer.py): the winning page's steps, the offices
+that handle it, and the deadlines its left-out pages name that have passed.
 """
 
+import re
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 from urllib.parse import urlsplit
@@ -206,3 +209,67 @@ def task(facts: EntityFacts, node_id: str, record_id: str, key: str, *,
                          "other_tasks": [{"key": item["key"], "task": item["task"]}
                                          for item in tasks if item["key"] != key]},
                 "nodes": sorted(linking, key=lambda n: (n["name"].casefold(), n["entity_id"]))}
+
+
+# A left-out task whose label is a full date had a deadline ("September 1, 2026"); one for a past
+# term or year ("Fall 2022", "2017") is only an old page.
+_DEADLINE = re.compile(r"[A-Z][a-z]+ \d{1,2}, 20\d\d")
+MAX_PASSED = 2  # At most this many passed deadlines are read for one card.
+
+
+def _member(snapshot: Snapshot, nodes: Mapping[str, str], place: Mapping[str, Any],
+            ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]] | None:
+    """A card member's page row, its task (steps with the page's words) and its how-to unit, read
+    through a node that links the page; None when the release no longer has it."""
+    record_id, key = str(place.get("record_id")), str(place.get("key"))
+    entity = next((e for e in snapshot.entities if e["id"] == nodes.get(record_id)), None)
+    if entity is None or not _links_pages(entity):
+        return None
+    row = next((r for r in _pages(snapshot, entity) if str(r["id"]) == record_id), None)
+    if row is None:
+        return None
+    found = next((item for item in _tasks(row) if item["key"] == key), None)
+    unit = next((unit for unit_key, unit, _, _ in _procedure_units(row) if unit_key == key), None)
+    return (row, found, unit) if found is not None and unit is not None else None
+
+
+def page_nodes(found: Mapping[str, Any]) -> dict[str, str]:
+    """For each page of a listing, the first node that links it: the node a card's page is read
+    through."""
+    return {page["record_id"]: page["nodes"][0] for page in found["pages"] if page["nodes"]}
+
+
+def view(facts: EntityFacts, card: Mapping[str, Any], nodes: Mapping[str, str], today: date, *,
+         dataset_version: str | None = None, identity_hash: str | None = None) -> dict[str, Any]:
+    """One answer card in full, read from the release: its status, flags and notes; the offices
+    that handle it; its task as the winning page lists it (each step beside the page's words) and
+    that page; `label`, the term or date the card holds as passed, and `over_now`, the same asked
+    of the page today (they differ when a date passed after the cards were built); and `passed`,
+    the deadlines its left-out pages name that are over, each with its task and page. `nodes`
+    names, for a page's record id, a node that links it."""
+    places = card.get("members") or []
+    with facts.snapshot() as snapshot:
+        _pin(snapshot, dataset_version, identity_hash)
+        read = _member(snapshot, nodes, places[0]) if places else None
+        if read is None:
+            raise InvalidFactRequest("This card's winning page is not in the release.")
+        row, chosen, unit = read
+        by_id = {entity["id"]: entity for entity in snapshot.entities}
+        passed: list[dict[str, Any]] = []
+        for place in places[1:]:
+            label = place.get("label")
+            if (len(passed) < MAX_PASSED and place.get("role") == "left_out"
+                    and place.get("why") == "over" and isinstance(label, str)
+                    and _DEADLINE.fullmatch(label)
+                    and (other := _member(snapshot, nodes, place)) is not None):
+                passed.append({"task": other[1]["task"], "label": label,
+                               "url": _page(other[0])["url"]})
+        return {"dataset_version": snapshot.dataset_version,
+                "identity_hash": snapshot.identity_hash,
+                "card": {"id": card.get("id"), "status": card.get("status"),
+                         "flags": list(card.get("flags") or []),
+                         "notes": list(card.get("notes") or []),
+                         "owners": [_node(by_id[owner]) for owner in card.get("owners") or []
+                                    if owner in by_id],
+                         "task": chosen, "page": _page(row), "label": places[0].get("label"),
+                         "over_now": unit_over(row, unit, today), "passed": passed}}

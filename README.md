@@ -215,7 +215,15 @@ listed, then the owner's own page, then the newest. What the rules cannot settle
 (`needs_look`), and a card whose only date has passed says so (`date_passed`). The same graph
 always gives the same cards; an index whose questions were written again gives slightly
 different ones (about 1 card in 100 on 2026-11-11), because the questions are a model's words.
-Nothing answers from a card yet: `GET /v1/dev/answer-cards` shows them to the dev UI's Answer
+
+What the bot would say from a card is written by code (`card_answer.py`): the task's name, its
+term and who it is for, the winning page's steps in the page read's words with the page cited,
+the deadlines its left-out pages name that have passed, and the owning offices' contacts from
+the directory. No model writes any of it, and the reply is checked against the card's facts like
+every code answer. Code does not answer from a card that needs a look, one whose date passed
+since the cards were built, or a list of more than 12 steps; those stay with the path that reads
+the pages. No chat reply uses it yet: `GET /v1/dev/answer-cards` and
+`GET /v1/dev/answer-cards/card` show the cards and each card's answer to the dev UI's Answer
 Cards page.
 
 ## Fact Packet output (optional, off by default)
