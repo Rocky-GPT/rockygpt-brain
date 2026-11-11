@@ -17,7 +17,7 @@ from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, Protocol, TypeVar, cast, get_args
+from typing import Any, Literal, NamedTuple, Protocol, TypeVar, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -73,6 +73,7 @@ from rockygpt_brain.retrieval import (
     EvidenceUnavailable,
     InvalidFactRequest,
     UnknownEntity,
+    answer_cards,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
@@ -116,6 +117,21 @@ _Value = TypeVar("_Value")
 # never sends it, so students get the settings' writers.
 _REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_writer", default=None)
+# Whether a request asks for answer cards to be used (ChatRequest.cards), for this turn only:
+# `rocky ask --cards` tries a question with them whatever BRAIN_CARD_ANSWERS says. The student
+# site never sends it.
+_REQUEST_CARDS: contextvars.ContextVar[bool | None] = contextvars.ContextVar(
+    "request_cards", default=None)
+
+
+class _CardTasks(NamedTuple):
+    """A release's answer cards as a turn uses them (ChatEngine._card_tasks)."""
+    cards: list[dict[str, Any]]
+    card_of: dict[tuple[str, str], int]  # Each task's card, by its place in `cards`.
+    passed: frozenset[int]  # The cards whose date has passed.
+    # Each task a card leaves out: the card's winning task, and why ("over" or "old").
+    left_out: dict[tuple[str, str], tuple[tuple[str, str], str]]
+    nodes: dict[str, str]  # For a page's record id, a node that links it.
 
 
 def _writer_setting(name: str, default: str, allowed: Sequence[str]) -> str:
@@ -1420,7 +1436,8 @@ class ChatEngine:
                  output: Literal["text", "json", "written"] = "text",
                  howto_one_call: bool | None = None, lookup_writer: bool | None = None,
                  read_first: bool | None = None, reads: int | None = None,
-                 picks: int | None = None, page_writer: str | None = None) -> None:
+                 picks: int | None = None, page_writer: str | None = None,
+                 card_answers: bool | None = None) -> None:
         self.gateway, self.facts = gateway, facts
         # Dan 11-03: in written output one small model call reads what kind of message it is
         # before anything is searched (triage.py), unless code already understands the whole
@@ -1454,6 +1471,13 @@ class ChatEngine:
         # better, is one model call that chooses the facts while it writes (one_call.py).
         self.page_writer = (page_writer if page_writer is not None else _writer_setting(
             "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call")))
+        # Answer cards (Dan's plan of 11-10, step 4): a plain how-to question that clearly
+        # matches one card is answered from it by code, with no model call (_card_answer), and a
+        # page answer reads a card's winning page in place of one it left out (_read_winners).
+        # Off unless BRAIN_CARD_ANSWERS=1, until the cards are checked.
+        self.card_answers = (os.environ.get("BRAIN_CARD_ANSWERS") == "1"
+                             if card_answers is None else card_answers)
+        self._card_tasks_cache: tuple[tuple[str, str | None], _CardTasks | None] | None = None
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -1484,7 +1508,13 @@ class ChatEngine:
                           max_turn_nusd=self.max_turn_nusd, output=self.output,
                           howto_one_call=self.howto_one_call, lookup_writer=self.lookup_writer,
                           read_first=self.read_first, reads=self.reads, picks=self.picks,
-                          page_writer=self.page_writer)
+                          page_writer=self.page_writer, card_answers=self.card_answers)
+
+    def _cards_now(self) -> bool:
+        """Whether this turn uses the answer cards: the request's word, if it has one, else the
+        setting."""
+        asked = _REQUEST_CARDS.get()
+        return self.card_answers if asked is None else asked
 
     def _lookup_writer_now(self) -> bool:
         """Whether this turn's lookups are written by a model: the request's writer, if it names
@@ -2526,6 +2556,88 @@ class ChatEngine:
             return None
         return text, citations, view
 
+    def _card_tasks(self, index: MeaningIndex) -> _CardTasks | None:
+        """The release's answer cards as a turn uses them, read once per release; None when no
+        cards were built for the release the meaning index is for."""
+        def read() -> _CardTasks | None:
+            found = self.facts.answer_cards()
+            if found is None or (found.get("dataset_version"), found.get("identity_hash")) != (
+                    index.dataset_version, index.identity_hash):
+                return None
+            cards = list(found.get("cards") or [])
+            known = {(unit.record_id, unit.index) for unit in index.units}
+            nodes: dict[str, str] = {}
+            for unit in index.units:
+                if unit.entity_ids:
+                    nodes.setdefault(unit.record_id, unit.entity_ids[0])
+            return _CardTasks(cards, *card_answer.tasks_of(cards, known), nodes)
+        return self._per_release("_card_tasks_cache",
+                                 (index.dataset_version, index.identity_hash), read)
+
+    def _card_answer(self, turn: Turn, trace: dict[str, Any], index: MeaningIndex,
+                     vector: Sequence[float]) -> ChatResult | None:
+        """A how-to question answered from the one answer card it clearly matches
+        (card_answer.clear), by code: the card's reply (card_said) with no model call. None
+        leaves the question to the page answer: no card matches clearly, or code does not answer
+        from the one that does. The trace's answerCard names the best card, its score and its
+        lead, and why nothing was said."""
+        found = self._card_tasks(index)
+        match = (card_answer.best_card(index.scores(vector), found.card_of, found.passed)
+                 if found is not None else None)
+        if found is None or match is None:
+            trace["answerCard"] = {"said": False, "why": "no_cards"}
+            return None
+        at, top, lead = match
+        card = found.cards[at]
+        note: dict[str, Any] = {"card": card.get("id"), "score": round(top, 3),
+                                "lead": round(lead, 3), "said": False}
+        trace["answerCard"] = note
+        if not card_answer.clear(top, lead):
+            note["why"] = "not_clear"
+            return None
+        today = turn.campus_now.date()
+        try:
+            read = answer_cards.view(self.facts, card, found.nodes, today,
+                                     dataset_version=index.dataset_version,
+                                     identity_hash=index.identity_hash)["card"]
+        except (InvalidFactRequest, UnknownEntity, EvidenceUnavailable, DatasetChanged):
+            note["why"] = "unreadable"
+            return None
+        note["task"] = read["task"]["task"]
+        why = card_answer.refusal(read)
+        said = self.card_said(read, today) if why is None else None
+        if said is None:
+            note["why"] = why or "check"
+            return None
+        note["said"] = True
+        trace.update(decidedBy="code", writer={"used": True, "by": "code"})
+        return answered(turn, said[0], "answered", said[1], index.dataset_version)
+
+    def _read_winners(self, index: MeaningIndex,
+                      chosen: tuple[MeaningScores, list[tuple[str, str]]],
+                      seen: set[tuple[str, str]], trace: dict[str, Any],
+                      ) -> tuple[MeaningScores, list[tuple[str, str]]]:
+        """The sections chosen for a page answer with the cards' choice of page kept
+        (card_answer.read_winners); the choice itself when the cards change nothing. A winning
+        task read for a left-out one is scored no lower than it; one that was not among the
+        chosen is named in the trace's answerCardWinners. A task given up is not chosen again by
+        a later look (`seen`)."""
+        found = self._card_tasks(index)
+        if found is None:
+            return chosen
+        scores, order = chosen
+        final, read_for = card_answer.read_winners(order, found.left_out, seen - set(order))
+        if final == order:
+            return chosen
+        seen.update(order)
+        kept = MeaningScores({key: max(scores.get(key, 0.0), scores.get(read_for.get(key, key),
+                                                                        0.0)) for key in final})
+        kept.at = {key: scores.at[key] for key in final if key in scores.at}
+        trace["answerCardWinners"] = [
+            *trace.get("answerCardWinners", []),
+            *one_call.unit_labels(index, [key for key in read_for if key not in order])]
+        return kept, final
+
     def _faculty_part(self, found: Sequence[dict[str, Any]], numbered_from: int,
                       conveners_only: bool = False, message: str = "",
                       ) -> tuple[str | None, list[dict[str, Any]], list[dict[str, Any]]]:
@@ -3374,6 +3486,19 @@ class ChatEngine:
                 # offices read, so "who do I talk to" reaches the right school.
                 named = list(dict.fromkeys([*self._school_offices(
                     [p.get("school") for p in [*people, *academic]]), *named]))
+                # A plain how-to question (one ask, nothing before it, nothing code or the
+                # catalog, calendar or directory already answers a part of) that clearly matches
+                # one answer card is answered from the card by code.
+                if (self._cards_now() and searchable and index is not None
+                        and len(vectors) == 1 and earlier is None and kind is None
+                        and not calendar_asked and not people_asked and not named_people
+                        and not (programs and any(programs)) and not code_parts
+                        and not computed and not academic and not people and not clubs):
+                    with measure("Match an answer card"):
+                        done = await asyncio.to_thread(self._card_answer, turn, trace, index,
+                                                       vectors[0])
+                    if done is not None:
+                        return done
                 chosen = None
                 # A page answer in two stages reads the same sections on every try: the usual
                 # choice by meaning, each policy whole, and no section pick (11-04 check run: with
@@ -3397,6 +3522,14 @@ class ChatEngine:
                     # what was read, so a miss shows whether its section was offered at all.
                     trace["oneCallOffered"] = one_call.unit_labels(index, pool)
                     trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
+                # With the answer cards on, a task a card left out is read as the card says: the
+                # winning page's in place of an old page's, and before one whose date is over.
+                if searchable and index is not None and self._cards_now():
+                    as_cards = await asyncio.to_thread(
+                        self._read_winners, index,
+                        chosen or one_call.chosen_units(index, vectors), seen, trace)
+                    chosen = as_cards
+                    trace["oneCallRead"] = one_call.unit_labels(index, as_cards[1])
                 if searchable and index is not None:
                     with measure("Read the evidence"):
                         offices, found = await asyncio.to_thread(
@@ -3514,11 +3647,15 @@ class ChatEngine:
                     with measure("Second look for the parts not answered"):
                         more_vectors = await embed_many(asks, dimensions=index.dimensions,
                                                         budget=budget)
+                        again_chosen = (await asyncio.to_thread(
+                            self._read_winners, index, one_call.chosen_units(
+                                index, more_vectors, one_call.SECOND_LOOK_UNITS, seen),
+                            seen, trace) if self._cards_now() else None)
                         more, more_sources = await asyncio.to_thread(
                             one_call.gather, self.facts, index, more_vectors, " ".join(asks),
                             index.dataset_version, index.identity_hash, (),
                             cap=one_call.SECOND_LOOK_UNITS, numbered_from=len(sources),
-                            seen=seen)
+                            seen=seen, chosen=again_chosen)
                     restaged = (await self._two_stage(
                         latest, earlier if question != latest else None, [*offices, *more],
                         computed, code_parts, turn.campus_now.date(), budget, trace)
@@ -4132,6 +4269,7 @@ class ChatEngine:
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
         _REQUEST_WRITER.set(request.writer)
+        _REQUEST_CARDS.set(request.cards)
         if floor_situation is not None and self.output == "written":
             result = await self._beside_emergency(turn, request, trace, floor_situation,
                                                   read=True)

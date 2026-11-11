@@ -31,6 +31,11 @@ of this office-facts slice.
   lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
   `BRAIN_PAGE_WRITER`). It is for trying both writers on one question; the student app never
   sends it.
+- `cards` is optional, `true` or `false`: whether the answer cards are used for this answer, in
+  place of the Brain's setting (`BRAIN_CARD_ANSWERS`, off by default). With them, a plain how-to
+  question that clearly matches one card is answered from it by code, and a page answer reads
+  the page each card chose. It is for trying a question with and without the cards; the student
+  app never sends it.
 - Unknown JSON fields are rejected. Malformed input returns HTTP 422 with the
   standard failure envelope and sanitized validation details; student input is
   not echoed into those details.
