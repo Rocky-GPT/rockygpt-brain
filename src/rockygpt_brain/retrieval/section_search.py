@@ -10,16 +10,26 @@ marks not current (page_marks). No model call is made: the parts' vectors come f
 On the free check of 11-16 (dev release v2-20261111224857) it held the graders' page for 17 of 19
 older how-to misses (today's read: 13) and 30 of 30 good answers (29). Lifting the leading office's
 own pages to break near ties was tried and dropped: by 0.02 it held 16 of the 19, by 0.04 15.
+
+A section is said whole from its start whenever its matched piece fits in what a section is said
+in. Saying it from a little before the matched piece cut rules that come first: on 11-16 the
+guest limit ("no more than three (3) nights ... within a seven (7) day period", 541 characters
+into the 2,292 of Guest Procedures) and the 1098-T download steps were both read but cut off.
+Taking more sections from the leading page, or dropping a section another page repeats, held the
+graders' page less often (14 or 15 of the 19 older misses) and was dropped.
 """
 
 from collections.abc import Collection, Sequence
 from datetime import date
 
+from rockygpt_brain.retrieval.entity_facts import MAX_PROCEDURE_CHARS
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 
 # About 20 whole sections, at most 2 from one page, fit one writer call with room for the question.
 SECTIONS = 20
 PER_PAGE = 2
+# The size of the pieces a long section is embedded in past its opening (build_meaning_index).
+PIECE_CHARS = 1_000
 
 
 def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: date, *,
@@ -27,8 +37,8 @@ def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: dat
              skip: Collection[tuple[str, str]] = ()) -> tuple[MeaningScores, list[tuple[str, str]]]:
     """The (record id, unit) keys of the sections read for a question's parts (one vector each,
     the whole question first): each part's best in turn, at most `per_page` from one page and
-    `cap` in all, none in `skip` (read already); with each one's best score and match offset, as
-    the one call's own read gives them (one_call.chosen_units)."""
+    `cap` in all, none in `skip` (read already); with each one's best score, and its match offset
+    only when the matched piece lies past what a section is said in (MAX_PROCEDURE_CHARS)."""
     by_part = [_ranked(index, vector, today, skip) for vector in vectors]
     chosen: list[tuple[str, str]] = []
     best: dict[tuple[str, str], float] = {}
@@ -54,7 +64,9 @@ def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: dat
             on_page[key[0]] = on_page.get(key[0], 0) + 1
             chosen.append(key)
     found = MeaningScores({key: best[key] for key in chosen})
-    found.at = {key: at[key] for key in chosen if key in at}
+    # Only a piece past what a section is said in moves where it is said from.
+    found.at = {key: at[key] for key in chosen
+                if key in at and at[key] + PIECE_CHARS > MAX_PROCEDURE_CHARS}
     return found, chosen
 
 
