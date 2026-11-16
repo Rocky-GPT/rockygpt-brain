@@ -74,6 +74,7 @@ from rockygpt_brain.retrieval import (
     InvalidFactRequest,
     UnknownEntity,
     answer_cards,
+    section_search,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
@@ -117,6 +118,9 @@ _Value = TypeVar("_Value")
 # never sends it, so students get the settings' writers.
 _REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_writer", default=None)
+# The page writer that reads whole plain sections of current pages in one call (BRAIN_PAGE_WRITER
+# or a request's writer; plan "one simple page writer", 11-16). The old writers stay as they are.
+SECTIONS_WRITER = "sections"
 # Whether a request asks for answer cards to be used (ChatRequest.cards), for this turn only:
 # `rocky ask --cards` tries a question with them whatever BRAIN_CARD_ANSWERS says. The student
 # site never sends it.
@@ -1471,7 +1475,7 @@ class ChatEngine:
         # (page_facts.py); "one_call", the default until the check set shows the two stages
         # better, is one model call that chooses the facts while it writes (one_call.py).
         self.page_writer = (page_writer if page_writer is not None else _writer_setting(
-            "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call")))
+            "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call", SECTIONS_WRITER)))
         # Answer cards (Dan's plan of 11-10, step 4): a plain how-to question that clearly
         # matches one card is answered from it by code, with no pick and no writer
         # (_card_answer; the read's votes still come first), and a
@@ -1527,7 +1531,7 @@ class ChatEngine:
     def _page_writer_now(self) -> str:
         """This turn's page-answer writer: the request's, if it names one, else the setting."""
         asked = _REQUEST_WRITER.get()
-        return asked if asked in page_facts.WRITERS else self.page_writer
+        return asked if asked in (*page_facts.WRITERS, SECTIONS_WRITER) else self.page_writer
 
     def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
         """A value read once per release (or per release and day), held as (key, value) in the
@@ -3557,8 +3561,17 @@ class ChatEngine:
                 # the pick, the sections read differed between tries, so the facts did).
                 two_stage = (self._page_writer_now() in page_facts.WRITERS
                              and not academic and not calendar and not people)
+                # The "sections" writer (plan "one simple page writer", 11-16): one call reads
+                # whole plain sections of current pages (section_search) and writes the answer.
+                sectioned = (self._page_writer_now() == SECTIONS_WRITER
+                             and not academic and not calendar and not people)
+                if sectioned:
+                    trace["pageWriter"] = SECTIONS_WRITER
                 if two_stage and searchable and index is not None:
                     chosen = one_call.with_picked(index, vectors, MeaningScores({}), [], None)
+                    trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
+                elif sectioned and searchable and index is not None:
+                    chosen = section_search.sections(index, vectors, turn.campus_now.date())
                     trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
                 elif searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
@@ -3702,7 +3715,11 @@ class ChatEngine:
                         again_chosen = (await asyncio.to_thread(
                             self._read_winners, index, one_call.chosen_units(
                                 index, more_vectors, one_call.SECOND_LOOK_UNITS, seen),
-                            seen, trace) if self._cards_now() else None)
+                            seen, trace) if self._cards_now()
+                            else section_search.sections(
+                                index, more_vectors, turn.campus_now.date(),
+                                cap=one_call.SECOND_LOOK_UNITS, skip=seen) if sectioned
+                            else None)
                         more, more_sources = await asyncio.to_thread(
                             one_call.gather, self.facts, index, more_vectors, " ".join(asks),
                             index.dataset_version, index.identity_hash, (),

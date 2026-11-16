@@ -27,9 +27,9 @@ of this office-facts slice.
 - `omittedMessages` is an optional integer from 0 to 100,000. It records messages
   removed by the caller. The service also reports its own context truncation to
   the model. Missing history is not evidence that something was never said.
-- `writer` is optional, `template` or `ai`: which writer says this answer's facts, for
-  lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
-  `BRAIN_PAGE_WRITER`). It is for trying both writers on one question; the student app never
+- `writer` is optional, `template`, `ai` or `sections`: which writer says this answer's facts,
+  for lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
+  `BRAIN_PAGE_WRITER`); `sections` is for page answers only (lookups keep their setting). It is for trying both writers on one question; the student app never
   sends it.
 - `cards` is optional, `true` or `false`: whether the answer cards are used for this answer, in
   place of the Brain's setting (`BRAIN_CARD_ANSWERS`, off by default). With them, a plain how-to
