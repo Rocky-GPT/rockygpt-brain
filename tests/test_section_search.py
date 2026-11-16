@@ -3,6 +3,7 @@ by meaning, never a page marked not current, the leading office's own pages firs
 
 import array
 import math
+from collections.abc import Mapping, Sequence
 from datetime import date
 
 from rockygpt_brain.retrieval.meaning import MeaningIndex
@@ -12,7 +13,7 @@ TODAY = date(2026, 11, 16)
 
 
 def index_of(units: list[tuple[str, str, float]],
-             pages: dict[str, list[object]] | None = None) -> MeaningIndex:
+             pages: Mapping[str, Sequence[object]] | None = None) -> MeaningIndex:
     """An index whose unit k scores `score` against the query (1, 0), its vector at that cosine."""
     flat = array.array("f")
     for _, _, score in units:
