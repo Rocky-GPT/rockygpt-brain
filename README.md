@@ -304,8 +304,12 @@ contacts) next to them. The facts go out with the answer as `pageFacts`, with `w
 model that sees only that JSON; code checks the model's reply says every fact's numbers,
 emails and links and nothing no fact holds, gives it one repair try, then sends the template's
 text instead. `one_call` (the default until the check set shows the two stages better) is the
-one model call that chooses the facts while it writes. A request's `writer` field (`template`
-or `ai`; `rocky ask --writer`) overrides both settings for that turn.
+one model call that chooses the facts while it writes. `sections` (plan "one simple page writer",
+2026-11-16; off until it beats today's writer on a graded run) is that same one call reading what
+`src/rockygpt_brain/retrieval/section_search.py` finds: whole plain sections (no task entries),
+at most 2 a page and 20 in all, never a page the meaning index marks not current
+(`retrieval/page_marks.py`), with no section pick before it. A request's `writer` field
+(`template`, `ai` or `sections`; `rocky ask --writer`) overrides both settings for that turn.
 
 A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
 that were read); a template or a model with no other context only needs what it can say.

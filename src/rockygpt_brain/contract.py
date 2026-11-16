@@ -46,7 +46,7 @@ class ChatRequest(BaseModel):
     omittedMessages: Annotated[StrictInt, Field(ge=0, le=MAX_OMITTED_MESSAGES)] = 0
     # Which writer says this answer's facts, for trying both on one question (`rocky ask
     # --writer`, the dev UI); the student app never sends it, so students get the Brain's setting.
-    writer: Literal["template", "ai"] | None = None
+    writer: Literal["template", "ai", "sections"] | None = None
     # Whether the answer cards are used for this answer, for trying a question with and without
     # them (`rocky ask --cards`); the student app never sends it, so students get the Brain's
     # setting (BRAIN_CARD_ANSWERS).
