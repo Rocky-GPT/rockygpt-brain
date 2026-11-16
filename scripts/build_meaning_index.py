@@ -47,6 +47,7 @@ from rockygpt_brain.kinds import RULES as KINDS_RULES
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
 from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
+from rockygpt_brain.retrieval.page_marks import page_marks, page_owners
 
 EMBED_MODEL, DIMENSIONS, CHAT_MODEL = "text-embedding-3-large", 512, "gpt-6-luna"
 QUESTIONS_PROMPT = (
@@ -183,8 +184,26 @@ def collect(facts: GraphOnlyFacts) -> tuple[str, str, list[dict[str, Any]], dict
                         continue
                     units[key] = {"record_id": key[0], "index": index, "entities": [entity["id"]],
                                   "page": str(row.get("url") or ""), "heading": unit["heading"],
-                                  "text": unit["text"], "entry": index.startswith("e")}
+                                  "text": unit["text"], "entry": index.startswith("e"),
+                                  "row": {k: row.get(k) for k in MARKED}}
     return version, identity, list(units.values()), names
+
+
+# What a page's marks are read from (retrieval/page_marks.py).
+MARKED = ("url", "site_folder", "page_modified_at")
+
+
+def marks_of(units: list[dict[str, Any]]) -> dict[str, list[Any]]:
+    """Each unit page's marks by record id: its owner among the offices linking it, the day it
+    last changed, the last day its address names, and whether it holds previous items."""
+    links: dict[str, list[str]] = {}
+    rows: dict[str, dict[str, Any]] = {}
+    for unit in units:
+        held = links.setdefault(unit["record_id"], [])
+        held += [e for e in unit["entities"] if e not in held]
+        rows.setdefault(unit["record_id"], unit.get("row") or {"url": unit["page"]})
+    owners = page_owners(links, {rid: row.get("site_folder") for rid, row in rows.items()})
+    return {rid: page_marks(row, owners.get(rid)).to_meta() for rid, row in rows.items()}
 
 
 CARD_HEADINGS = 30
@@ -657,6 +676,7 @@ def main(argv: list[str] | None = None) -> int:
             "required_by": required_by,
             "course_titles": course_titles,
             "labels": [[_where(u["page"]), u["heading"]] for u in units],
+            "pages": marks_of(units),
             "kinds": kinds_of(academic, kinds), "kinds_version": KINDS_VERSION}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",

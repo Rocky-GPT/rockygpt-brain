@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rockygpt_brain.retrieval.page_marks import PageMark
+
 numpy: Any
 try:  # Scoring every vector at once; the pure-Python loop is the fallback. Imported by name so
     # the type check never reads numpy's own stubs (written for a newer Python than its target).
@@ -132,6 +134,10 @@ class MeaningIndex:
             for u, label in zip(self.units, meta.get("labels") or [], strict=False)}
         # Each policy record's units in the policy's order, by record (policy_records).
         self.policies: dict[str, list[tuple[str, str]]] = policy_records(self.units, self.labels)
+        # Each office page's marks by record id (page_marks): its owner, the day it last changed,
+        # and whether it is current. An index built before 11-16 has none.
+        self.pages: dict[str, PageMark] = {
+            str(rid): PageMark.from_meta(mark) for rid, mark in (meta.get("pages") or {}).items()}
         # Each program's and course's card (id, kind), after the office cards: a program or course
         # named only in part is found by its meaning. Never office cards: they are read as offices.
         self.academic: list[tuple[str, str]] = [(str(a[0]), str(a[1]))
