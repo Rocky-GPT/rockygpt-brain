@@ -73,6 +73,13 @@ _URL = re.compile(r"https?://[^\s()\[\]<>\"']+")
 # another college" from one for returning students), each under its "Who it is for" line. Words
 # alone do not tell those from "the vehicle owner or driver" on the parking appeal's card, which
 # answers anyone; whether a task is for everyone is something the page read would have to say.
+#
+# What the practice set could not show (the blind 60 of 2026-11-16, cards on, the read on):
+# the practice questions were written by the rule's builder, so they are plain in the way
+# the gate wants, and the checks above ran with the read switched off. Of the blind set's 15
+# how-to questions 2 reached the cards, and 1 was answered from one (its steps right, graded
+# incomplete: the card does not say a plan can only change up to the refund date); the other
+# led by 0.06. A card answer there cost the read's three calls, about $0.0002, and 3.7 s.
 MATCH_TOP = 0.80
 MATCH_MARGIN = 0.08
 

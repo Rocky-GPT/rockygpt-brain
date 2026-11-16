@@ -1473,7 +1473,8 @@ class ChatEngine:
         self.page_writer = (page_writer if page_writer is not None else _writer_setting(
             "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call")))
         # Answer cards (Dan's plan of 11-10, step 4): a plain how-to question that clearly
-        # matches one card is answered from it by code, with no model call (_card_answer), and a
+        # matches one card is answered from it by code, with no pick and no writer
+        # (_card_answer; the read's votes still come first), and a
         # page answer reads a card's winning page in place of one it left out (_read_winners).
         # Off unless BRAIN_CARD_ANSWERS=1, until the cards are checked.
         self.card_answers = (os.environ.get("BRAIN_CARD_ANSWERS") == "1"
@@ -2578,7 +2579,8 @@ class ChatEngine:
     def _card_answer(self, turn: Turn, trace: dict[str, Any], index: MeaningIndex,
                      vector: Sequence[float]) -> ChatResult | None:
         """A how-to question answered from the one answer card it clearly matches
-        (card_answer.clear), by code: the card's reply (card_said) with no model call. None
+        (card_answer.clear), by code: the card's reply (card_said) with no model call of its
+        own (the read's three votes ran before it, as for every message). None
         leaves the question to the page answer: no card matches clearly, or code does not answer
         from the one that does. The trace's answerCard names the best card, its score, its
         lead over the best card that is no near-copy of it, the near-copies that scored within
