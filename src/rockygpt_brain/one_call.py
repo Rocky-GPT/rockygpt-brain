@@ -273,12 +273,17 @@ def code_text(facts: Sequence[dict[str, Any]]) -> str | None:
     return " ".join(lines)
 
 
-def parts_of(question: str) -> list[str]:
-    """The texts searched: the whole question, then its sentences and its clauses joined by "and
-    what/how/who/...", up to MAX_PARTS of them."""
-    bits = [b.strip() for b in re.split(
+def pieces_of(question: str) -> list[str]:
+    """A message's sentences and its clauses joined by "and what/how/who/...", every one."""
+    return [b.strip() for b in re.split(
         r"(?<=[?.!])\s+|\s+(?:and|also|plus)\s+(?=(?:what|how|who|when|where|can|do|does|will|is|"
-        r"are|should)\b)", question, flags=re.IGNORECASE) if len(b.strip()) > 12]
+        r"are|should)\b)", question, flags=re.IGNORECASE) if b.strip()]
+
+
+def parts_of(question: str) -> list[str]:
+    """The texts searched: the whole question, then its pieces (pieces_of) longer than a few
+    words, up to MAX_PARTS of them."""
+    bits = [b for b in pieces_of(question) if len(b) > 12]
     return [question, *[b for b in bits if b != question][:MAX_PARTS]]
 
 

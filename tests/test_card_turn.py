@@ -3,12 +3,12 @@ answer that reads the page its card chose (answer cards, step 4: engine._card_an
 engine._read_winners). Both are behind a setting that is off unless asked for."""
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
 
-from rockygpt_brain import academics, card_answer
+from rockygpt_brain import academics, card_answer, one_call
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.provider import TurnBudget
@@ -97,6 +97,19 @@ class CardGateway(ScriptedGateway):
     async def embed_many(self, texts: Sequence[str], *, dimensions: int,
                          budget: TurnBudget) -> list[list[float]]:
         return [list(self.vector) for _ in texts]
+
+
+class PartsGateway(CardGateway):
+    """A text named in `by_text` embeds to its own vector, every other text to the gateway's."""
+
+    def __init__(self, vector: Sequence[float], by_text: Mapping[str, Sequence[float]],
+                 *steps: Any) -> None:
+        super().__init__(vector, *steps)
+        self.by_text = dict(by_text)
+
+    async def embed_many(self, texts: Sequence[str], *, dimensions: int,
+                         budget: TurnBudget) -> list[list[float]]:
+        return [list(self.by_text.get(text, self.vector)) for text in texts]
 
 
 def ask(gateway: CardGateway, question: str = ASKED, *, held: CardFacts | None = None,
@@ -244,11 +257,85 @@ def test_a_release_without_cards_or_with_another_releases_is_the_page_answer() -
                             {"role": "assistant", "content": "Register online."}]),
     # Two asks: a card answers one.
     ("how do i get a parking permit? and what does it cost each term", []),
+    # So is a second ask too short to be searched as a part of its own.
+    ("i just got a car. how do i get a parking permit? how much?", []),
+    # Nothing asked: two things told.
+    ("i just got a car this week. i need a parking permit for it.", []),
+    # The one question is past the parts that are searched (one_call.MAX_PARTS).
+    ("i just got a car this week. it has out of state plates. i park in the commuter lot. "
+     "my friend got a ticket there. how do i get a parking permit?", []),
 ])
-def test_only_a_plain_single_question_is_answered_from_a_card(
+def test_only_a_message_with_one_question_is_answered_from_a_card(
         question: str, before: list[dict[str, str]]) -> None:
     result = ask(CardGateway(CLEAR, one_reply(PAGE_REPLY, [1])), question, before=before)
     assert result.trace["decidedBy"] == "one_call" and "answerCard" not in result.trace
+
+
+TOLD, ONE_ASK = "my car is new this term.", "how do i get a parking permit?"
+# The whole message, its background included, is nearest the permit card but under the bar
+# (0.76): the fresh practice messages of 2026-11-16 scored 0.62 to 0.79 on their right card.
+LOOSE = [0.75, 0.2, 0, 0, 0.6]
+
+
+def test_a_question_with_background_is_matched_by_its_asking_sentence() -> None:
+    # As one text the message matches no card clearly; its one question does.
+    whole = ask(CardGateway(LOOSE, one_reply(PAGE_REPLY, [1])))
+    assert whole.trace["answerCard"]["why"] == "not_clear"
+    assert whole.trace["answerCard"]["card"] == CARD_ID
+    gateway = PartsGateway(LOOSE, {ONE_ASK: CLEAR})
+    result = ask(gateway, f"{TOLD} {ONE_ASK}")
+    assert result.body["answer"] == SAID and gateway.inputs == []
+    assert result.trace["decidedBy"] == "code"
+    # `part` is the asking sentence's place among the parts searched, the whole message first.
+    assert result.trace["answerCard"] == {
+        "card": CARD_ID, "score": 1.0, "lead": 1.0, "said": True,
+        "task": "Get a student parking permit", "part": 2}
+    # The background may follow the question.
+    after = PartsGateway(LOOSE, {ONE_ASK: CLEAR})
+    assert ask(after, f"{ONE_ASK} {TOLD}").trace["answerCard"]["part"] == 1
+
+
+def test_a_question_whose_background_points_at_another_card_is_left_to_the_page_answer() -> None:
+    # "what do i have to send them" matched a card clearly on its own (0.79, leading by 0.21)
+    # that had nothing to do with the financial aid check the message was about: the whole
+    # message has to agree with its question. Here the whole is nearest the appeal's card.
+    gateway = PartsGateway([0.3, 0.8, 0, 0, 0.5], {ONE_ASK: CLEAR}, one_reply(PAGE_REPLY, [1]))
+    result = ask(gateway, f"i got a ticket for parking without one. {ONE_ASK}")
+    assert result.trace["decidedBy"] == "one_call"
+    assert result.trace["answerCard"] == {
+        "card": CARD_ID, "score": 1.0, "lead": 1.0, "said": False, "why": "whole_differs",
+        "whole": LOOK_ID, "part": 2}
+    # A near-copy of the question's card is the same task on another page: the whole agrees.
+    close = [0.9, 0.436, 0, 0, 0]
+    copies = PartsGateway([0.3, 0.8, 0, 0, 0.5], {ONE_ASK: [0.985, 0.17, 0, 0, 0]})
+    agreed = ask(copies, f"i got a ticket for parking without one. {ONE_ASK}",
+                 held=release(appeal_at=close, copies=True))
+    assert agreed.body["answer"] == SAID and copies.inputs == []
+    # The asking sentence alone not matching clearly is as before: the page answer.
+    unclear = ask(PartsGateway(LOOSE, {ONE_ASK: TIED}, one_reply(PAGE_REPLY, [1])),
+                  f"{TOLD} {ONE_ASK}")
+    assert unclear.trace["answerCard"]["why"] == "not_clear"
+    assert unclear.trace["answerCard"]["part"] == 2
+
+
+@pytest.mark.parametrize(("message", "place"), [
+    ("how do i get a parking permit", 0),  # One part: the whole message, as before.
+    ("my laptop just died before finals. does the library lend laptops or anything", 2),
+    ("how do i add print money? it says my balance is 0 and my essay is due soon", 1),
+    ("lost my id at the gym yesterday, how do i get a new one. i need it for the dining hall", 1),
+    ("Hi there, where do I pick up a package? I got the email this morning.", 1),
+    ("so my roommate moved out last week. whats the process to get a new one", 2),
+    # Two questions, joined or apart.
+    ("how do i cancel my housing and will i get charged for it? i am moving home.", None),
+    ("i failed the placement test. can i retake it? how do i schedule", None),
+    ("my bill has a late fee on it. can they take it off? why?", None),
+    # Nothing asked, or asked only in words too short to search.
+    ("it says i have a hold and i cant register for classes. what do i do", None),
+    ("i paid when i got the email. my bill still shows a late fee on it.", None),
+])
+def test_the_one_question_of_a_message_with_background(message: str, place: int | None) -> None:
+    assert card_answer.asking_part(one_call.pieces_of(message),
+                                   one_call.parts_of(message)) == place
 
 
 def test_the_card_is_asked_before_the_catalogs_pick() -> None:

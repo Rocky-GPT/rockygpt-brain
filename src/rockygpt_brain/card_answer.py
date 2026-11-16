@@ -152,6 +152,33 @@ def clear(top: float, lead: float) -> bool:
     return top >= MATCH_TOP and lead >= MATCH_MARGIN
 
 
+# A piece of a message that asks: it holds a question mark, or it opens with a question word,
+# at its start ("so how do i...") or after a comma ("lost my id yesterday, how do i get one").
+# "i paid when i got the email" tells: its "when" opens nothing.
+_ASKS = re.compile(
+    r"\?|(?:^(?:(?:and|also|plus|so|but|ok|okay|hi|hey|hello|well)\s+)*|[,;:]\s*(?:(?:and|so|but)"
+    r"\s+)?)(?:(?:how|what|where|who)(?:s|'s|\u2019s)?|when|which|why|can|could|do|does|did|is|"
+    r"are|am|will|would|should)\b", re.IGNORECASE)
+
+
+def asking_part(pieces: Sequence[str], parts: Sequence[str]) -> int | None:
+    """Where a message's one question is among the parts searched (one_call.parts_of: the whole
+    message first, then its longer pieces), given every piece of it (one_call.pieces_of). 0 for
+    a message of one part. None when no piece asks, when two do (a card answers one task:
+    "how do i cancel my housing and will i get charged"), or when the one that asks is no part
+    searched (too short, "what do i do", or past the parts kept).
+
+    A student tells what happened and then asks: of 60 fresh how-to messages (2026-11-16), 33
+    were more than one part, and counting parts kept every one of them from the cards. The
+    background is no second question; a second question still is."""
+    if len(parts) == 1:
+        return 0
+    asking = [piece for piece in pieces if _ASKS.search(piece)]
+    if len(asking) != 1 or asking[0] not in parts[1:]:
+        return None
+    return parts.index(asking[0], 1)
+
+
 def read_winners(order: Sequence[Key], left_out: Mapping[Key, tuple[Key, str]],
                  given: Collection[Key] = ()) -> tuple[list[Key], dict[Key, Key]]:
     """The sections a page answer reads, in order, with the cards' choice of page kept: a task
