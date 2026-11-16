@@ -1,5 +1,5 @@
 """The search a page answer reads from (plan "one simple page writer", step 2): whole plain sections
-by meaning, never a page marked not current, the leading office's own pages first."""
+by meaning, never a page marked not current."""
 
 import array
 import math
@@ -59,19 +59,3 @@ def test_each_part_of_the_question_keeps_its_own_best_sections() -> None:
     other = [0.0, 1.0]  # A part whose best section is the one the whole question scores lowest.
     found = sections(index, [QUERY, other], TODAY)
     assert found[:2] == [("p0", "0"), ("parking", "0")] and len(found) == 20
-
-
-def test_the_leading_offices_pages_come_first_when_they_score_close_to_the_top() -> None:
-    pages = {"housing-1": ["housing", None, None, False],
-             "housing-2": ["housing", None, None, False],
-             "dining": ["dining", None, None, False]}
-    index = index_of([("housing-1", "0", 0.90), ("dining", "0", 0.89), ("housing-2", "0", 0.88)],
-                     pages=pages)
-    assert sections(index, [QUERY], TODAY, owner_bonus=0.0) == [
-        ("housing-1", "0"), ("dining", "0"), ("housing-2", "0")]
-    assert sections(index, [QUERY], TODAY, owner_bonus=0.02) == [
-        ("housing-1", "0"), ("housing-2", "0"), ("dining", "0")]
-    # Not when it is far behind: a bonus only breaks near ties.
-    far = index_of([("housing-1", "0", 0.90), ("dining", "0", 0.89), ("housing-2", "0", 0.70)],
-                   pages=pages)
-    assert sections(far, [QUERY], TODAY, owner_bonus=0.02)[1] == ("dining", "0")
