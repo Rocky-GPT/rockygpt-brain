@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping, Sequence
 from datetime import date
 
-from rockygpt_brain.retrieval.meaning import MeaningIndex
+from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.retrieval.section_search import sections
 
 TODAY = date(2026, 11, 16)
@@ -67,3 +67,17 @@ def test_sections_read_already_are_skipped_and_each_keeps_its_score() -> None:
     assert keys == [("b", "0"), ("c", "0")]
     assert round(scores[("b", "0")], 3) == 0.8
 
+
+
+def test_a_section_is_said_from_its_start_unless_its_matched_piece_lies_past_what_is_said() -> None:
+    # 11-16: the guest limit sits 541 characters into Guest Procedures; saying the section from
+    # just before its matched piece (offset 1,000) cut it off.
+    index = index_of([("guests", "0", 0.9), ("long", "0", 0.8)])
+    raw = index.scores
+    def scores(query: Sequence[float]) -> MeaningScores:
+        found = raw(query)
+        found.at = {("guests", "0"): 1_000, ("long", "0"): 2_500}
+        return found
+    index.scores = scores  # type: ignore[method-assign]
+    found, _ = sections(index, [QUERY], TODAY)
+    assert found.at == {("long", "0"): 2_500}
