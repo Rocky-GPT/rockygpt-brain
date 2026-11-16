@@ -2577,7 +2577,8 @@ class ChatEngine:
                                  (index.dataset_version, index.identity_hash), read)
 
     def _card_answer(self, turn: Turn, trace: dict[str, Any], index: MeaningIndex,
-                     vector: Sequence[float]) -> ChatResult | None:
+                     vector: Sequence[float], whole: Sequence[float] | None = None,
+                     part: int = 0) -> ChatResult | None:
         """A how-to question answered from the one answer card it clearly matches
         (card_answer.clear), by code: the card's reply (card_said) with no model call of its
         own (the read's three votes ran before it, as for every message). None
@@ -2585,7 +2586,14 @@ class ChatEngine:
         from the one that does. The trace's answerCard names the best card, its score, its
         lead over the best card that is no near-copy of it, the near-copies that scored within
         the lead (`near`), the one of them whose page was said in place of the best card's own
-        (`ahead`: card_join.page_ahead), and why nothing was said."""
+        (`ahead`: card_join.page_ahead), and why nothing was said.
+
+        `vector` is the question's. For a message that tells something beside its one question
+        (card_answer.asking_part) it is the asking sentence's, `part` its place among the parts
+        searched and `whole` the whole message's vector: the card the whole message matches
+        best has to be the same card or a near-copy of it (`whole_differs` when it is not). A
+        sentence that asks by pointing back ("what do i have to send them") matched a card
+        clearly on its own that its message had nothing to do with."""
         found = self._card_tasks(index)
         match = (card_answer.best_card(index.scores(vector), found.card_of, found.passed,
                                        found.near) if found is not None else None)
@@ -2598,10 +2606,19 @@ class ChatEngine:
                                 "lead": round(lead, 3), "said": False}
         if over:
             note["near"] = [found.cards[other].get("id") for other in over]
+        if part:
+            note["part"] = part
         trace["answerCard"] = note
         if not card_answer.clear(top, lead):
             note["why"] = "not_clear"
             return None
+        if whole is not None:
+            agreed = card_answer.best_card(index.scores(whole), found.card_of, found.passed,
+                                           found.near)
+            if agreed is None or (agreed[0] != at and agreed[0] not in found.near.get(at, ())):
+                note.update(why="whole_differs",
+                            whole=found.cards[agreed[0]].get("id") if agreed else None)
+                return None
         today = turn.campus_now.date()
         cards, nodes = found.cards, found.nodes
 
@@ -3340,25 +3357,30 @@ class ChatEngine:
                     if lists:
                         code_parts.append(said)
                         code_view["clubs"] = kind_clubs
+                asked_at: int | None = None
                 if searchable:
                     assert index is not None and embed_many is not None
+                    parts = one_call.parts_of(question)
                     with measure("Embed the question's parts"):
-                        vectors = await embed_many(one_call.parts_of(question),
-                                                   dimensions=index.dimensions, budget=budget)
-                # A plain how-to question (one ask, nothing before it, no program, course or
-                # person named, nothing code or the calendar answers a part of) that clearly
-                # matches one answer card is answered from the card by code. The card is asked
-                # before the catalog's pick: "how do I withdraw from a class" names no class the
-                # catalog holds, and with the pick first its one model call came before every
-                # such answer and, when it named a program anyway, in place of it.
+                        vectors = await embed_many(parts, dimensions=index.dimensions,
+                                                   budget=budget)
+                    asked_at = card_answer.asking_part(one_call.pieces_of(question), parts)
+                # A plain how-to question (one ask, whatever it tells beside it; nothing before
+                # it, no program, course or person named, nothing code or the calendar answers
+                # a part of) that clearly matches one answer card is answered from the card by
+                # code. The card is asked before the catalog's pick: "how do I withdraw from a
+                # class" names no class the catalog holds, and with the pick first its one model
+                # call came before every such answer and, when it named a program anyway, in
+                # place of it.
                 if (self._cards_now() and searchable and index is not None
-                        and len(vectors) == 1 and earlier is None and kind is None
+                        and asked_at is not None and earlier is None and kind is None
                         and not calendar_asked and not people_asked and not named_people
                         and not (programs and any(programs)) and not code_parts
                         and not computed and not academic and not people and not clubs):
                     with measure("Match an answer card"):
                         done = await asyncio.to_thread(self._card_answer, turn, trace, index,
-                                                       vectors[0])
+                                                       vectors[asked_at],
+                                                       vectors[0] if asked_at else None, asked_at)
                     if done is not None:
                         return done
                 if calendar_asked:
