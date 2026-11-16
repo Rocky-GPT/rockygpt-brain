@@ -1826,15 +1826,21 @@ _PAGE_TERM = re.compile(r"(winter|spring|summer|fall)[-_]?(20\d\d)(?!\d)")
 _PAGE_YEAR = re.compile(r"(?<!\d)(20\d\d)(?!\d)")
 
 
-def past_page(url: str, today: date) -> str | None:
-    """The latest term or year a page's own address names (/previous-deadlines-2021/,
-    /wellness-services-fall-2023/), when every one it names has ended by today; else None. A year
-    alone is read as the academic year it starts, ending August 31 of the next."""
+def address_terms(url: str) -> list[tuple[date, str]]:
+    """Each term or year a page's own address names, with the day it ends. A year alone is read as
+    the academic year it starts, ending August 31 of the next."""
     path = urlsplit(url).path.casefold()
     named = [(date(int(year), *_TERM_ENDS[season.title()]), f"{season.title()} {year}")
              for season, year in _PAGE_TERM.findall(path)]
     rest = _PAGE_TERM.sub(" ", path)
     named += [(date(int(year) + 1, 8, 31), year) for year in _PAGE_YEAR.findall(rest)]
+    return named
+
+
+def past_page(url: str, today: date) -> str | None:
+    """The latest term or year a page's own address names (/previous-deadlines-2021/,
+    /wellness-services-fall-2023/), when every one it names has ended by today; else None."""
+    named = address_terms(url)
     if not named or max(end for end, _ in named) >= today:
         return None
     return max(named)[1]
