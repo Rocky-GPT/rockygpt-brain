@@ -5,6 +5,8 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+import pytest
+
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.one_call import (
@@ -39,6 +41,13 @@ class PartsGateway(ScriptedGateway):
                          budget: TurnBudget) -> list[list[float]]:
         self.embedded.append(list(texts))
         return [[1.0, 0.0, 0.0] for _ in texts]
+
+
+@pytest.fixture
+def parts_first(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The parts-first call with its heading pick and second look, as programs, the calendar and
+    people are written: the direct writer writes every other page answer (audit item 13)."""
+    monkeypatch.setattr(ChatEngine, "_writes_direct", staticmethod(lambda *_: False))
 
 
 def ask(gateway: Any, question: str) -> Any:
@@ -101,6 +110,7 @@ def test_a_reply_the_evidence_does_not_hold_goes_to_the_four_call_loop() -> None
     assert "tutors@example.com" not in result.body["answer"]
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_a_page_answer_that_falls_back_leaves_the_four_call_loop_its_own_calls() -> None:
     class Counting(PartsGateway):
         """Counts calls against the turn's limit, as the real gateway does."""
@@ -164,6 +174,7 @@ def test_statements_split_after_sentences_not_after_steps_titles_or_times() -> N
     assert without_unsupported(text, lambda said: ["x"] if "[" in said else []) is None
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_a_part_no_section_answers_gets_a_second_look_and_one_more_reply() -> None:
     gateway = PartsGateway(
         one_reply("I don't have verified information about that.", []),
@@ -183,6 +194,7 @@ def test_a_part_no_section_answers_gets_a_second_look_and_one_more_reply() -> No
     assert "Sources: [2](" in result.body["answer"]
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_a_reply_saying_the_pages_are_silent_gets_that_sentence_searched_again() -> None:
     gateway = PartsGateway(
         one_reply("Apply with the online form. [1] The pages don't say when the deadline is. [1]",
@@ -267,6 +279,7 @@ def test_every_try_reads_the_same_core_whatever_the_pick() -> None:
     assert reads[0][6:9] == [("page-11", "0"), ("page-10", "0"), ("page-9", "0")]
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_with_headings_published_the_pick_comes_before_the_answer() -> None:
     service = meaning_service()
     service.index = index_of([("page-advising", "0", ["advising"], [[0, 1, 0]]),
@@ -326,6 +339,7 @@ def ask_with_headings(gateway: Any) -> tuple[Any, ChatEngine]:
     return engine.answer(intake(request, now=NOW), request), engine
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_a_slow_third_pick_is_not_waited_for_and_still_finishes(monkeypatch: Any) -> None:
     # 11-04 blind run: a third pick ran up to 27 s after the other two, and the turn waited.
     import rockygpt_brain.one_call as one_call
@@ -354,6 +368,7 @@ def test_a_slow_third_pick_is_not_waited_for_and_still_finishes(monkeypatch: Any
     asyncio.run(main())
 
 
+@pytest.mark.usefixtures("parts_first")
 def test_picks_all_too_slow_leave_the_usual_choice_read(monkeypatch: Any) -> None:
     # 11-04 blind run: for two questions every pick ran 17-41 s, past the turn's time.
     import rockygpt_brain.one_call as one_call

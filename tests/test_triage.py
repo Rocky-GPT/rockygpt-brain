@@ -741,3 +741,59 @@ def test_medical_advice_is_declined_only_when_it_is_asked() -> None:
     assert triage.MEDICAL_ADVICE_TEXT not in answer
     alone = ask(MeteredGateway(read(needs=["health"])), "which medicine should i take for a cold")
     assert alone.body["answer"].startswith(triage.MEDICAL_ADVICE_TEXT)
+
+
+# Audit plan item 8 (11-17): the read's topic picks the answer path, in place of the word rules.
+
+def test_the_read_says_what_the_question_asks_for() -> None:
+    arguments = {"social": "none", "danger": "none", "needs": [], "limit": "none",
+                 "question": "When is the career fair?", "topic": "event"}
+    def topic(given: dict[str, Any]) -> str | None:
+        reading = triage.reading_of(given, "when is the career fair")
+        assert reading is not None
+        return reading.topic
+    assert topic(arguments) == "event"
+    assert triage.reading_of({**arguments, "topic": "weather"}, "x") is None
+    assert topic({k: v for k, v in arguments.items() if k != "topic"}) is None
+    assert "topic" in triage.READ_TOOL["parameters"]["required"]
+    # Two topics never start with the same four letters (the read writes a label in pieces).
+    assert len({t[:4] for t in triage.TOPICS}) == len(triage.TOPICS)
+
+
+def test_the_topic_most_reads_give_is_the_reading_and_a_tie_is_a_page_answer() -> None:
+    def most(*topics: str | None) -> str | None:
+        reading = triage.majority([triage.Reading(question="Q?", topic=t) for t in topics])
+        assert reading is not None
+        return reading.topic
+    assert most("event", "club", "event") == "event"
+    assert most("office", "person", "how_to") == "how_to"
+    assert most(None, None, "office") is None
+
+
+def test_the_topic_picks_the_path_and_the_word_rules_only_without_a_read() -> None:
+    from rockygpt_brain.engine import picked_path
+    # "How do I book a room for a club event?" names an event and a club, which the word rules
+    # read as the calendar's events; the read says it asks how to do something.
+    message = "How do I book a room for a club event?"
+    assert picked_path(None, message).calendar
+    assert picked_path("how_to", message) == picked_path("how_to", "")
+    assert not picked_path("how_to", message).calendar and picked_path("how_to", message).pages
+    assert picked_path("event", "what is on tonight").calendar
+    assert picked_path("club", "is there a chess thing").calendar
+    assert picked_path("person", "who runs EOF").people
+    assert picked_path("team", "is there a hockey team").calendar
+    for lookup in ("office", "dining", "shuttle"):
+        assert picked_path(lookup, message) == picked_path(lookup, "")
+        assert not picked_path(lookup, message).pages
+    for page in ("how_to", "dates", "team", "program", "person", "event", "club"):
+        assert picked_path(page, "anything").pages
+
+
+def test_the_reads_topic_is_traced_and_a_lookup_topic_keeps_the_lookup() -> None:
+    gateway = ScriptedGateway(read(question="What is the Registrar email?", topic="office"),
+                              LOOKUP, finish())
+    result = ask(gateway, "ugh my form got rejected again, whats the registrar email")
+    assert "published@example.edu" in result.body["answer"]
+    assert result.trace is not None
+    assert result.trace["path"] == {"topic": "office", "by": "read"}
+    assert result.trace["read"]["topic"] == "office"

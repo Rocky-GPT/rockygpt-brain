@@ -24,7 +24,6 @@ import psycopg
 import pytest
 
 import rockygpt_brain.api.app as app_module
-from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.retrieval import (
     DatasetChanged,
     EntityFacts,
@@ -669,18 +668,17 @@ def test_the_build_reads_the_release_in_one_transaction_with_its_own_limits(
 # ---- start-up wiring -------------------------------------------------------------------------
 
 
-def configured(monkeypatch: pytest.MonkeyPatch) -> ChatEngine:
+def test_without_a_graph_directory_the_brain_does_not_start(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    # The campus-database serving path was removed (audit plan item 13): only the graph serves.
+    from rockygpt_brain.settings import ConfigurationError
     monkeypatch.setattr(app_module, "ProviderSettings",
                         SimpleNamespace(from_env=lambda: SimpleNamespace(max_turn_nusd=1)))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
     monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/test")
     monkeypatch.delenv("BRAIN_GRAPH_ONLY_DIR", raising=False)
-    return app_module._configured_engine()  # noqa: SLF001 - the wiring under test.
-
-
-def test_without_a_graph_directory_the_brain_reads_postgres(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    assert isinstance(configured(monkeypatch).facts, PostgresEntityFacts)
+    with pytest.raises(ConfigurationError, match="BRAIN_GRAPH_ONLY_DIR"):
+        app_module._configured_engine()  # noqa: SLF001 - the wiring under test.
 
 
 def test_an_offices_own_pages_survive_the_graph_and_answer_a_procedure_the_same(
