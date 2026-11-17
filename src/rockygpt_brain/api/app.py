@@ -315,9 +315,11 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
 
     # The API's own docs pages describe every route; production serves none of them (audit item
     # 16, 11-17: /docs answered in production without the service token).
-    hidden = ({} if active_environment == "development"
-              else {"docs_url": None, "redoc_url": None, "openapi_url": None})
-    application = FastAPI(title="RockyGPT Brain", lifespan=lifespan, **hidden)
+    docs = active_environment == "development"
+    application = FastAPI(title="RockyGPT Brain", lifespan=lifespan,
+                          docs_url="/docs" if docs else None,
+                          redoc_url="/redoc" if docs else None,
+                          openapi_url="/openapi.json" if docs else None)
     application.state.engine = engine
     # Where questions wait while a new release replaces the engine (api/releases.py).
     application.state.gate = Gate()
