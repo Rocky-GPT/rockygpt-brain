@@ -35,7 +35,6 @@ from rockygpt_brain.retrieval import (
     EntityFacts,
     EvidenceUnavailable,
     InvalidFactRequest,
-    PostgresEntityFacts,
     UnknownEntity,
 )
 from rockygpt_brain.retrieval.graph_store import GraphOnlyFacts, GraphUnavailable, read_pointer
@@ -193,13 +192,9 @@ def _configured_engine() -> ChatEngine:
                 from error
         return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
                       output=output)
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise ConfigurationError("Missing DATABASE_URL")
-    # Rollback only: production serves the graph file (BRAIN_GRAPH_ONLY_DIR above).
-    facts = PostgresEntityFacts(database_url)
-    return ChatEngine(Gateway(settings), facts, max_turn_nusd=settings.max_turn_nusd,
-                      output=output)
+    # The Brain serves only the graph file. The old campus-database serving path, kept for a
+    # rollback, was removed with audit plan item 13 (11-17); the graph build still reads it.
+    raise ConfigurationError("Missing BRAIN_GRAPH_ONLY_DIR")
 
 
 WARM_SECONDS = 120.0

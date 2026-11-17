@@ -18,7 +18,7 @@ from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet, validate_packet
 from rockygpt_brain.provider import Completion, GatewayError
-from rockygpt_brain.retrieval import MemoryEntityFacts, PostgresEntityFacts
+from rockygpt_brain.retrieval import MemoryEntityFacts
 from rockygpt_brain.turn import intake
 from rockygpt_brain.writer_view import writer_view
 from test_engine import LOOKUP, NOW, ScriptedGateway, completion, facts, finish, two_student_offices
@@ -278,8 +278,9 @@ def configured(monkeypatch: pytest.MonkeyPatch, output: str | None) -> ChatEngin
     monkeypatch.setattr(app_module, "ProviderSettings",
                         SimpleNamespace(from_env=lambda: SimpleNamespace(max_turn_nusd=1)))
     monkeypatch.setattr(app_module, "Gateway", lambda settings: object())
-    monkeypatch.setenv("DATABASE_URL", "postgresql://example.invalid/test")
-    monkeypatch.delenv("BRAIN_GRAPH_ONLY_DIR", raising=False)
+    monkeypatch.setattr(app_module, "GraphOnlyFacts", lambda folder, release=None: facts())
+    monkeypatch.setattr(app_module, "read_pointer", lambda folder: None)
+    monkeypatch.setenv("BRAIN_GRAPH_ONLY_DIR", "/nonexistent-graph")
     if output is None:
         monkeypatch.delenv("BRAIN_OUTPUT", raising=False)
     else:
@@ -292,7 +293,7 @@ def configured(monkeypatch: pytest.MonkeyPatch, output: str | None) -> ChatEngin
 def test_the_output_mode_comes_from_the_environment_and_defaults_to_text(
         monkeypatch: pytest.MonkeyPatch, setting: str | None, expected: str) -> None:
     engine = configured(monkeypatch, setting)
-    assert engine.output == expected and isinstance(engine.facts, PostgresEntityFacts)
+    assert engine.output == expected
     assert engine.runtime()["output"] == expected
 
 
