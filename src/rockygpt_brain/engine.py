@@ -72,6 +72,7 @@ from rockygpt_brain.retrieval import (
     EvidenceUnavailable,
     InvalidFactRequest,
     UnknownEntity,
+    section_search,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
 from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
@@ -115,8 +116,21 @@ _Value = TypeVar("_Value")
 # never sends it, so students get the settings' writers.
 _REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_writer", default=None)
-
-
+# The direct writer's search embeds the student's own words while the message is read, since the
+# read keeps them for most questions: (the parts searched, the task giving their size and vectors).
+# The search uses the vectors only when it searches the same parts (audit item 6, 11-17: the read
+# took 1.2 s and the embedding 0.4 to 0.6 s after it, one after the other).
+_EARLY_VECTORS: contextvars.ContextVar[
+    tuple[tuple[str, ...], asyncio.Task[tuple[int, list[list[float]]] | None]] | None] = \
+    contextvars.ContextVar("early_vectors", default=None)
+# How long the early embedding may take; the search embeds again on its own after a failure.
+EARLY_EMBED_SECONDS = 8.0
+# The page writer that reads whole plain sections of current pages in one call (BRAIN_PAGE_WRITER
+# or a request's writer; plan "one simple page writer", 11-16). The old writers stay as they are.
+SECTIONS_WRITER = "sections"
+# The page writer that reads the same sections and writes the reply alone, in one call under a short
+# fixed prompt, with no second look (audit plan item 6, 11-17).
+DIRECT_WRITER = "direct"
 def _writer_setting(name: str, default: str, allowed: Sequence[str]) -> str:
     """A writer setting's value, or the default when it is unset or not one allowed. "1" is
     "ai", as BRAIN_LOOKUP_WRITER=1 was before the setting named its writer."""
@@ -1452,7 +1466,8 @@ class ChatEngine:
         # (page_facts.py); "one_call", the default until the check set shows the two stages
         # better, is one model call that chooses the facts while it writes (one_call.py).
         self.page_writer = (page_writer if page_writer is not None else _writer_setting(
-            "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call")))
+            "BRAIN_PAGE_WRITER", "one_call",
+            (*page_facts.WRITERS, "one_call", SECTIONS_WRITER, DIRECT_WRITER)))
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -1503,7 +1518,8 @@ class ChatEngine:
     def _page_writer_now(self) -> str:
         """This turn's page-answer writer: the request's, if it names one, else the setting."""
         asked = _REQUEST_WRITER.get()
-        return asked if asked in page_facts.WRITERS else self.page_writer
+        return (asked if asked in (*page_facts.WRITERS, SECTIONS_WRITER, DIRECT_WRITER)
+                else self.page_writer)
 
     def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
         """A value read once per release (or per release and day), held as (key, value) in the
@@ -2788,9 +2804,13 @@ class ChatEngine:
         """Who teaches the courses a question names (people.courses_named): everyone whose
         faculty profile lists one, by its code or by its title, in code's words, numbered after
         `numbered_from`, with the sources and the facts said, for the check; None when it names
-        no course, or no profile lists it (the profiles' own words are then read as before)."""
+        no course, or no profile lists it (the profiles' own words are then read as before).
+        A title that is only a catalog subject's name ("Computer Science I") names the subject
+        when asked without its number, and its faculty are the catalog's (_faculty_part)."""
         titles = self._course_titles()
-        codes = people_module.courses_named(message, titles)
+        subjects = {academics.program_core(str(p["name"]))
+                    for p in self.facts.identities(("program",))}
+        codes = people_module.courses_named(message, titles, subjects)
         if not codes or len(codes) > MAX_COURSES_TAUGHT:
             return None
         found = [e for e in people_module.course_teachers(self._directory(), codes, titles)
@@ -3046,6 +3066,7 @@ class ChatEngine:
         sources: list[dict[str, Any]] = []
         dataset_version = index.dataset_version if index else ""
         staged: dict[str, Any] | None = None  # The two stages' reply, when they wrote it.
+        direct = False  # The direct writer wrote the reply (no second look).
         # An academic question is read from what the model picks among the catalog's own names
         # when the meaning index is published; the code-named programs are its hints.
         # A question code answers alone (one_call.code_kind): its facts are read by code and said
@@ -3186,9 +3207,14 @@ class ChatEngine:
                         code_view["clubs"] = kind_clubs
                 if searchable:
                     assert index is not None and embed_many is not None
-                    with measure("Embed the question's parts"):
-                        vectors = await embed_many(one_call.parts_of(question),
-                                                   dimensions=index.dimensions, budget=budget)
+                    parts = one_call.parts_of(question)
+                    early = await self._early_vectors(parts, index.dimensions)
+                    if early is not None:
+                        vectors = early
+                    else:
+                        with measure("Embed the question's parts"):
+                            vectors = await embed_many(parts, dimensions=index.dimensions,
+                                                       budget=budget)
                 if calendar_asked:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
@@ -3290,7 +3316,15 @@ class ChatEngine:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and index.academic and not stand_ins
+                    # A field's faculty asked as a list are the catalog's (_faculty_part, below),
+                    # not the profiles whose own words hold the field's name: "who is on the
+                    # social work faculty" was given 8 business professors whose interests say
+                    # "social", none of them among the 8 the catalog lists (11-17 list check).
+                    field_listed = bool(programs and programs[0] and not named_people
+                                        and course_answer is None
+                                        and (people_module.asks_faculty_list(latest)
+                                             or people_module.asks_program_lead(latest)))
+                    if (people_asked and index.academic and not stand_ins and not field_listed
                             and course_answer is None and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
                         # Code first: the profiles whose own courses, interests or title hold
@@ -3363,8 +3397,19 @@ class ChatEngine:
                 # the pick, the sections read differed between tries, so the facts did).
                 two_stage = (self._page_writer_now() in page_facts.WRITERS
                              and not academic and not calendar and not people)
+                # The "sections" writer (plan "one simple page writer", 11-16): one call reads
+                # whole plain sections of current pages (section_search) and writes the answer.
+                sectioned = (self._page_writer_now() in (SECTIONS_WRITER, DIRECT_WRITER)
+                             and not academic and not calendar and not people)
+                # The "direct" writer reads the same sections and writes the reply alone.
+                direct = sectioned and self._page_writer_now() == DIRECT_WRITER
+                if sectioned:
+                    trace["pageWriter"] = self._page_writer_now()
                 if two_stage and searchable and index is not None:
                     chosen = one_call.with_picked(index, vectors, MeaningScores({}), [], None)
+                    trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
+                elif sectioned and searchable and index is not None:
+                    chosen = section_search.sections(index, vectors, turn.campus_now.date())
                     trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
                 elif searchable and index is not None and index.labels:
                     pool_scores, pool = one_call.chosen_units(
@@ -3473,8 +3518,13 @@ class ChatEngine:
                             input=one_call.messages(
                                 latest, earlier if question != latest else None, offices,
                                 turn.campus_now.date(), academic, calendar, clubs, people,
-                                computed, code_parts, contacts_by_code=True),
-                            tools=[one_call.ONE_CALL_TOOL], budget=budget)
+                                computed, code_parts, contacts_by_code=True,
+                                prompt=(one_call.DIRECT_PROMPT if direct
+                                        else one_call.SECTIONS_PROMPT if sectioned
+                                        else one_call.ONE_CALL_PROMPT),
+                                now=turn.campus_now if direct else None),
+                            tools=[one_call.DIRECT_TOOL if direct else one_call.ONE_CALL_TOOL],
+                            budget=budget)
         except GatewayError as error:
             return fallback(error.code)
         except TimeoutError:
@@ -3490,18 +3540,22 @@ class ChatEngine:
             arguments = call.arguments
         # A second look: the parts the reply found no section for are searched on their own, and
         # the reply is written again with what that finds beside the first evidence.
-        asks = one_call.gave_up(arguments, latest) if searchable else []
+        # The direct writer makes one call: no second look.
+        asks = one_call.gave_up(arguments, latest) if searchable and not direct else []
         if asks and index is not None and embed_many is not None:
             try:
                 async with asyncio.timeout(max(budget.deadline - time.monotonic(), 0.001)):
                     with measure("Second look for the parts not answered"):
                         more_vectors = await embed_many(asks, dimensions=index.dimensions,
                                                         budget=budget)
+                        again_chosen = (section_search.sections(
+                            index, more_vectors, turn.campus_now.date(),
+                            cap=one_call.SECOND_LOOK_UNITS, skip=seen) if sectioned else None)
                         more, more_sources = await asyncio.to_thread(
                             one_call.gather, self.facts, index, more_vectors, " ".join(asks),
                             index.dataset_version, index.identity_hash, (),
                             cap=one_call.SECOND_LOOK_UNITS, numbered_from=len(sources),
-                            seen=seen)
+                            seen=seen, chosen=again_chosen)
                     restaged = (await self._two_stage(
                         latest, earlier if question != latest else None, [*offices, *more],
                         computed, code_parts, turn.campus_now.date(), budget, trace)
@@ -3514,7 +3568,9 @@ class ChatEngine:
                                     latest, earlier if question != latest else None,
                                     [*offices, *more], turn.campus_now.date(), academic,
                                     calendar, clubs, people, computed, code_parts,
-                                    contacts_by_code=True),
+                                    contacts_by_code=True,
+                                    prompt=(one_call.SECTIONS_PROMPT if sectioned
+                                            else one_call.ONE_CALL_PROMPT)),
                                 tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = (None if restaged is not None else
                           again.tool_calls[0] if len(again.tool_calls) == 1 else None)
@@ -3577,16 +3633,6 @@ class ChatEngine:
                  .strip()}, sources)
         if code_parts or after:
             trace["codeParts"] = len(code_parts) + len(after)
-        # The every-word check, report only: what it would cut, for measuring before it cuts.
-        calendar_events = (calendar or {}).get("events") or []
-        shared = " ".join([latest, *(o["office"] for o in offices),
-                           *(str(c.get("fact", "")) for c in computed if not c.get("n")),
-                           UNSUPPORTED_PART_MESSAGE, "differ different"])
-        flagged = one_call.unbacked(text.split("\n\nSources:")[0], one_call.evidence_by_mark(
-            offices, computed, people, academic, calendar_events, clubs), shared)
-        trace["wordCheck"] = {"statements": sum(1 for p in one_call.statements(text)
-                                                if p.strip()),
-                              "flaggedTotal": len(flagged), "flagged": flagged[:10]}
         # A reply that sends the reader to 911 ("if the student is in imminent danger ... call
         # 911", a counseling page's words) also gives Public Safety's published emergency line,
         # from the graph and in code's words, unless the reply already gives every number of it
@@ -4148,6 +4194,60 @@ class ChatEngine:
         if not (self.read_first and self.output == "written" and floor_situation is None):
             return await self._campus_answer(turn, request, trace, floor_situation)
         context = build_context(request)
+        early = self._embed_early(turn, context)
+        _EARLY_VECTORS.set(early)
+        try:
+            return await self._read_then_answer(turn, request, trace, context, started,
+                                                beside_emergency)
+        finally:
+            _EARLY_VECTORS.set(None)
+            if early is not None and not early[1].done():
+                early[1].cancel()
+
+    def _embed_early(self, turn: Turn, context: Context) -> tuple[
+            tuple[str, ...], asyncio.Task[tuple[int, list[list[float]]] | None]] | None:
+        """With the direct writer, embed the parts its search reads from the student's own words
+        now, beside the read; None for any other writer or a gateway that cannot embed."""
+        embed_many = getattr(self.gateway, "embed_many", None)
+        if self._page_writer_now() != DIRECT_WRITER or embed_many is None:
+            return None
+        earlier = next((m.content for m in reversed(context.recent_messages)
+                        if m.role == "user"), None)
+        parts = one_call.parts_of(one_call.search_text(context.latest_message, earlier))
+
+        async def embed() -> tuple[int, list[list[float]]] | None:
+            index = await asyncio.to_thread(self.facts.meaning_index)
+            if index is None:
+                return None
+            budget = TurnBudget(turn.request_id, time.monotonic() + EARLY_EMBED_SECONDS,
+                                max_calls=1, max_cost_nusd=self.max_turn_nusd // 10)
+            return index.dimensions, await embed_many(parts, dimensions=index.dimensions,
+                                                      budget=budget)
+        task = asyncio.create_task(embed())
+        # A failure nobody waited for (the read changed the question) is read here, not logged.
+        task.add_done_callback(lambda done: done.cancelled() or done.exception())
+        return tuple(parts), task
+
+    async def _early_vectors(self, parts: Sequence[str],
+                             dimensions: int) -> list[list[float]] | None:
+        """The early embedding's vectors when it embedded these very parts at this size; None
+        when there is none, the read changed the question, or it failed (the search then embeds
+        on its own)."""
+        early = _EARLY_VECTORS.get()
+        if early is None or early[0] != tuple(parts):
+            return None
+        try:
+            with measure("Wait for the early embedding"):
+                got = await early[1]
+        except Exception as error:  # the search's own embedding runs instead
+            LOG.warning("brain_early_embed_failed code=%s",
+                        getattr(error, "code", type(error).__name__))
+            return None
+        return got[1] if got is not None and got[0] == dimensions else None
+
+    async def _read_then_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                                context: Context, started: float,
+                                beside_emergency: bool) -> ChatResult:
         reading = None if await self._code_understands(context) else await self._read(
             turn, context, trace)
         if reading is None:

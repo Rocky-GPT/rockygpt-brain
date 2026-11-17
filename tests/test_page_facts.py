@@ -82,6 +82,73 @@ def test_a_sentence_said_again_word_for_word_is_numbered_once() -> None:
     assert len(numbered(twice)) == 1
 
 
+def test_a_task_entry_is_numbered_once_in_the_pages_own_words() -> None:
+    # A page with a how-to list is read as its task entries: the page read's steps with the
+    # page's quote beside each, and the words of the entry's own section riding along
+    # (entity_facts._procedure_units). The section's words say every fact once.
+    steps = ("1. Register your car online. (page: \u201cStudents must register their vehicle "
+             "online.\u201d) 2. Pick up the permit at the ID Office. (page: \u201cPermits are "
+             "picked up at the Public Safety ID Office.\u201d)")
+    own = ("Students must register their vehicle online. Permits are picked up at the Public "
+           "Safety ID Office. The $100 fee goes on the term bill.")
+    entry = [{"office": "Public Safety", "sections": [
+        {"n": 1, "heading": "Get a student parking permit", "text": steps,
+         "section_words": own}]}]
+    lines = numbered(entry)
+    assert [line["says"] for line in lines] == [
+        "Students must register their vehicle online.",
+        "Permits are picked up at the Public Safety ID Office.",
+        "The $100 fee goes on the term bill."]
+    page = facts_of("how do i get a parking permit", lines, [1, 2], TODAY)
+    # A step's number is no number the writer has to say, and no quote mark reaches a reply.
+    assert all(tokens(fact["says"]) == set() for fact in page["facts"])
+    assert "(page:" not in template_text(page) and "1. 1." not in template_text(page)
+    # An entry with no section of its own is read as its steps, each one sentence, without
+    # its number or its quote; a list cut short loses only the quote that was cut.
+    alone = [{"office": "Public Safety", "sections": [
+        {"n": 1, "heading": "Get a student parking permit", "text": steps},
+        {"n": 2, "heading": "Appeal a ticket", "text": (
+            "1. File the appeal online within 20 days. (page: \u201cAn online appeal must be "
+            "made within twenty (20) days\u201d) 2. Wait for the board. (page: \u201cAll decis")}]}]
+    lines = numbered(alone)
+    assert [line["says"] for line in lines] == [
+        "Register your car online.", "Pick up the permit at the ID Office.",
+        "File the appeal online within 20 days.", "Wait for the board."]
+    assert all("step" in line["kinds"] for line in lines)
+    assert [line["source"] for line in lines] == [1, 1, 2, 2]
+    assert tokens(lines[2]["says"]) == {"20"}
+
+
+def test_what_a_how_to_read_gives_for_an_entry_is_numbered_once() -> None:
+    # The same through the read itself, so a change to how an entry is said breaks here.
+    from rockygpt_brain.retrieval.entity_facts import procedures_property
+    own = ("Students must register their vehicle online. Permits are picked up at the Public "
+           "Safety ID Office. The $100 fee goes on the term bill.")
+    row = {"id": "page-1", "source_key": "office-pages", "source_record_key": "r",
+           "url": "https://www.ramapo.edu/publicsafety/parking/", "collected_at": NOW,
+           "freshness_sla_hours": 168, "content_hash": "h",
+           "sections": [{"heading": "Parking permits", "text": own}],
+           "howto_entries": [{"task": "Get a student parking permit",
+                              "section": "Parking permits", "steps": [
+                                  {"text": "Register your car online.",
+                                   "quote": "Students must register their vehicle online"},
+                                  {"text": "Pick up the permit at the ID Office.",
+                                   "quote": "Permits are picked up at the Public Safety ID "
+                                            "Office"}]}]}
+    prop, _ = procedures_property([row], NOW, "get a parking permit")
+    value = prop["values"][0]["value"]
+    assert "(page: \u201c" in value["text"] and value["section_words"] == own
+    section = {"n": 1, "heading": value["heading"], "text": value["text"],
+               "section_words": value["section_words"]}
+    lines = numbered([{"office": "Public Safety", "sections": [section]}])
+    assert [line["says"] for line in lines] == sentences(own)
+    # With the section's words left out, its steps are read back from how the read says them.
+    del section["section_words"]
+    assert [line["says"] for line in numbered([{"office": "Public Safety",
+                                                "sections": [section]}])] == [
+        "Register your car online.", "Pick up the permit at the ID Office."]
+
+
 def test_the_sentences_most_picks_choose_are_kept_and_code_adds_the_kinds_asked() -> None:
     lines = numbered(PARKING)
     # Two of three picks choose the appeal deadline and the late fee; one also chose the

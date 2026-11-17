@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rockygpt_brain.retrieval.page_marks import PageMark
+
 numpy: Any
 try:  # Scoring every vector at once; the pure-Python loop is the fallback. Imported by name so
     # the type check never reads numpy's own stubs (written for a newer Python than its target).
@@ -39,6 +41,10 @@ dot: Any = getattr(math, "sumprod", _dot)
 
 # The vectors file holds float32 values, DIMENSIONS per vector, each vector of length one.
 MEANING_SUFFIX, VECTORS_SUFFIX = ".meaning.json", ".meaning.f32"
+# The same vectors already in 8 bits, with one float32 scale each (MeaningIndex.quantize), as the
+# build writes them beside the floats (audit item 17, 11-17: the float file was 104.8 MB a
+# release, the 8-bit pair about a quarter of it, and the Brain kept only the 8 bits anyway).
+SMALL_VECTORS_SUFFIX, SCALES_SUFFIX = ".meaning.i8", ".meaning.scales"
 MATRIX_CHUNK = 4096  # Vectors widened to float32 at a time (8 MB at 512 dimensions).
 
 # A card found only by its meaning (a club or an event a question names no word of) counts when
@@ -132,6 +138,10 @@ class MeaningIndex:
             for u, label in zip(self.units, meta.get("labels") or [], strict=False)}
         # Each policy record's units in the policy's order, by record (policy_records).
         self.policies: dict[str, list[tuple[str, str]]] = policy_records(self.units, self.labels)
+        # Each office page's marks by record id (page_marks): its owner, the day it last changed,
+        # and whether it is current. An index built before 11-16 has none.
+        self.pages: dict[str, PageMark] = {
+            str(rid): PageMark.from_meta(mark) for rid, mark in (meta.get("pages") or {}).items()}
         # Each program's and course's card (id, kind), after the office cards: a program or course
         # named only in part is found by its meaning. Never office cards: they are read as offices.
         self.academic: list[tuple[str, str]] = [(str(a[0]), str(a[1]))
@@ -226,27 +236,21 @@ class MeaningIndex:
         of 300 test questions and 99.3% of the ten best units, and scored faster."""
         meta_path = release_file.with_suffix(MEANING_SUFFIX)
         vectors_path = release_file.with_suffix(VECTORS_SUFFIX)
-        if not meta_path.is_file() or not vectors_path.is_file():
+        small_path = release_file.with_suffix(SMALL_VECTORS_SUFFIX)
+        scales_path = release_file.with_suffix(SCALES_SUFFIX)
+        if not meta_path.is_file():
             return None
         meta = json.loads(meta_path.read_text())
+        if small_path.is_file() and scales_path.is_file():
+            return cls.from_quantized(meta, small_path.read_bytes(), scales_path.read_bytes())
+        if not vectors_path.is_file():
+            return None
         if numpy is None:
             vectors = array.array("f")
             vectors.frombytes(vectors_path.read_bytes())
             return cls(meta, vectors)
-        size = int(meta["dimensions"])
-        stored, scales = array.array("b"), array.array("f")
-        with vectors_path.open("rb") as file:
-            while len(floats := numpy.fromfile(file, dtype=numpy.float32,
-                                               count=MATRIX_CHUNK * size)):
-                # quantize()'s own arithmetic (float64, ties to even), so the index loaded here
-                # and the one the database stores are the same bytes.
-                chunk = floats.astype(numpy.float64).reshape(-1, size)
-                scale = numpy.abs(chunk).max(axis=1) / 127.0
-                scale[scale == 0] = 1.0
-                stored.frombytes(numpy.clip(numpy.rint(chunk / scale[:, None]), -127, 127)
-                                 .astype(numpy.int8).tobytes())
-                scales.frombytes(scale.astype(numpy.float32).tobytes())
-        return cls(meta, stored, scales)
+        stored, scales = quantize_file(vectors_path, int(meta["dimensions"]))
+        return cls.from_quantized(meta, stored, scales)
 
     def scores(self, query: Sequence[float]) -> MeaningScores:
         """Every unit's similarity to the query (its best vector), best first."""
@@ -322,3 +326,22 @@ class MeaningIndex:
             if len(found) >= limit:
                 break
         return found[:limit]
+
+
+def quantize_file(vectors_path: Path, size: int) -> tuple[bytes, bytes]:
+    """A float file's vectors in 8 bits and their scales (MeaningIndex.quantize), read
+    MATRIX_CHUNK vectors at a time so the floats are never all in memory. Needs numpy."""
+    stored, scales = array.array("b"), array.array("f")
+    with vectors_path.open("rb") as file:
+        while len(floats := numpy.fromfile(file, dtype=numpy.float32, count=MATRIX_CHUNK * size)):
+            if len(floats) % size:
+                raise ValueError("The meaning index vectors do not match its units.")
+            # quantize()'s own arithmetic (float64, ties to even), so the index loaded here and
+            # the one the database stores are the same bytes.
+            chunk = floats.astype(numpy.float64).reshape(-1, size)
+            scale = numpy.abs(chunk).max(axis=1) / 127.0
+            scale[scale == 0] = 1.0
+            stored.frombytes(numpy.clip(numpy.rint(chunk / scale[:, None]), -127, 127)
+                             .astype(numpy.int8).tobytes())
+            scales.frombytes(scale.astype(numpy.float32).tobytes())
+    return stored.tobytes(), scales.tobytes()

@@ -225,3 +225,45 @@ def test_the_graph_browser_lists_every_kind_the_release_holds() -> None:
         stale = http.get("/v1/dev/graph/browse?dataset_version=old&identity_hash=identities-1",
                          headers=ASKED)
         assert stale.status_code == 409
+
+
+
+
+def test_budget_needs_a_real_ledger_and_the_header() -> None:
+    with client() as http:
+        assert http.get("/v1/dev/budget").status_code == 404
+        response = http.get("/v1/dev/budget", headers=ASKED)
+    assert response.status_code == 503
+    assert response.json()["reason"] == "ledger_unavailable"
+
+
+def test_budget_reports_the_ledger_balance(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rockygpt_brain.spending import PostgresLedger, SpendingError
+
+    ledger = PostgresLedger("postgresql://unused", "development")
+    seen: list[datetime] = []
+
+    async def balance(now: datetime) -> dict[str, Any]:
+        seen.append(now)
+        return {"month": "2026-11-01", "allowanceNusd": 20_000_000_000, "leftNusd": 5}
+
+    monkeypatch.setattr(ledger, "balance", balance)
+    chat_engine = engine()
+    chat_engine.gateway.ledger = ledger  # type: ignore[attr-defined]
+    application = create_app(chat_engine, service_token="", environment="development")
+    with TestClient(application) as http:
+        body = http.get("/v1/dev/budget", headers=ASKED)
+    assert body.status_code == 200
+    assert body.headers["cache-control"] == "no-store"
+    assert body.json()["leftNusd"] == 5
+    assert "checkedAt" in body.json()
+    assert len(seen) == 1
+
+    async def broken(now: datetime) -> dict[str, Any]:
+        raise SpendingError("ledger_unavailable")
+
+    monkeypatch.setattr(ledger, "balance", broken)
+    with TestClient(application) as http:
+        failed = http.get("/v1/dev/budget", headers=ASKED)
+    assert failed.status_code == 503
+    assert failed.json()["error"]["retryable"] is True

@@ -6,7 +6,14 @@ before a turn exists, so the rest of the Brain only ever sees a request that fit
 
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StringConstraints,
+    model_validator,
+)
 
 MAX_MESSAGES = 80
 MAX_MESSAGE_CHARS = 16_000
@@ -38,7 +45,7 @@ class ChatRequest(BaseModel):
     omittedMessages: Annotated[StrictInt, Field(ge=0, le=MAX_OMITTED_MESSAGES)] = 0
     # Which writer says this answer's facts, for trying both on one question (`rocky ask
     # --writer`, the dev UI); the student app never sends it, so students get the Brain's setting.
-    writer: Literal["template", "ai"] | None = None
+    writer: Literal["template", "ai", "sections", "direct"] | None = None
 
     @model_validator(mode="after")
     def fits_a_conversation(self) -> Self:

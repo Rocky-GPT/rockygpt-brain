@@ -5,7 +5,7 @@ import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
@@ -172,6 +172,87 @@ class PostgresLedger:
             return bool(row and not row[1] and 0 < row[0] <= 10_000_000_000)
         except SpendingError:
             return False
+
+    async def balance(self, now: datetime) -> dict[str, Any]:
+        """What this month's allowance has left, counted exactly as `reserve` counts it: the cap
+        (plus, in development, the month's dated extra) minus this month's settled costs and every
+        unsettled hold, whatever its month. Read-only, without the account lock, so it never slows
+        an answer; a hold committed a moment later is not in it. Amounts are nUSD."""
+        month = now.astimezone(CAMPUS_TZ).date().replace(day=1)
+        async with self._connection() as connection:
+            async with self._transaction(connection):
+                await connection.execute("SET TRANSACTION READ ONLY")
+                account = await connection.execute(
+                    "SELECT cap_nusd, paused FROM brain_ops.accounts WHERE environment = %s",
+                    (self.environment,),
+                )
+                extra = await connection.execute(
+                    "SELECT COALESCE((SELECT extra_nusd FROM brain_ops.monthly_allowances "
+                    "WHERE environment = %s AND month = %s), 0)",
+                    (self.environment, month),
+                )
+                counted = await connection.execute(
+                    "SELECT "
+                    "COALESCE(SUM(cost_nusd) FILTER (WHERE state = 'settled'), 0), "
+                    "COALESCE(SUM(reserved_nusd) FILTER (WHERE state = 'reserved'), 0), "
+                    "COUNT(*) FILTER (WHERE state = 'reserved'), "
+                    "COALESCE(SUM(reserved_nusd) FILTER (WHERE state = 'uncertain'), 0), "
+                    "COUNT(*) FILTER (WHERE state = 'uncertain') "
+                    "FROM brain_ops.operations WHERE environment = %s "
+                    "AND (state <> 'settled' OR charged_month = %s)",
+                    (self.environment, month),
+                )
+            cap, paused = await self._account(account)
+            extra_row = await extra.fetchone()
+            totals = await counted.fetchone()
+        extra_nusd = int(extra_row[0]) if extra_row and self.environment == "development" else 0
+        settled, reserved, reserved_calls, uncertain, uncertain_calls = (
+            int(value) for value in (totals or (0, 0, 0, 0, 0)))
+        allowance = cap + extra_nusd
+        held = reserved + uncertain
+        return {
+            "environment": self.environment, "month": month.isoformat(), "paused": paused,
+            "capNusd": cap, "extraNusd": extra_nusd, "allowanceNusd": allowance,
+            "settledNusd": settled, "heldNusd": held,
+            "reservedNusd": reserved, "reservedCalls": reserved_calls,
+            "uncertainNusd": uncertain, "uncertainCalls": uncertain_calls,
+            "leftNusd": max(0, allowance - settled - held),
+        }
+
+    async def stuck_holds(self, older_than: timedelta, *,
+                          release: bool = False) -> list[dict[str, Any]]:
+        """The holds no call settled (state reserved or uncertain) untouched for longer than
+        older_than: a call whose process stopped, or whose provider answer never came back. Each
+        keeps counting against the allowance at its full amount until settled. With release, they
+        are settled at no cost under the account lock, their error_code marked "released by hand"
+        (check the provider's usage page first: a call it did charge is then not counted).
+        Audit item 16, 11-17: $3.46 to $4.51 of such holds were seen on dev, and only hand-written
+        SQL cleared them."""
+        async with self._connection() as connection:
+            async with self._transaction(connection):
+                account = await self._lock(connection)
+                values = {"environment": self.environment, "older": older_than}
+                if release:
+                    rows = await connection.execute(
+                        "UPDATE brain_ops.operations SET state = 'settled', cost_nusd = 0, "
+                        "charged_month = admitted_month, usage = '{}'::jsonb, "
+                        "error_code = COALESCE(error_code || ', ', '') || 'released by hand', "
+                        "updated_at = clock_timestamp() WHERE environment = %(environment)s "
+                        "AND state <> 'settled' AND updated_at < clock_timestamp() - %(older)s "
+                        "RETURNING operation_id::text, request_id, state, reserved_nusd, "
+                        "error_code, created_at, updated_at", values)
+                else:
+                    rows = await connection.execute(
+                        "SELECT operation_id::text, request_id, state, reserved_nusd, "
+                        "error_code, created_at, updated_at FROM brain_ops.operations "
+                        "WHERE environment = %(environment)s AND state <> 'settled' "
+                        "AND updated_at < clock_timestamp() - %(older)s ORDER BY created_at",
+                        values)
+                held = await rows.fetchall()
+            await self._account(account)
+        names = ("operation", "request", "state", "reservedNusd", "errorCode", "createdAt",
+                 "updatedAt")
+        return [dict(zip(names, row, strict=True)) for row in held]
 
     async def reserve(
         self, request_id: str, amount_nusd: int, metadata: dict[str, Any], now: datetime,

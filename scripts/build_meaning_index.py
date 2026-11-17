@@ -8,9 +8,10 @@ are cached by their text (CACHE_DIR), so a new release only pays for units that 
     python scripts/build_meaning_index.py --dir PUBLISHED_DIR --cache CACHE_DIR
 
 Run it through local-env.py brain (it reads BRAIN_OPENAI_API_KEY and BRAIN_OPENAI_PROJECT, never
-prints them) after scripts/build_graph.py. It writes release-*.meaning.json and .meaning.f32 next
-to the active release file; the Brain uses them only for that release. Embeddings find units; they
-are never evidence.
+prints them) after scripts/build_graph.py. It writes release-*.meaning.json, the 8-bit
+vectors .meaning.i8 with their .meaning.scales, and (until MEANING_FLOATS=0) the float vectors
+.meaning.f32 next to the active release file; the Brain uses them only for that release.
+Embeddings find units; they are never evidence.
 
 Each event and club card is also given its kinds (rockygpt_brain/kinds.py: art and crafts,
 cultural, sports...) by the chat model, cached by the card's text, so "any art events" lists every
@@ -43,7 +44,14 @@ from rockygpt_brain.kinds import KINDS, KINDS_VERSION, LABEL_READS
 from rockygpt_brain.kinds import RULES as KINDS_RULES
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
-from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
+from rockygpt_brain.retrieval.meaning import (
+    MEANING_SUFFIX,
+    SCALES_SUFFIX,
+    SMALL_VECTORS_SUFFIX,
+    VECTORS_SUFFIX,
+    quantize_file,
+)
+from rockygpt_brain.retrieval.page_marks import page_marks, page_owners
 
 EMBED_MODEL, DIMENSIONS, CHAT_MODEL = "text-embedding-3-large", 512, "gpt-6-luna"
 QUESTIONS_PROMPT = (
@@ -82,6 +90,32 @@ KINDS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["i
 MAX_KINDS = 3
 
 
+class NoCredit(Exception):
+    """The model service refused a call because the account's prepaid balance is used up. Not a
+    RuntimeError: a failed call is skipped and tried by the next build, but no call after this
+    one can succeed, here or anywhere else the key is used (the live Brain included)."""
+
+    def __init__(self) -> None:
+        super().__init__("The model account has no credit left: the build stopped. Nothing that "
+                         "uses this key can call the model until credit is added, the live Brain "
+                         "included. Add credit, then run the build again; it keeps what it paid "
+                         "for.")
+
+
+def _no_credit(error: urllib.error.HTTPError) -> bool:
+    """Whether a refusal says the account is out of credit. It comes as HTTP 429 like "slow down"
+    (2026-11-11: type "insufficient_quota", code "credit_balance_exhausted"), but waiting does
+    not help."""
+    if error.code != 429:
+        return False
+    try:
+        detail = json.loads(error.read()).get("error") or {}
+    except (ValueError, AttributeError, OSError):
+        return False
+    return bool({detail.get("type"), detail.get("code")}
+                & {"insufficient_quota", "credit_balance_exhausted"})
+
+
 def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
     headers = {"content-type": "application/json",
                "authorization": "Bearer " + os.environ["BRAIN_OPENAI_API_KEY"]}
@@ -94,6 +128,8 @@ def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
             with urllib.request.urlopen(request, timeout=180) as response:  # noqa: S310
                 return json.load(response)  # type: ignore[no-any-return]
         except urllib.error.HTTPError as error:
+            if _no_credit(error):
+                raise NoCredit from None
             if error.code not in (429, 500, 502, 503) or attempt == 4:
                 raise RuntimeError(f"OpenAI {path} failed with HTTP {error.code}") from None
         except (urllib.error.URLError, TimeoutError):
@@ -152,8 +188,26 @@ def collect(facts: GraphOnlyFacts) -> tuple[str, str, list[dict[str, Any]], dict
                         continue
                     units[key] = {"record_id": key[0], "index": index, "entities": [entity["id"]],
                                   "page": str(row.get("url") or ""), "heading": unit["heading"],
-                                  "text": unit["text"], "entry": index.startswith("e")}
+                                  "text": unit["text"], "entry": index.startswith("e"),
+                                  "row": {k: row.get(k) for k in MARKED}}
     return version, identity, list(units.values()), names
+
+
+# What a page's marks are read from (retrieval/page_marks.py).
+MARKED = ("url", "site_folder", "page_modified_at")
+
+
+def marks_of(units: list[dict[str, Any]]) -> dict[str, list[Any]]:
+    """Each unit page's marks by record id: its owner among the offices linking it, the day it
+    last changed, the last day its address names, and whether it holds previous items."""
+    links: dict[str, list[str]] = {}
+    rows: dict[str, dict[str, Any]] = {}
+    for unit in units:
+        held = links.setdefault(unit["record_id"], [])
+        held += [e for e in unit["entities"] if e not in held]
+        rows.setdefault(unit["record_id"], unit.get("row") or {"url": unit["page"]})
+    owners = page_owners(links, {rid: row.get("site_folder") for rid, row in rows.items()})
+    return {rid: page_marks(row, owners.get(rid)).to_meta() for rid, row in rows.items()}
 
 
 CARD_HEADINGS = 30
@@ -417,7 +471,9 @@ def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
     """Three student questions for each how-to entry not already in the cache, read 12 entries at
     a time per page, until the calls have cost `budget_nusd` (the rest wait for the next build).
     `save` is called every QUESTIONS_SAVE_EVERY batches and at the end, so a run that is stopped
-    keeps what it paid for. Returns how many entries were read and what the calls cost."""
+    keeps what it paid for. Returns how many entries were read and what the calls cost. Raises
+    NoCredit, after saving, when the account has no credit left: on 2026-11-11 each of about
+    1,900 calls was instead retried for 30 seconds and skipped, an hour that wrote nothing."""
     due: dict[str, list[dict[str, Any]]] = {}
     for unit in units:
         if unit["entry"] and _digest(unit["heading"], unit["text"]) not in cache:
@@ -455,24 +511,27 @@ def write_questions(units: list[dict[str, Any]], cache: dict[str, list[str]],
 
     spent = read_count = finished = 0
     pending: set[Future[tuple[dict[str, list[str]], int, int]]] = set()
-    with ThreadPoolExecutor(16) as pool:
-        while True:
-            while len(pending) < 16 and spent < budget_nusd:
-                batch = next(batches, None)
-                if batch is None:
+    try:
+        with ThreadPoolExecutor(16) as pool:
+            while True:
+                while len(pending) < 16 and spent < budget_nusd:
+                    batch = next(batches, None)
+                    if batch is None:
+                        break
+                    pending.add(pool.submit(read, batch))
+                if not pending:
                     break
-                pending.add(pool.submit(read, batch))
-            if not pending:
-                break
-            done, pending = wait(pending, return_when=FIRST_COMPLETED)
-            for future in done:
-                found, cost, count = future.result()
-                cache.update(found)
-                spent, read_count, finished = spent + cost, read_count + count, finished + 1
-                if save is not None and finished % QUESTIONS_SAVE_EVERY == 0:
-                    save()
-    if save is not None:
-        save()
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    found, cost, count = future.result()
+                    cache.update(found)
+                    spent, read_count, finished = spent + cost, read_count + count, finished + 1
+                    if save is not None and finished % QUESTIONS_SAVE_EVERY == 0:
+                        save()
+    finally:
+        # Also when the build is stopped (NoCredit): the questions it paid for are kept.
+        if save is not None:
+            save()
     return read_count, spent
 
 
@@ -575,8 +634,13 @@ def main(argv: list[str] | None = None) -> int:
     cache = load_vectors(args.cache)
     every = ([t for _, t in texts] + [card for _, _, card in cards]
              + [card for _, _, card in academic])
-    embedded = embed_all(every, cache)
-    save_vectors(args.cache, cache, [_digest(EMBED_MODEL, str(DIMENSIONS), t) for t in every])
+    try:
+        embedded = embed_all(every, cache)
+    finally:
+        # A build stopped part way (the account out of credit, the service refusing) keeps the
+        # vectors it paid for, so the next build embeds only the rest.
+        save_vectors(args.cache, cache, [key for key in (_digest(EMBED_MODEL, str(DIMENSIONS), t)
+                                                         for t in every) if key in cache])
     flat = array.array("f")
     # The office cards' vectors follow the units' vectors, in the order of "cards"; then the
     # program and course cards, in the order of "academic".
@@ -594,17 +658,28 @@ def main(argv: list[str] | None = None) -> int:
             "required_by": required_by,
             "course_titles": course_titles,
             "labels": [[_where(u["page"]), u["heading"]] for u in units],
+            "pages": marks_of(units),
             "kinds": kinds_of(academic, kinds), "kinds_version": KINDS_VERSION}
     if (version, identity) != (pointer["dataset_version"], pointer["identity_hash"]):
         print("The active release changed while the index was built; run it again.",
               file=sys.stderr)
         return 1
     # Each file is written whole and renamed into place, so a running Brain never reads half of one.
-    for suffix, data in ((VECTORS_SUFFIX, flat.tobytes()),
+    # The 8-bit pair is what a Brain loads (MeaningIndex.load); the floats stay beside it until
+    # every Brain reads the pair, and MEANING_FLOATS=0 then leaves them out (audit item 17).
+    floats = release_file.with_suffix(VECTORS_SUFFIX + ".floats")
+    floats.write_bytes(flat.tobytes())
+    small, scales = quantize_file(floats, DIMENSIONS)
+    for suffix, data in ((SMALL_VECTORS_SUFFIX, small), (SCALES_SUFFIX, scales),
                          (MEANING_SUFFIX, json.dumps(meta).encode())):
         temporary = release_file.with_suffix(suffix + ".tmp")
         temporary.write_bytes(data)
         os.replace(temporary, release_file.with_suffix(suffix))
+    if os.environ.get("MEANING_FLOATS", "1") == "0":
+        floats.unlink()
+        release_file.with_suffix(VECTORS_SUFFIX).unlink(missing_ok=True)
+    else:
+        os.replace(floats, release_file.with_suffix(VECTORS_SUFFIX))
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
           f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
@@ -616,4 +691,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except NoCredit as stopped:
+        # One plain line, marked as an error for a workflow run's summary, not a traceback.
+        sys.exit(f"::error::{stopped}")

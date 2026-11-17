@@ -1,8 +1,13 @@
 import array
+import io
 import json
 import math
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from copy import deepcopy
+from email.message import Message
 from pathlib import Path
 from typing import Any
 
@@ -292,6 +297,19 @@ def test_a_section_heading_naming_only_an_old_year_is_past() -> None:
     assert past_heading("Fall 2025 deadlines", today) is None
 
 
+def test_a_task_whose_term_is_an_old_year_alone_is_over() -> None:
+    from datetime import date
+
+    from rockygpt_brain.retrieval.entity_facts import unit_over
+    today = date(2026, 11, 11)
+    row = {"url": "https://www.ramapo.edu/international/diversity-in-health-care/"}
+    unit = {"heading": "Request a parking permit for the conference", "text": "Email the host."}
+    assert unit_over(row, unit, today) is None
+    assert unit_over(row, {**unit, "term": "2019"}, today) == "2019"
+    assert unit_over(row, {**unit, "term": "2026"}, today) is None
+    assert unit_over(row, {**unit, "term": "Fall 2026/Spring 2027"}, today) is None
+
+
 def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
     from datetime import date
 
@@ -305,6 +323,12 @@ def test_a_text_whose_every_deadline_date_has_passed_is_past() -> None:
     assert past_dates("The Spring 2027 payment deadline is December 16, 2026.", today) is None
     # An effective or revision date is not a deadline.
     assert past_dates("Effective date: July 1, 2019. Revised March 3, 2021.", today) is None
+    # A date in numbers, month first, with a short or a full year.
+    assert past_dates("Apply for scholarships by 9/23/26 at the site.", today) == (
+        "September 23, 2026")
+    assert past_dates("Apply by 9/23/2026. The spring round is due 2/15/27.", today) is None
+    assert past_dates("Due 13/45/26.", today) is None  # not a date
+    assert past_dates("Staff are paid 1/2/26 of their salary each period.", today) is None
 
 
 def test_an_index_stored_in_8_bits_ranks_as_the_float_index_does() -> None:
@@ -372,6 +396,23 @@ def test_an_index_file_is_loaded_in_8_bits_as_the_database_stores_it(
     # A file cut inside a vector is not an index.
     monkeypatch.undo()
     release.with_suffix(".meaning.f32").write_bytes(flat.tobytes()[:-4])
+    with pytest.raises(ValueError):
+        MeaningIndex.load(release)
+    # The build's 8-bit pair (audit item 17) is loaded in place of the floats, the same bytes,
+    # even without numpy and with the float file gone.
+    (tmp_path / "floats.f32").write_bytes(flat.tobytes())
+    small, scales = meaning.quantize_file(tmp_path / "floats.f32", 3)
+    assert (small, scales) == index.quantize()
+    release.with_suffix(".meaning.i8").write_bytes(small)
+    release.with_suffix(".meaning.scales").write_bytes(scales)
+    release.with_suffix(".meaning.f32").unlink()
+    paired = MeaningIndex.load(release)
+    assert paired is not None and paired.quantize() == index.quantize()
+    assert list(paired.scores([0.5, 0.5, 0.1])) == list(loaded.scores([0.5, 0.5, 0.1]))
+    monkeypatch.setattr(meaning, "numpy", None)
+    assert MeaningIndex.load(release).quantize() == index.quantize()  # type: ignore[union-attr]
+    monkeypatch.undo()
+    release.with_suffix(".meaning.scales").write_bytes(scales[:-4])
     with pytest.raises(ValueError):
         MeaningIndex.load(release)
 
@@ -460,6 +501,72 @@ def test_how_to_entries_are_given_student_questions_until_the_build_spends_its_b
     assert build.write_questions(broken, cache) == (1, 0)
     assert build._digest("Hours", "Open 9 to 5.") not in cache
     assert build.write_questions(broken, cache) == (1, 0) and len(asked) == 42
+
+
+def test_a_build_stops_at_once_when_the_model_account_has_no_credit(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # 11-11: the first read of every office page used up the account's prepaid balance. The
+    # service then refused every call with HTTP 429, the status of "slow down"; the build
+    # retried each of about 1,900 question calls for 30 seconds, skipped it, and failed an hour
+    # later at its first embedding, having lost nothing but the hour and said nothing of money.
+    import build_meaning_index as build
+
+    refusals: list[dict[str, Any]] = []
+    sent: list[str] = []
+
+    def urlopen(request: Any, timeout: float) -> Any:
+        sent.append(request.full_url)
+        raise urllib.error.HTTPError(request.full_url, 429, "Too Many Requests", Message(),
+                                     io.BytesIO(json.dumps(refusals[0]).encode()))
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setenv("BRAIN_OPENAI_API_KEY", "test-key")
+    # The refusal as the service sent it: not tried again.
+    refusals[:] = [{"error": {"type": "insufficient_quota", "code": "credit_balance_exhausted"}}]
+    with pytest.raises(build.NoCredit, match="no credit left"):
+        build._post("embeddings", {"input": ["a"]})
+    assert len(sent) == 1
+    # "Slow down" is still tried five times, then fails as a call that the next build repeats.
+    sent.clear()
+    refusals[:] = [{"error": {"type": "tokens", "code": "rate_limit_exceeded"}}]
+    with pytest.raises(RuntimeError, match="HTTP 429"):
+        build._post("embeddings", {"input": ["a"]})
+    assert len(sent) == 5
+
+    # Writing questions stops too, and keeps the questions already paid for.
+    asked: list[str] = []
+
+    def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        asked.append(path)
+        raise build.NoCredit
+
+    monkeypatch.setattr(build, "_post", post)
+    units = [{"page": f"https://www.ramapo.edu/page-{n}/", "heading": f"Heading {n}",
+              "text": f"Text {n}.", "entry": True} for n in range(200)]
+    questions = {build._digest("Paid for", "Earlier."): ["how do i", "b", "c"]}
+    saved: list[int] = []
+    with pytest.raises(build.NoCredit):
+        build.write_questions(units, questions, lambda: saved.append(len(questions)))
+    # Only the calls already out were made (16 at once), not one for each of the 200 pages.
+    assert len(asked) <= 16 and saved == [1]
+
+    # Embedding stops at the refused call; the vectors of the calls before it can be saved.
+    def embeddings(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        if len(body["input"]) < 300:
+            raise build.NoCredit
+        return {"data": [{"index": n, "embedding": [float(n)] * build.DIMENSIONS}
+                         for n in range(len(body["input"]))]}
+
+    monkeypatch.setattr(build, "_post", embeddings)
+    texts = [f"text {n}" for n in range(301)]
+    vectors: dict[str, list[float]] = {}
+    with pytest.raises(build.NoCredit):
+        build.embed_all(texts, vectors)
+    keys = [build._digest(build.EMBED_MODEL, str(build.DIMENSIONS), text) for text in texts]
+    assert [key in vectors for key in keys] == [True] * 300 + [False]
+    build.save_vectors(tmp_path, vectors, [key for key in keys if key in vectors])
+    assert build.load_vectors(tmp_path).keys() == set(keys[:300])
 
 
 def test_who_leads_an_office_reads_its_own_sections_whatever_fields_were_asked() -> None:

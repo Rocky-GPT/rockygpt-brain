@@ -39,7 +39,13 @@ from rockygpt_brain.retrieval.entity_facts import (
     Snapshot,
     validate_entities,
 )
-from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX, MeaningIndex
+from rockygpt_brain.retrieval.meaning import (
+    MEANING_SUFFIX,
+    SCALES_SUFFIX,
+    SMALL_VECTORS_SUFFIX,
+    VECTORS_SUFFIX,
+    MeaningIndex,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -390,7 +396,9 @@ def publish_release_graph(
                        key=lambda f: f.stat().st_mtime, reverse=True)
         for old in files[KEEP_RELEASES - 1:]:
             _remove(old)
-            for sidecar in (MEANING_SUFFIX, VECTORS_SUFFIX):
+            # .cards.json: answer cards, dropped 2026-11-17; older releases may still have one.
+            for sidecar in (MEANING_SUFFIX, VECTORS_SUFFIX, SMALL_VECTORS_SUFFIX, SCALES_SUFFIX,
+                            ".cards.json"):
                 _remove(old.with_suffix(sidecar))
     except OSError as exc:
         _remove(temp)

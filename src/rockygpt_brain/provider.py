@@ -21,13 +21,19 @@ from rockygpt_brain.spending import Ledger, PostgresLedger, Reservation, Spendin
 from rockygpt_brain.timing import measure
 
 LOG = logging.getLogger(__name__)
+# The least time a turn needs left to ask a failed call once more.
+RETRY_MIN_SECONDS = 6.0
 
 
 class GatewayError(Exception):
-    def __init__(self, code: str, *, retryable: bool = False) -> None:
+    def __init__(self, code: str, *, retryable: bool = False, again: bool = False) -> None:
         super().__init__(code)
         self.code = code
         self.retryable = retryable
+        # Whether the gateway asks once more itself: the request was never sent, or the provider
+        # failed on its side (no answer, or a 5xx). Never for a 429, which a second try within
+        # the same second only repeats, nor for a timeout, which used the turn's time.
+        self.again = again
 
 
 class NotSentError(Exception):
@@ -220,7 +226,18 @@ class Gateway:
     ) -> Completion:
         async with budget._lock:
             try:
-                return await self._complete(input=input, tools=tools, budget=budget)
+                try:
+                    return await self._complete(input=input, tools=tools, budget=budget)
+                except GatewayError as error:
+                    # A call the provider failed on its side is asked once more while the turn
+                    # has time for it (audit item 16, 11-17: a failed call was never retried).
+                    if (not error.again
+                            or budget.deadline - self._monotonic() < RETRY_MIN_SECONDS):
+                        raise
+                    LOG.warning("provider_retry request_id=%s code=%s",
+                                budget.request_id, error.code)
+                    budget.max_calls = max(budget.max_calls, budget.calls + 1)
+                    return await self._complete(input=input, tools=tools, budget=budget)
             except SpendingError as error:
                 raise GatewayError(error.code) from error
 
@@ -292,7 +309,7 @@ class Gateway:
             with measure("Release unused model allowance"):
                 await self.ledger.release(reservation, "not_sent", self._now())
             budget.committed_nusd -= reserve_cost
-            raise GatewayError("provider_unavailable", retryable=True) from error
+            raise GatewayError("provider_unavailable", retryable=True, again=True) from error
         except asyncio.CancelledError:
             # Cancellation must stop promptly. The durable reserved row already
             # holds the full cost and is reconciled just like an uncertain row;
@@ -313,7 +330,8 @@ class Gateway:
                 budget.request_id, type(error).__name__, status, code,
             )
             await self._uncertain(reservation, code)
-            raise GatewayError(code, retryable=retryable) from error
+            again = code == "provider_unavailable" and status != 429
+            raise GatewayError(code, retryable=retryable, again=again) from error
         try:
             with measure("Validate model usage"):
                 usage = _usage(response)

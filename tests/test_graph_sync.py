@@ -148,7 +148,7 @@ def test_the_follower_reports_a_failure_and_keeps_the_brain_on_its_copy(tmp_path
     follower = GraphFollower(STORE, tmp_path / "brain")
     follower.store = GraphStore(bucket="campus", access_key_id="key", secret_access_key="secret",  # noqa: S106
                                 endpoint="http://127.0.0.1:9")
-    assert follower.sync_once() is False
+    assert follower.fetch() is None
     assert follower.last_error is not None
 
 
