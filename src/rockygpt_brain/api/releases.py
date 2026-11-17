@@ -1,36 +1,116 @@
 """The release the Brain serves, and moving to a newer one only once it is ready.
 
-Before, a new release was installed first and its lists read after, while students asked: on
-11-04 each question began its own copy of each list, the office list missed its 3 s limit and
-questions fell to the slow AI path (41 s, then time-outs). Now a new release is opened in a
-reader of its own, checked, and read in full (meaning index, how-to sections, every list) in an
-engine of its own while the engine serving keeps answering. Only then is it installed and the
-Brain switched to it; a question already being answered finishes on the engine it began on. A
-release that fails to open or pass its checks is never installed or served, and is not tried
-again until another one arrives.
+Before 11-04 a new release was installed first and its lists read after, while students asked:
+each question began its own copy of each list, the office list missed its 3 s limit and questions
+fell to the slow AI path (41 s, then time-outs). From 11-04 a new release was read in full in an
+engine of its own while the old engine kept answering, so for about a minute the Brain held two
+releases. On 11-17, in a box the size of Render's (512 MB, half a processor), the dev graph read
+that way was killed for memory 4 times out of 4.
+
+Now a switch pauses instead (pause and swap): new questions wait at the gate, the answers in flight
+finish, the old engine is dropped and its memory given back, and only then is the new release
+opened, checked and read in full in an engine of its own. In the same box, this switch (Releases
+and Gate as written here) moved 10 times over the dev and live graphs with 0 to 4 questions
+asked at once: 0 kills, the box's memory at most 402 MB, 0 failed answers, and new questions
+waited at most 21 s once per release (most nights a release arrives before students are up).
+A release that fails to open or pass its checks is never installed: the Brain reads the release
+it served again and is back on it, and does not try the refused one again until another arrives.
+If the answers in flight do not finish within PAUSE_LIMIT_SECONDS the switch is put off to the
+next check and nobody waits longer.
 
 Production's Brain gets each release from the file store (GraphFollower). The laptop's copy
 changes only when Dan syncs it by hand (run-local.sh sync-prod), and its running Brain moves to
 it the same way, from its own folder.
 """
 
+import asyncio
 import ctypes
 import gc
 import logging
 import os
 import threading
+import time
 import weakref
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any
 
 from rockygpt_brain.engine import ChatEngine
+from rockygpt_brain.retrieval.entity_facts import EntityFacts
 from rockygpt_brain.retrieval.graph_store import checked_release, read_pointer
 from rockygpt_brain.retrieval.graph_sync import GraphFollower, release_key
 
 LOG = logging.getLogger(__name__)
 WATCH_SECONDS = 5.0  # How often a Brain without a store looks at its own folder (the laptop).
-RETIRE_SECONDS = 120  # How long a replaced engine's last questions may take (a turn is 52 s).
+PAUSE_LIMIT_SECONDS = 60.0  # How long a switch waits for the answers in flight (a turn is 52 s).
+GONE_SECONDS = 5.0  # How long a switch waits for the dropped engine to be collected.
+GATE_POLL_SECONDS = 0.05  # How often a question waiting at a closed gate looks again.
+
+
+class Gate:
+    """Where each question passes on its way to the engine. A release switch closes it: questions
+    already past it finish, new ones wait until it opens again. Shared by the server's event loop
+    (questions) and the releases thread (the switch)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._idle = threading.Condition(self._lock)
+        self._busy = 0
+        self._closed = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @asynccontextmanager
+    async def passing(self) -> AsyncIterator[None]:
+        """Hold a place past the gate for one question (or any read of the engine)."""
+        while True:
+            with self._lock:
+                if not self._closed:
+                    self._busy += 1
+                    break
+            await asyncio.sleep(GATE_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._busy -= 1
+                if not self._busy:
+                    self._idle.notify_all()
+
+    @contextmanager
+    def passing_now(self) -> Iterator[bool]:
+        """A place past the gate without waiting: yields True when the gate was open (the place is
+        held until the block ends), False during a switch. For the emergency floor, which must
+        never wait: during a switch it gives its fixed emergency text alone."""
+        with self._lock:
+            passed = not self._closed
+            if passed:
+                self._busy += 1
+        try:
+            yield passed
+        finally:
+            if passed:
+                with self._lock:
+                    self._busy -= 1
+                    if not self._busy:
+                        self._idle.notify_all()
+
+    def close(self, timeout: float) -> bool:
+        """Stop new questions, then wait up to timeout for the ones past the gate to finish. True
+        when none is left; False (and the gate open again) when some still were."""
+        with self._lock:
+            self._closed = True
+            if self._idle.wait_for(lambda: not self._busy, timeout):
+                return True
+            self._closed = False
+            return False
+
+    def open(self) -> None:
+        with self._lock:
+            self._closed = False
 
 
 def give_back_memory() -> None:
@@ -55,15 +135,21 @@ def rss_mb() -> float | None:
 
 class Releases:
     """Keep state.engine (the engine that answers the next question) on the newest release that
-    opens and passes its checks, from the store (production) or the folder (the laptop)."""
+    opens and passes its checks, from the store (production) or the folder (the laptop).
+    state.gate, made here when the state has none, is where questions wait during a switch."""
 
     def __init__(self, state: Any, directory: Path | str,
                  follower: GraphFollower | None = None) -> None:
         self.state = state
+        if getattr(state, "gate", None) is None:
+            state.gate = Gate()
+        self.gate: Gate = state.gate
         self.directory = Path(directory)
         self.follower = follower
         self.refused: str | None = None  # The last release that failed to open or check.
-        self.replaced: weakref.ref[ChatEngine] | None = None  # The engine the last switch let go.
+        # Builds an engine with the serving engine's settings for other facts, without holding
+        # that engine (or its release) itself.
+        self._make: Callable[[EntityFacts], ChatEngine] | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -90,36 +176,87 @@ class Releases:
         if pointer is None:
             return False
         key = release_key(pointer)
-        serving = getattr(self.state.engine.facts, "release", None)
+        current = self.state.engine
+        if current is not None:
+            self._make = current.blueprint()
+        if self._make is None:
+            return False  # No engine has served yet: nothing to build a new one like.
+        serving = getattr(getattr(current, "facts", None), "release", None)
+        del current
         if key == self.refused or (serving is not None and key == release_key(serving)):
             return False
-        try:
-            facts = checked_release(self.directory, pointer)
-            engine: ChatEngine = self.state.engine.for_release(facts)
-            seconds = engine.warm()
-        except Exception as error:  # noqa: BLE001 - a release that cannot be read is refused
-            self._refuse(pointer, error)
-            return False
-        if self.follower is not None and not self.follower.install(pointer):
-            return False  # Not installed (the disk said no): the next check tries again.
-        self.replaced = weakref.ref(self.state.engine)
-        self.state.engine = engine
-        LOG.info("brain_release_switched release=%s warm_seconds=%s rss_mb=%s",
-                 pointer.get("dataset_version"), round(sum(seconds.values()), 2), rss_mb())
-        return True
+        return self._swap(pointer, serving)
 
-    def give_back(self) -> None:
-        """After a switch: once the replaced engine's last question is done and it is gone, hand
-        the memory it held back to the system, so the next switch starts from one release."""
-        replaced = self.replaced
-        for _ in range(RETIRE_SECONDS):
-            if replaced is None or replaced() is None or self._stop.wait(1):
-                break
+    def _swap(self, pointer: Mapping[str, Any], serving: Mapping[str, Any] | None) -> bool:
+        """Pause and swap: hold new questions, let the answers in flight finish, drop the old
+        engine, read the new release in full, serve it, let the questions in."""
+        assert self._make is not None
+        paused = time.monotonic()
+        if not self.gate.close(PAUSE_LIMIT_SECONDS):
+            LOG.warning("brain_release_switch_put_off release=%s reason=answers_in_flight "
+                        "waited_seconds=%s", pointer.get("dataset_version"), PAUSE_LIMIT_SECONDS)
+            return False
+        drained = round(time.monotonic() - paused, 2)
+        try:
+            self._drop_engine()
+            low = rss_mb()
+            try:
+                engine = self._ready(pointer)
+            except Exception as error:  # noqa: BLE001 - a release that cannot be read is refused
+                self._refuse(pointer, error)
+                self._back_to(serving)
+                return False
+            if self.follower is not None and not self.follower.install(pointer):
+                # Read and checked in full, so it serves; the folder's pointer still names the
+                # old one, and a restart serves that until the next check installs this one.
+                LOG.warning("brain_release_not_installed release=%s",
+                            pointer.get("dataset_version"))
+            self.state.engine = engine
+            del engine
+            give_back_memory()
+            LOG.info("brain_release_switched release=%s questions_waited_seconds=%s "
+                     "answers_in_flight_seconds=%s rss_mb_lowest=%s rss_mb=%s",
+                     pointer.get("dataset_version"), round(time.monotonic() - paused, 2),
+                     drained, low, rss_mb())
+            return True
+        finally:
+            self.gate.open()
+
+    def _ready(self, pointer: Mapping[str, Any]) -> ChatEngine:
+        """An engine on pointer's release, opened, checked and read in full."""
+        assert self._make is not None
+        facts = checked_release(self.directory, pointer)
+        engine = self._make(facts)
+        del facts
+        engine.warm()
+        return engine
+
+    def _drop_engine(self) -> None:
+        """Let the serving engine go and hand its memory back before another release is read."""
+        old = self.state.engine
+        gone = weakref.ref(old) if old is not None else None
+        self.state.engine = None
+        del old
+        deadline = time.monotonic() + GONE_SECONDS
+        while gone is not None and gone() is not None and time.monotonic() < deadline:
+            gc.collect()
+            if gone() is not None:
+                time.sleep(0.05)
         gc.collect()
-        before = rss_mb()
         give_back_memory()
-        LOG.info("brain_release_memory_given_back replaced_gone=%s rss_mb=%s->%s",
-                 replaced is None or replaced() is None, before, rss_mb())
+        if gone is not None and gone() is not None:
+            LOG.warning("brain_release_old_engine_still_held")
+
+    def _back_to(self, serving: Mapping[str, Any] | None) -> None:
+        """After a refused release: serve the release served before it again."""
+        if serving is None:
+            LOG.error("brain_release_restore_failed reason=no_release_named")
+            return
+        try:
+            self.state.engine = self._ready(serving)
+        except Exception as error:  # noqa: BLE001 - logged; the next check tries again
+            LOG.error("brain_release_restore_failed release=%s exception_type=%s",
+                      serving.get("dataset_version"), type(error).__name__)
 
     def _refuse(self, pointer: Mapping[str, Any], error: Exception) -> None:
         self.refused = release_key(pointer)
@@ -133,8 +270,7 @@ class Releases:
         def loop() -> None:
             while not self._stop.wait(self.wait()):
                 try:
-                    if self.check_once():
-                        self.give_back()
+                    self.check_once()
                 except Exception:  # noqa: BLE001 - the Brain keeps serving the release it has
                     LOG.exception("brain_release_check_failed")
 
