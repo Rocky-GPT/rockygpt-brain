@@ -9,7 +9,7 @@ facts: the directory and their faculty profile do.
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any
 
 from rockygpt_brain.plain_writer import literal
@@ -754,12 +754,19 @@ def course_key(title: str) -> tuple[tuple[str, ...], frozenset[int]]:
     return tuple(w for w in words if w not in _TITLE_FILLER), frozenset(numbers)
 
 
-def courses_named(message: str, titles: dict[str, str]) -> list[str]:
+def courses_named(message: str, titles: dict[str, str],
+                  subjects: Collection[str] = ()) -> list[str]:
     """The catalog courses (code to title) a question names: by code ("PSYC 101", "psyc101");
     else by a title whose every word it says, in full or by its first three letters or more
     ("intro" for introduction, "chem" for chemistry), with the title's number in a series when
     the question gives one ("2" or "II"); the titles with the most words said, every course with
-    such a title (a series asked without its number is the whole series)."""
+    such a title (a series asked without its number is the whole series).
+
+    A title that is only the name of one of the catalog's `subjects` ("Computer Science I" of
+    Computer Science), asked without its number, names the subject, not the course: "a list of
+    every professor in computer science" asks for the field's faculty (faculty_text), and was
+    answered with the 5 profiles that list Computer Science I or II instead of the 11 people the
+    catalog lists (step 4 of the page writer plan, 11-17)."""
     codes = sorted({f"{a.upper()} {b}" for a, b in _ASKED_CODE.findall(message)} & set(titles))
     if codes:
         return codes
@@ -774,12 +781,15 @@ def courses_named(message: str, titles: dict[str, str]) -> list[str]:
     def said(word: str) -> bool:
         return any(q == word or (len(q) >= 3 and not q.isdigit() and word.startswith(q))
                    for q in words)
+    fields = {course_key(subject)[0] for subject in subjects}
     best, chosen = 0, []
     for code, title in titles.items():
         base, series = course_key(title)
         if not base or _GENERIC_TITLE.search(title) or not all(said(w) for w in base):
             continue
         if numbers and series and not series & numbers:
+            continue
+        if base in fields and not (numbers and series):
             continue
         if len(base) > best:
             best, chosen = len(base), [code]

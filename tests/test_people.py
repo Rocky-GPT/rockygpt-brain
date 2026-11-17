@@ -391,6 +391,29 @@ def test_a_course_is_named_by_its_code_or_every_word_of_its_title() -> None:
     assert not asks_who_teaches("what is intro to psych about")
 
 
+def test_a_field_asked_by_its_name_alone_is_not_its_course_of_that_name() -> None:
+    # Step 4 of the page writer plan (11-17): "a list of every professor in computer science"
+    # was answered with the 5 profiles listing Computer Science I or II, not the 11 people the
+    # catalog lists as Computer Science faculty. A title that is only a field's name names the
+    # field unless the question gives the course's number or code.
+    from rockygpt_brain.people import courses_named
+    titles = {**TITLES, "CMPS 147": "COMPUTER SCIENCE I", "CMPS 148": "COMPUTER SCIENCE II",
+              "BIOL 110": "BIOLOGY"}
+    subjects = ["Computer Science", "Biology", "Psychology", "Chemistry"]
+    assert courses_named("i need a list of every professor in computer science", titles,
+                         subjects) == []
+    assert courses_named("who teaches biology at ramapo", titles, subjects) == []
+    assert courses_named("who teaches computer science 2", titles, subjects) == ["CMPS 148"]
+    assert courses_named("who teaches computer science i", titles, subjects) == ["CMPS 147"]
+    assert courses_named("who teaches CMPS 147", titles, subjects) == ["CMPS 147"]
+    assert courses_named("who teaches intro to psych", titles, subjects) == ["PSYC 101"]
+    assert courses_named("which professors teach organic chemistry 2", titles, subjects) == [
+        "CHEM 213", "CHEM 213L"]
+    # Without the fields, a title is still a course, as before.
+    assert courses_named("i need a list of every professor in computer science",
+                         titles) == ["CMPS 147", "CMPS 148"]
+
+
 def test_who_teaches_a_course_is_every_profile_that_lists_it() -> None:
     # Fix check 11-04: the writer listed all 12 psychology faculty for one course.
     from rockygpt_brain.people import course_teachers, course_teachers_text

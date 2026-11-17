@@ -22,7 +22,7 @@ from rockygpt_brain.people import (
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from rockygpt_brain.turn import CAMPUS_TZ, intake
 from test_academic_calendar import TERMS, URL, entry
-from test_engine import NOW, ScriptedGateway
+from test_engine import NOW, ScriptedGateway, completion
 from test_meaning import meaning_service
 from test_one_call import PartsGateway, one_reply
 
@@ -147,6 +147,75 @@ def test_a_list_of_a_programs_faculty_is_written_by_code_with_no_model_call() ->
     assert led.body["answer"].startswith(
         "The college catalog names the program convener of Biology")
     assert "Eta Bacon" not in led.body["answer"]
+
+
+def test_a_fields_faculty_asked_by_its_name_are_the_catalogs_not_a_course_of_that_name() -> None:
+    # Step 4 of the page writer plan (11-17 list check): "a list of every professor in computer
+    # science" was answered with the profiles listing Computer Science I or II (5 people), not
+    # the 11 the catalog lists as the field's faculty.
+    from test_meaning import MeaningFacts, index_of
+    service: Any = biology()
+    service.entities += [{"id": "course-BIOL 110", "name": "BIOL 110", "kind": "course",
+                          "aliases": [], "links": []}]
+    service.records["faculty"][2]["profile"]["courses"] = ["BIOL 110 - Biology"]
+    service.__class__ = MeaningFacts
+    service.index = index_of([("page", "0", ["x"], [[1, 0]])])
+    service.index.course_titles = {"course-BIOL 110": "BIOLOGY"}
+    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
+    result = ask(service, gateway, "who teaches biology at ramapo? i want a list of the bio "
+                                   "faculty")
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert gateway.inputs == []
+    assert result.body["answer"].startswith("The college catalog lists 4 people as faculty of "
+                                            "Biology (Biology BS, Biology Minor) [1]:")
+    # The course asked by its code is still the course's.
+    course = ask(service, ScriptedGateway(), "who teaches BIOL 110")
+    assert course.body["answer"].startswith("Faculty profiles that list BIOL 110 Biology")
+
+
+def test_a_fields_faculty_beside_another_ask_are_the_catalogs_alone() -> None:
+    # 11-17 list check: "who is on the social work faculty" gave the writer 8 business
+    # professors whose own profile words hold "social" beside the catalog's 8, none of them
+    # among the catalog's. The field's faculty are the catalog's alone.
+    from test_meaning import index_of
+    service: Any = meaning_service()
+    bio = biology()
+    rows = []
+    for entity in bio.entities:
+        if entity["kind"] == "program":
+            key = f"catalog:{entity['id']}"
+            entity["links"] = [{"collection": "programs", "source_key": "academic-programs",
+                                "source_record_keys": [key]}]
+            rows.append({"id": f"row-{entity['id']}", "source_key": "academic-programs",
+                         "source_record_key": key, "name": entity["name"],
+                         "program_kind": "major", "description": "Study life.",
+                         "program_url": CATALOG, "collected_at": NOW,
+                         "freshness_sla_hours": 4320, "content_hash": key})
+    # Someone the catalog does not list for Biology, whose own profile holds the asked words.
+    other = person("sam", "Sam Other", "Professor of Business")
+    other[2]["profile"]["courses"] = ["Become a Biology Peer Tutor"]
+    service.entities = [*service.entities, *bio.entities, other[0]]
+    service.contacts = [*service.contacts, *bio.contacts, other[1]]
+    service.records = {**service.records, "faculty": [*bio.records["faculty"], other[2]],
+                       "programs": rows}
+    service.index = index_of(
+        [("page-tutoring", "0", ["tutoring"], [[1, 0, 0]])],
+        {"tutoring": "Center for Reading and Writing"},
+        academic=[("rain", "person", [0, 1, 0])])
+    pick = completion("pick_catalog", {"programs": [], "courses": [], "find": [],
+                                       "level": None, "track": None})
+    gateway = PartsGateway(pick, one_reply(
+        "Center for Reading and Writing: Apply with the online form by March 1. [1]", [1]))
+    request = ChatRequest.model_validate({"messages": [
+        {"role": "user", "content": "who teaches biology and how do i become a peer tutor"}]})
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True,
+                        read_first=False)
+    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    given = json.loads(gateway.inputs[-1][1]["content"])
+    assert given["already_written"].startswith("The college catalog lists 4 people as faculty "
+                                               "of Biology")
+    assert "Sam Other" not in json.dumps(given)
 
 
 def with_withdrawal_dates() -> Any:
