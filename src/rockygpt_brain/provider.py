@@ -16,6 +16,7 @@ from typing import Any, Protocol
 
 from openai import APIStatusError, APITimeoutError, AsyncOpenAI
 
+from rockygpt_brain import drafts
 from rockygpt_brain.settings import ProviderSettings
 from rockygpt_brain.spending import Ledger, PostgresLedger, Reservation, SpendingError
 from rockygpt_brain.timing import measure
@@ -103,8 +104,49 @@ class OpenAITransport:
         response = await self._client.embeddings.create(**request, timeout=remaining_seconds)
         return response.model_dump(exclude_none=True)
 
+    async def stream(self, request: dict[str, Any], remaining_seconds: float,
+                     on_arguments: Callable[[str], None]) -> dict[str, Any]:
+        """The same call, streamed: on_arguments gets the tool arguments written so far, and
+        the finished response comes back in the shape send returns."""
+        events = await self._client.responses.create(
+            **request, stream=True, timeout=remaining_seconds)
+        arguments, final = "", None
+        async for event in events:
+            kind = getattr(event, "type", "")
+            if kind == "response.function_call_arguments.delta":
+                arguments += event.delta
+                on_arguments(arguments)
+            elif kind in ("response.completed", "response.incomplete"):
+                final = event.response
+            elif kind in ("response.failed", "error"):
+                raise StreamFailed(kind)
+        if final is None:
+            raise StreamFailed("no_response")
+        return final.model_dump(exclude_none=True)  # type: ignore[no-any-return]
+
     async def close(self) -> None:
         await self._client.close()
+
+
+class StreamFailed(Exception):
+    """A streamed call ended without a finished response (no provider text is kept)."""
+
+
+def _draft_to(sink: Callable[[str], None]) -> Callable[[str], None]:
+    """Passes the reply text in the arguments so far to the sink, each time it grows. A sink
+    that fails never fails the call."""
+    last = [""]
+
+    def on_arguments(arguments: str) -> None:
+        text = drafts.text_so_far(arguments)
+        if not text or text == last[0]:
+            return
+        last[0] = text
+        try:
+            sink(text)
+        except Exception:  # noqa: BLE001 - a draft is a courtesy; the answer comes anyway
+            LOG.warning("brain_draft_sink_failed")
+    return on_arguments
 
 
 def _integer(value: Any) -> int:
@@ -301,10 +343,17 @@ class Gateway:
             budget.committed_nusd -= reserve_cost
             raise GatewayError("deadline_exceeded" if remaining <= 0 else "model_not_configured")
         budget.calls += 1
+        # A streamed request's writer call is streamed too, so its draft reaches the student
+        # while it is written (drafts.py). Every check below is the same either way.
+        sink = drafts.DRAFT_SINK.get()
+        stream = getattr(self.transport, "stream", None)
         try:
             async with asyncio.timeout(remaining):
                 with measure("Provider request · network and model"):
-                    response = await self.transport.send(request, remaining)
+                    if sink is not None and stream is not None and names == ["write_answer"]:
+                        response = await stream(request, remaining, _draft_to(sink))
+                    else:
+                        response = await self.transport.send(request, remaining)
         except NotSentError as error:
             with measure("Release unused model allowance"):
                 await self.ledger.release(reservation, "not_sent", self._now())

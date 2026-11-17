@@ -1,6 +1,7 @@
 """HTTP admission and the single bounded chat path."""
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -16,11 +17,12 @@ from typing import Annotated, Any, Literal
 from fastapi import FastAPI, Header, Query, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from rockygpt_brain import drafts
 from rockygpt_brain.api.dev import add_dev_routes
 from rockygpt_brain.api.releases import Gate, Releases
 from rockygpt_brain.boundary import check
@@ -68,9 +70,11 @@ class Admission:
         self.app, self.token, self.environment = app, token, environment
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # A streamed answer is never held back to add timing to it: it goes out as written.
         diagnostic = (scope["type"] == "http" and scope["path"] == "/v1/chat"
                       and scope["method"] == "POST" and self.environment == "development"
-                      and Headers(scope=scope).get(DEBUG_HEADER) == "1")
+                      and Headers(scope=scope).get(DEBUG_HEADER) == "1"
+                      and "text/event-stream" not in Headers(scope=scope).get("accept", ""))
         if not diagnostic:
             if not (scope["type"] == "http" and scope["path"] == "/v1/chat"
                     and scope["method"] == "POST"):
@@ -368,7 +372,9 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         conversation_id: Annotated[
             str | None, Header(alias=CONVERSATION_ID_HEADER, pattern=CONVERSATION_ID_PATTERN)
         ] = None,
-    ) -> JSONResponse:
+    ) -> Response:
+        debug = (active_environment == "development"
+                 and transport.headers.get(DEBUG_HEADER) == "1")
         with measure("Prepare turn and check safety boundary"):
             turn = (intake(request, conversation_id, now=clock()) if clock
                     else intake(request, conversation_id))
@@ -403,6 +409,15 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
             if capacity.locked():
                 return failure(429, "busy", "RockyGPT is busy. Please try again shortly.",
                                turn.request_id, retryable=True)
+            if "text/event-stream" in transport.headers.get("accept", ""):
+                # The student site asks for a stream: the draft while the reply is written,
+                # then the same answer as below (audit item 7). The emergency path above and
+                # the busy answer stay plain JSON, which the site reads as they are.
+                return StreamingResponse(
+                    _streamed(application, turn, request, transport, debug),
+                    media_type="text/event-stream",
+                    headers={"X-Request-Id": turn.request_id, "Cache-Control": "no-store",
+                             "X-Accel-Buffering": "no"})
             async with capacity:
                 # During a release switch the question waits here, then the new release answers.
                 async with gate.passing():
@@ -413,15 +428,7 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                     else:
                         result = await _connected_answer(active, turn, request, transport)
                     del active
-        body = result.body
-        if active_environment == "development" and transport.headers.get(DEBUG_HEADER) == "1":
-            if result.trace is None:  # The turn failed outside the engine, so nothing was kept.
-                body = {**body, "metrics": {"decidedBy": "error"}}
-            else:
-                trace = result.trace
-                body = {**body, "trace": trace.get("lookups", []),
-                        "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
-        return JSONResponse(body, status_code=result.status_code,
+        return JSONResponse(_body(result, debug), status_code=result.status_code,
                             headers={"X-Request-Id": turn.request_id, "Cache-Control": "no-store"})
 
     @application.get("/v1/entities/{entity_id}/facts")
@@ -463,10 +470,92 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
     return application
 
 
+def _body(result: ChatResult, debug: bool) -> dict[str, Any]:
+    """The answer's body, with the turn's trace and metrics for the dev site's debug view."""
+    body = result.body
+    if debug:
+        if result.trace is None:  # The turn failed outside the engine, so nothing was kept.
+            body = {**body, "metrics": {"decidedBy": "error"}}
+        else:
+            trace = result.trace
+            body = {**body, "trace": trace.get("lookups", []),
+                    "metrics": {k: v for k, v in trace.items() if k != "lookups"}}
+    return body
+
+
+def _event(name: str, data: dict[str, Any]) -> bytes:
+    return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode()
+
+
+# How often a streamed answer sends its draft, at most, and a keep-alive line while it is quiet.
+DRAFT_SECONDS = 0.25
+QUIET_SECONDS = 10.0
+
+
+async def _streamed(application: FastAPI, turn: Turn, request: ChatRequest, transport: Request,
+                    debug: bool) -> AsyncIterator[bytes]:
+    """A streamed answer: a first progress line at once, the draft as the writer writes it
+    (stage "reviewing", which the student site shows as "Draft · not verified"), then the same
+    result the JSON route sends. Leaving early (the student closed the page) cancels the turn."""
+    drafts_now: asyncio.Queue[str] = asyncio.Queue()
+    context = contextvars.copy_context()
+    context.run(drafts.DRAFT_SINK.set, drafts_now.put_nowait)
+    yield _event("progress", {"stage": "understanding"})
+    async with application.state.capacity:
+        # During a release switch the question waits here, then the new release answers.
+        async with application.state.gate.passing():
+            active = application.state.engine
+            if active is None or application.state.startup_error:
+                result = failed(turn, application.state.startup_error or "model_not_configured")
+            else:
+                work = asyncio.create_task(
+                    _connected_answer(active, turn, request, transport, watch=False),
+                    context=context)
+                sent, sent_at = "", 0.0
+                loop = asyncio.get_running_loop()
+                getter: asyncio.Task[str] | None = None
+                try:
+                    while not work.done():
+                        getter = getter or asyncio.create_task(drafts_now.get())
+                        done, _ = await asyncio.wait(
+                            {work, getter}, timeout=QUIET_SECONDS,
+                            return_when=asyncio.FIRST_COMPLETED)
+                        if not done:
+                            yield b": still writing\n\n"
+                            continue
+                        if getter not in done:
+                            continue
+                        latest, getter = getter.result(), None
+                        # At most one draft every DRAFT_SECONDS, always the newest.
+                        pause = sent_at + DRAFT_SECONDS - loop.time()
+                        if pause > 0:
+                            await asyncio.wait({work}, timeout=pause)
+                        while not drafts_now.empty():
+                            latest = drafts_now.get_nowait()
+                        text = drafts.shown(latest)
+                        if text and text != sent and not work.done():
+                            sent, sent_at = text, loop.time()
+                            yield _event("progress", {"stage": "reviewing", "draft": text})
+                    result = work.result()
+                finally:
+                    for task in (work, getter):
+                        if task is not None and not task.done():
+                            task.cancel()
+                    await asyncio.gather(*(t for t in (work, getter) if t is not None),
+                                         return_exceptions=True)
+            del active
+    yield _event("result", {"status": result.status_code, "body": _body(result, debug)})
+
+
 async def _connected_answer(engine: ChatEngine, turn: Turn, request: ChatRequest,
-                            transport: Request, *,
+                            transport: Request, *, watch: bool = True,
                             floor_situation: str | None = None) -> ChatResult:
+    """The engine's answer, cancelled when the client leaves first. A streamed answer is
+    cancelled by its response instead (watch=False): two readers would race for the client's
+    disconnect."""
     async def disconnected() -> None:
+        if not watch:
+            await asyncio.Event().wait()
         while True:
             if (await transport.receive())["type"] == "http.disconnect":
                 return
