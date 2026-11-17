@@ -5,7 +5,7 @@ import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
@@ -218,6 +218,41 @@ class PostgresLedger:
             "uncertainNusd": uncertain, "uncertainCalls": uncertain_calls,
             "leftNusd": max(0, allowance - settled - held),
         }
+
+    async def stuck_holds(self, older_than: timedelta, *,
+                          release: bool = False) -> list[dict[str, Any]]:
+        """The holds no call settled (state reserved or uncertain) untouched for longer than
+        older_than: a call whose process stopped, or whose provider answer never came back. Each
+        keeps counting against the allowance at its full amount until settled. With release, they
+        are settled at no cost under the account lock, their error_code marked "released by hand"
+        (check the provider's usage page first: a call it did charge is then not counted).
+        Audit item 16, 11-17: $3.46 to $4.51 of such holds were seen on dev, and only hand-written
+        SQL cleared them."""
+        async with self._connection() as connection:
+            async with self._transaction(connection):
+                account = await self._lock(connection)
+                values = {"environment": self.environment, "older": older_than}
+                if release:
+                    rows = await connection.execute(
+                        "UPDATE brain_ops.operations SET state = 'settled', cost_nusd = 0, "
+                        "charged_month = admitted_month, usage = '{}'::jsonb, "
+                        "error_code = COALESCE(error_code || ', ', '') || 'released by hand', "
+                        "updated_at = clock_timestamp() WHERE environment = %(environment)s "
+                        "AND state <> 'settled' AND updated_at < clock_timestamp() - %(older)s "
+                        "RETURNING operation_id::text, request_id, state, reserved_nusd, "
+                        "error_code, created_at, updated_at", values)
+                else:
+                    rows = await connection.execute(
+                        "SELECT operation_id::text, request_id, state, reserved_nusd, "
+                        "error_code, created_at, updated_at FROM brain_ops.operations "
+                        "WHERE environment = %(environment)s AND state <> 'settled' "
+                        "AND updated_at < clock_timestamp() - %(older)s ORDER BY created_at",
+                        values)
+                held = await rows.fetchall()
+            await self._account(account)
+        names = ("operation", "request", "state", "reservedNusd", "errorCode", "createdAt",
+                 "updatedAt")
+        return [dict(zip(names, row, strict=True)) for row in held]
 
     async def reserve(
         self, request_id: str, amount_nusd: int, metadata: dict[str, Any], now: datetime,

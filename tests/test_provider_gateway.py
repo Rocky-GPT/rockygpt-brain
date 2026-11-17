@@ -158,8 +158,10 @@ def test_uncertain_failures_retain_reservations_without_leaking_errors(error: Ex
     expected = "model_timeout" if isinstance(error, TimeoutError) else "provider_unavailable"
     assert str(caught.value) == expected
     assert caught.value.retryable
-    assert ledger.events == ["reserve", "send", "uncertain"]
-    assert budget.committed_nusd == ledger.amount
+    # An error with no answer from the provider is asked once more; a timeout is not.
+    tries = 1 if isinstance(error, TimeoutError) else 2
+    assert ledger.events == ["reserve", "send", "uncertain"] * tries
+    assert budget.committed_nusd == ledger.amount * tries
 
 
 def test_only_definite_unsent_failure_can_release_reservation() -> None:
@@ -167,7 +169,8 @@ def test_only_definite_unsent_failure_can_release_reservation() -> None:
     transport.error = NotSentError()
     with pytest.raises(GatewayError):
         call(gateway, budget)
-    assert ledger.events == ["reserve", "send", "release"]
+    # Never sent, so asked once more, and both holds are released.
+    assert ledger.events == ["reserve", "send", "release"] * 2
     assert budget.committed_nusd == 0
 
 
@@ -304,8 +307,37 @@ def test_provider_status_errors_are_classified_without_exposing_provider_content
     assert "exception_type=APIStatusError" in caplog.text
     assert "secret" not in caplog.text
     assert "private" not in caplog.text
-    assert ledger.events == ["reserve", "send", "uncertain"]
+    # A provider-side failure (5xx) is asked once more; a refusal, a 429 or a timeout is not.
+    once = ["reserve", "send", "uncertain"]
+    assert ledger.events == (once * 2 if status >= 500 else once)
     assert ledger.cost is None
+
+
+def test_a_provider_failure_is_asked_once_more_and_the_second_answer_is_used(
+        caplog: pytest.LogCaptureFixture) -> None:
+    gateway, ledger, transport, budget = setup()
+    failing = APIStatusError("bad gateway", body=None, response=httpx.Response(
+        502, request=httpx.Request("POST", "https://api.openai.com")))
+
+    class Once(FakeTransport):
+        async def send(self, request: dict[str, Any], remaining_seconds: float) -> dict[str, Any]:
+            self.error = failing if "send" not in self.ledger.events else None
+            return await super().send(request, remaining_seconds)
+
+    gateway.transport = Once(ledger, response())
+    completion = call(gateway, budget)
+    assert completion.tool_calls[0].name == "finish"
+    assert ledger.events[:4] == ["reserve", "send", "uncertain", "reserve"]
+    assert "provider_retry" in caplog.text and budget.calls == 2
+
+
+def test_no_second_try_without_the_time_for_it() -> None:
+    gateway, ledger, transport, _ = setup()
+    transport.error = APIStatusError("down", body=None, response=httpx.Response(
+        503, request=httpx.Request("POST", "https://api.openai.com")))
+    with pytest.raises(GatewayError, match="provider_unavailable"):
+        call(gateway, TurnBudget("request", 5.0))
+    assert ledger.events == ["reserve", "send", "uncertain"]
 
 
 def test_sdk_timeout_has_distinct_safe_diagnostics(caplog: pytest.LogCaptureFixture) -> None:

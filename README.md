@@ -53,9 +53,13 @@ meaning index before the next question goes on, rather than answering without it
 
 All model calls go through the same gateway. It reserves against the durable
 environment allowance before sending, accounts for returned usage, and keeps a
-reservation charged when delivery or usage is uncertain. No automated retries are
-made. Operators must reconcile uncertain reservations; waiting for a new month
-does not erase them.
+reservation charged when delivery or usage is uncertain. A call the provider failed on its
+side (never sent, no answer, or a 5xx) is asked once more while the turn has 6 s left; a 429 or
+a timeout is not. Operators must reconcile uncertain reservations; waiting for a new month
+does not erase them: `scripts/clear_stuck_holds.py` lists the holds no call settled, and with
+`--release` settles them at no cost (check the provider's usage page first).
+
+Production serves no API docs pages (`/docs`, `/redoc`, `/openapi.json`); development keeps them.
 
 The bundled [provider release](src/rockygpt_brain/provider-release.json) records the
 model, pricing evidence, and expiry. Expired pricing blocks readiness and provider
