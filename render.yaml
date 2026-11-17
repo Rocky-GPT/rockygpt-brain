@@ -7,7 +7,7 @@ services:
   - type: web
     name: rockygpt-brain
     runtime: docker
-    plan: free
+    plan: starter  # $7 a month, 512 MB
     region: oregon
     branch: main
     dockerfilePath: ./Dockerfile

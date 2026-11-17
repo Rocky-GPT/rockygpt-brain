@@ -21,14 +21,10 @@ reasoning (`none`) explicit, and retains `medium` review reasoning and the
 existing call, output, tool, and time limits. Model changes require a new release;
 Phase 1 makes no claim that this baseline meets the eventual $10 traffic target.
 
-Run `python -m rockygpt_brain.config` to obtain the configuration hash. It includes
-the release, prompts, schemas, retrieval/rendering code, API limits, and installed
-OpenAI, HTTPX, psycopg, Pydantic, and FastAPI versions. Set the same
-`BRAIN_EXPECTED_CONFIG_HASH` in both environments when promoting a tested wheel.
-A mismatch stops requests. Requested aliases, observed returned model identities,
-configuration hash, project, price version, and operation creation time are
-recorded on every reservation. An unexpected returned model pauses the affected
-environment pending review.
+(Correction, 2026-11-17: the `python -m rockygpt_brain.config` command and the
+`BRAIN_EXPECTED_CONFIG_HASH` check this paragraph described were never built. Nothing in
+the code reads that setting. The returned model is still checked: a call whose answer
+names another model is refused, see `provider.py`.)
 
 ## Provisioning
 
@@ -113,32 +109,10 @@ premium thresholds. Rates and output/reasoning semantics come from the
 [GPT-5.4 model documentation](https://developers.openai.com/api/docs/models/gpt-5.4)
 and [Responses reference](https://developers.openai.com/api/reference/python/resources/responses/methods/create).
 
-Inspect a turn without a model call:
-
-```sh
-python -m rockygpt_brain.accounting --request-id REQUEST_ID
-```
-
-To reconcile an uncertain operation, obtain authoritative provider usage or a
-provider confirmation of zero usage. Prepare a receipt with the following fields
-using the actual operation and response identifiers:
-
-```json
-{
-  "operation_id": "00000000-0000-0000-0000-000000000001",
-  "provider_response_id": "provider-response-or-confirmation-id",
-  "returned_model": "gpt-5.4-2026-03-05",
-  "evidence_reference": "provider-export:verified-row-reference",
-  "input_tokens": 100,
-  "cached_input_tokens": 20,
-  "output_tokens": 40,
-  "reasoning_tokens": 30
-}
-```
-
-```sh
-python -m rockygpt_brain.reconcile receipt.json
-```
+(Correction, 2026-11-17: the `rockygpt_brain.accounting` and `rockygpt_brain.reconcile`
+commands this section named were never built. A hold that no call settled is listed, and
+cleared at no cost, with `python scripts/clear_stuck_holds.py` and `--release`; read that
+script's header first. The rest of this section is kept as the phase 1 design.)
 
 This operator action uses the saved original price even after a release/expiry,
 validates token subsets, records the receipt reference, and settles idempotently.
