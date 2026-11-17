@@ -222,7 +222,7 @@ def test_an_engine_for_another_release_keeps_every_setting_and_reads_nothing_yet
         publish(STORE, build(tmp_path, "release-1"), client=client)
         sync(STORE, brain, client=client)
     engine = ChatEngine(ScriptedGateway(), GraphOnlyFacts(brain), output="written", reads=3,
-                        picks=2, read_first=False, howto_one_call=True, lookup_writer=False,
+                        picks=2, read_first=False, howto_one_call=True,
                         turn_seconds=9.0, max_turn_nusd=7)
     engine.warm()
     facts = GraphOnlyFacts(brain, release=read_pointer(brain))

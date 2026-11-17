@@ -9,7 +9,7 @@ import pytest
 from rockygpt_brain.answers import plain_links
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
-from rockygpt_brain.provider import Completion, GatewayError, ToolCall, Usage
+from rockygpt_brain.provider import Completion, ToolCall, Usage
 from rockygpt_brain.turn import intake
 from rockygpt_brain.writer import says_something, unsupported_by
 from test_engine import LOOKUP, NOW, ScriptedGateway, completion, facts, finish
@@ -76,49 +76,13 @@ def turn(*steps: Completion, output: str = "written") -> tuple[dict[str, Any], d
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user",
                        "content": "What is the Registrar email for a transcript?"}]})
-    engine = ChatEngine(ScriptedGateway(*steps), facts(), output=output,  # type: ignore[arg-type]
-                        lookup_writer=True)
+    engine = ChatEngine(ScriptedGateway(*steps), facts(), output=output)  # type: ignore[arg-type]
     result = asyncio.run(engine.answer(intake(request, now=NOW), request))
     assert result.trace is not None
     return result.body, result.trace
 
 
-def test_a_verified_reply_is_what_the_student_reads_with_its_sources() -> None:
-    body, trace = turn(
-        LOOKUP, finish(), writing("The Registrar's email is published@example.edu [1]."))
-    assert body["answer"].startswith("The Registrar's email is published@example.edu [1].")
-    assert "Sources: [1](https://example.edu/registrar)" in body["answer"]
-    assert trace["writer"] == {"used": True}
-    assert body["facts"]["status"] == "complete" and body["writerInput"]["facts"]
-
-
-@pytest.mark.parametrize("step,why", [
-    (writing("The Registrar's email is wrong@example.edu."), "not_in_the_facts"),
-    (writing(None), "no_text"),
-    (writing("   "), "no_text"),
-    # Strict output stops a long reply at the length limit, mid-word: it is never shown.
-    (writing("The Registrar's email is published@example.edu. " * 100), "cut_off"),
-])
-def test_a_reply_the_view_does_not_hold_is_replaced_by_the_codes_text(
-    step: Completion, why: str,
-) -> None:
-    body, trace = turn(LOOKUP, finish(), step)
-    assert trace["writer"]["used"] is False and trace["writer"]["why"] == why
-    assert "published@example.edu" in body["answer"]
-    assert "wrong@example.edu" not in body["answer"]
-
-
-def test_a_writer_that_fails_leaves_the_codes_text() -> None:
-    def broken() -> Completion:
-        raise GatewayError("provider_unavailable")
-
-    body, trace = turn(LOOKUP, finish(), broken)  # type: ignore[arg-type]
-    assert trace["writer"] == {"used": False, "why": "writer_unavailable",
-                               "error": "provider_unavailable"}
-    assert "published@example.edu" in body["answer"]
-
-
-def test_a_lookup_answer_is_written_by_code_unless_the_model_writer_is_turned_on() -> None:
+def test_a_lookup_answer_is_written_by_code() -> None:
     # Dan 11-02: lookup answers are code's plain sentences, the same every time, with no AI call.
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "What is the Registrar email?"}]})
@@ -139,15 +103,6 @@ def test_the_writer_is_not_asked_when_the_turn_is_not_a_written_one() -> None:
     assert "writer" not in text_trace and "published@example.edu" in text_body["answer"]
 
 
-def test_the_writers_own_prompt_holds_no_real_number_it_could_copy() -> None:
-    import re
-
-    from rockygpt_brain.writer import WRITER_PROMPT
-    # An example number in the prompt was once copied into an answer as if it were the office's.
-    assert not re.search(r"\d{3}\D{0,3}\d{3}\D{0,3}\d{4}", WRITER_PROMPT)
-    assert "@" not in WRITER_PROMPT and "http" not in WRITER_PROMPT
-
-
 def test_written_output_never_returns_an_empty_answer_on_the_code_only_paths() -> None:
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "my friend is not breathing"}]})
@@ -164,23 +119,16 @@ def test_written_output_never_returns_an_empty_answer_on_the_code_only_paths() -
 def test_a_fixed_notice_the_writer_already_said_is_not_shown_twice() -> None:
     from rockygpt_brain.engine import UNSUPPORTED_AFTER_LOOKUP_MESSAGE
 
-    def run(said: str) -> str:
-        request = ChatRequest.model_validate({"messages": [{
-            "role": "user",
-            "content": "What is the Registrar email and can I book an appointment?"}]})
-        engine = ChatEngine(
-            ScriptedGateway(LOOKUP, finish("unsupported", student_words="book an appointment"),
-                            writing(said)),
-            facts(), output="written", lookup_writer=True)
-        result = asyncio.run(engine.answer(intake(request, now=NOW), request))
-        return str(result.body["answer"])
-
-    notice = UNSUPPORTED_AFTER_LOOKUP_MESSAGE
-    repeated = run(f"The Registrar's email is published@example.edu [1]. {notice}")
-    assert repeated.count("I don't have verified information") == 1
-    # A reply that leaves it out still carries it, once.
-    left_out = run("The Registrar's email is published@example.edu [1].")
-    assert left_out.count(notice) == 1
+    request = ChatRequest.model_validate({"messages": [{
+        "role": "user",
+        "content": "What is the Registrar email and can I book an appointment?"}]})
+    engine = ChatEngine(
+        ScriptedGateway(LOOKUP, finish("unsupported", student_words="book an appointment")),
+        facts(), output="written")
+    said = str(asyncio.run(engine.answer(intake(request, now=NOW), request)).body["answer"])
+    # Code's sentences leave the notice out; it is added once.
+    assert said.count(UNSUPPORTED_AFTER_LOOKUP_MESSAGE) == 1
+    assert said.count("I don't have verified information") == 1
 
 
 def test_a_reply_that_drops_every_departure_time_is_not_used() -> None:
@@ -209,30 +157,6 @@ def test_a_citation_mark_after_a_web_address_is_not_part_of_it() -> None:
     assert unsupported_by(text, view) == []
 
 
-def test_a_turn_that_used_every_call_still_gets_its_writer() -> None:
-    from rockygpt_brain.provider import TurnBudget
-
-    class Counting(ScriptedGateway):
-        """Counts calls against the turn's limit, as the real gateway does."""
-
-        async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
-                           budget: TurnBudget) -> Completion:
-            if budget.calls >= budget.max_calls:
-                raise GatewayError("turn_limit")
-            budget.calls += 1
-            return await super().complete(input=input, tools=tools, budget=budget)
-
-    request = ChatRequest.model_validate(
-        {"messages": [{"role": "user",
-                       "content": "What is the Registrar email for a transcript?"}]})
-    # Four lookup rounds and the finish use all five calls; the writer is a sixth.
-    steps = [LOOKUP, LOOKUP, LOOKUP, LOOKUP, finish(),
-             writing("The Registrar's email is published@example.edu [1].")]
-    engine = ChatEngine(Counting(*steps), facts(), output="written", lookup_writer=True)
-    result = asyncio.run(engine.answer(intake(request, now=NOW), request))
-    assert result.trace is not None and result.trace["writer"] == {"used": True}
-
-
 def test_the_writer_is_told_what_the_student_wants_for_a_how_to() -> None:
     from test_engine import registrar_with_pages
     ask = Completion("", (ToolCall("c", "graph_lookup", {"requests": [
@@ -255,16 +179,14 @@ def test_an_emergency_beside_asked_facts_keeps_its_text_first_and_writes_the_fac
     from rockygpt_brain.boundary import SAFETY_MESSAGE
     request = ChatRequest.model_validate(
         {"messages": [{"role": "user", "content": "registrar email, not 911 obviously lol"}]})
-    engine = ChatEngine(ScriptedGateway(
-        LOOKUP, finish(), writing("The Registrar's email is published@example.edu [1].")),
-        facts(), output="written", lookup_writer=True)
+    engine = ChatEngine(ScriptedGateway(LOOKUP, finish()), facts(), output="written")
     result = asyncio.run(engine.answer(intake(request, now=NOW), request, floor_situation="other"))
     text = result.body["answer"]
-    # Dan 10-20: crisis first, then the facts, in the writer's words, said once.
+    # Dan 10-20: crisis first, then the facts, in code's words, said once.
     assert text.startswith(SAFETY_MESSAGE)
-    assert "The Registrar's email is published@example.edu [1]." in text
+    assert "published@example.edu. [1]" in text
     assert text.count(SAFETY_MESSAGE) == 1
-    assert result.trace is not None and result.trace["writer"] == {"used": True}
+    assert result.trace is not None and result.trace["writer"] == {"used": True, "by": "code"}
 
 
 def test_a_number_the_pages_spell_out_and_a_phone_with_unicode_dashes_are_held() -> None:
@@ -331,9 +253,13 @@ def test_an_address_written_on_its_own_becomes_a_link(said: str, shown: str) -> 
     assert plain_links(said) == shown
 
 
-def test_the_reply_a_student_reads_has_no_address_ending_in_punctuation() -> None:
-    body, _ = turn(LOOKUP, finish(),
-                   writing("Email published@example.edu or read "
-                           "https://example.edu/registrar, which lists the steps [1]."))
+def test_the_reply_a_student_reads_has_no_address_ending_in_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import rockygpt_brain.engine as engine_module
+    monkeypatch.setattr(engine_module, "plain_text", lambda view, limit: (
+        "Email published@example.edu or read https://example.edu/registrar, which lists the "
+        "steps [1]."))
+    body, _ = turn(LOOKUP, finish())
     assert "https://example.edu/registrar," not in body["answer"]
     assert "[https://example.edu/registrar](https://example.edu/registrar)," in body["answer"]
