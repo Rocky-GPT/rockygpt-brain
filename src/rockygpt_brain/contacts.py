@@ -31,12 +31,6 @@ where wheres where's located location find me my please ramapo college campus 's
 _ASKS_REACH = re.compile(r"\b(?:reach|contact|call|phone|number|e-?mail|get (?:a )?hold of|"
                          r"get in touch|where)\b", re.IGNORECASE)
 
-# Who to go to: the offices the reply sends the student to get their contacts written by code.
-_ASKS_WHO = re.compile(
-    r"\b(?:who|where|which office) (?:do|should|can|would) (?:i|we) (?:report|talk|speak|go|ask|"
-    r"contact|call|tell|turn)\b|\bwho (?:handles|deals with|takes care of)\b"
-    r"|\b(?:who|where) (?:to|do i) (?:report|contact|call)\b", re.IGNORECASE)
-
 
 def _names(office: Mapping[str, Any]) -> list[str]:
     name = str(office.get("name") or "")
@@ -126,11 +120,6 @@ def asks_contact_only(message: str, named_words: Iterable[str]) -> bool:
         rest = re.sub(rf"(?i)(?<![\w&]){re.escape(name)}(?![\w&])", " ", rest)
     words = re.findall(r"[a-z'’-]+", rest.casefold().replace("’", "'"))
     return bool(_ASKS_REACH.search(rest)) and all(w in _REACH_WORDS for w in words)
-
-
-def asks_who(message: str) -> bool:
-    """Whether a message asks who or which office to go to ("who do I report it to")."""
-    return bool(_ASKS_WHO.search(message))
 
 
 _ROOM = re.compile(r"^[A-Z]{1,3}-?\d{2,4}[A-Z]?$")

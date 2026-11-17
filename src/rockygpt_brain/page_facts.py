@@ -22,9 +22,8 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
-Writer = Literal["template", "ai"]
 WRITERS: tuple[str, ...] = ("template", "ai")
 
 # At most this many facts are said: a three-step appeal with its deadline and its form fits; the
