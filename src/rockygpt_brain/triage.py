@@ -36,6 +36,15 @@ NEEDS = ("stress_or_sadness", "lonely", "school_trouble", "professor_trouble",
          "harassment", "food_or_housing", "disability")
 LIMITS = ("none", "clock", "off_topic", "my_records", "homework", "writing", "do_it_for_me",
           "opinion", "prediction", "live_status")
+# What the campus question asks for, which picks the path that answers it (audit plan item 8,
+# 11-17): the read decides, in place of the word rules that guessed it (events.asks_events,
+# people.asks_people, one_call.routes_here). A tie goes to how_to, the page answer, listed first.
+# The Brain grew 50% in seven weeks of such rules while the blind score stayed flat.
+TOPICS = ("how_to", "office", "dining", "shuttle", "dates", "team", "program", "person",
+          "event", "club")
+# The topics the lookups answer (an office's or venue's contacts, hours and menu, the shuttle):
+# every other topic is answered from the pages and code's own facts, never the lookup loop.
+LOOKUP_TOPICS = frozenset({"office", "dining", "shuttle"})
 # The order code says needs in, the same for the same needs whatever order the read lists them:
 # a problem the student names comes before the general feeling it brings, which comes last
 # (11-03 practice: "i think im gonna fail orgo" was read once as school trouble then stress, and
@@ -117,6 +126,20 @@ Fill every field:
   current time or date, the weather, an opinion with no campus side, a feeling the student only
   shares, and a request for medical advice (which medicine to take, whether a medicine or
   treatment is safe), which is no campus question.
+- topic: what the question asks for, the one that fits best: office (only how to reach or find
+  an office, building or place: its phone, email, room or where it is, or when it is open),
+  dining (what a dining place serves, or when it is open), shuttle (shuttle or bus times, stops
+  or routes), dates (a date on the academic calendar: when classes start or end, finals, breaks,
+  the last day to add, drop or withdraw), team (a Ramapo varsity team's coaches, games or
+  results, or whether Ramapo has a team in a sport), program (a major, minor, certificate or
+  course: its requirements, credits, prerequisites or what it covers), person (a professor or
+  staff member by name, who holds a named job such as a school's dean or a department's chair,
+  or who teaches a course or subject), event (what is on the campus calendar: events, games,
+  activities, and when and where they are), club (student clubs and organizations), else how_to
+  (how to do something, a rule, a cost, a form, a deadline that is not on the academic calendar,
+  what an office or service does, where to get help, a trip or program to sign up or apply for).
+  Who handles, signs, approves or helps with something is how_to: it asks which office. A
+  question that also asks how to do something is how_to. how_to when the question is empty.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
@@ -124,13 +147,14 @@ READ_TOOL: dict[str, Any] = {
     "description": "What kind of message the student's latest message is.",
     "parameters": {
         "type": "object", "additionalProperties": False,
-        "required": ["social", "danger", "needs", "limit", "question"],
+        "required": ["social", "danger", "needs", "limit", "question", "topic"],
         "properties": {
             "social": {"type": "string", "enum": list(SOCIAL)},
             "danger": {"type": "string", "enum": list(DANGER)},
             "needs": {"type": "array", "items": {"type": "string", "enum": list(NEEDS)}},
             "limit": {"type": "string", "enum": list(LIMITS)},
             "question": {"type": "string"},
+            "topic": {"type": "string", "enum": list(TOPICS)},
         },
     },
 }
@@ -145,10 +169,13 @@ class Reading:
     needs: tuple[str, ...] = ()
     limit: str = "none"
     question: str = ""
+    # None when the read gave no topic: the path is then picked as it was before the read had one.
+    topic: str | None = None
 
     def as_trace(self) -> dict[str, Any]:
         return {"social": self.social, "danger": self.danger, "needs": list(self.needs),
-                "limit": self.limit, "question": self.question}
+                "limit": self.limit, "question": self.question,
+                **({"topic": self.topic} if self.topic is not None else {})}
 
 
 # Each message is read this many times at once, and what most reads say is the reading (11-03
@@ -186,9 +213,11 @@ def majority(readings: Sequence[Reading]) -> Reading | None:
         question = asked[min(range(len(asked)),
                              key=lambda k: (-asked.count(asked[k]), -near(k), len(asked[k]),
                                             asked[k]))]
+    topics = [r.topic for r in readings if r.topic is not None]
     return Reading(most([r.social for r in readings], SOCIAL),
                    most(dangers, DANGER) if dangers else "none", needs,
-                   most([r.limit for r in readings], LIMITS), question)
+                   most([r.limit for r in readings], LIMITS), question,
+                   most(topics, TOPICS) if len(topics) > half else None)
 
 
 def read_messages(latest: str, previous_user: str | None,
@@ -245,6 +274,9 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
         return None
     if not isinstance(needs, list) or not isinstance(question, str):
         return None
+    topic = arguments.get("topic")
+    if topic is not None and topic not in TOPICS:
+        return None
     kept = tuple(sorted(dict.fromkeys(n for n in needs if n in NEEDS), key=NEED_ORDER.index))
     question = " ".join(question.split())
     if (len(question) > MAX_QUESTION_CHARS or not _digits(question) <= _digits(latest)
@@ -252,7 +284,8 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
         question = ""
     elif _plain(question) == _plain(latest):
         question = latest.strip()  # Nothing to fix: the student's own words, as they wrote them.
-    return Reading(str(social), str(danger), kept, str(limit), question)
+    return Reading(str(social), str(danger), kept, str(limit), question,
+                   None if topic is None else str(topic))
 
 
 # The read's clean question is asked in place of the student's words only when code finds it keeps
