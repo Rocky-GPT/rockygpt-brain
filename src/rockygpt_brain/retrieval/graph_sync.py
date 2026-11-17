@@ -9,7 +9,8 @@ DIR`, run by the workspace's sync-prod). So both serve the same bytes, through t
 
 Store layout, under BRAIN_GRAPH_STORE_PREFIX (default `brain-graph/`):
 
-    release-<hash>.lbug, release-<hash>.meaning.json, release-<hash>.meaning.f32
+    release-<hash>.lbug, release-<hash>.meaning.json, release-<hash>.meaning.i8 and .scales
+                  (and, while every Brain still may need them, release-<hash>.meaning.f32)
     active.json   the pointer GraphOnlyFacts reads, plus each file's size and sha256 ("files"),
                   written last so a reader sees the old release or the whole new one
 

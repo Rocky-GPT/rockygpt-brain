@@ -398,6 +398,23 @@ def test_an_index_file_is_loaded_in_8_bits_as_the_database_stores_it(
     release.with_suffix(".meaning.f32").write_bytes(flat.tobytes()[:-4])
     with pytest.raises(ValueError):
         MeaningIndex.load(release)
+    # The build's 8-bit pair (audit item 17) is loaded in place of the floats, the same bytes,
+    # even without numpy and with the float file gone.
+    (tmp_path / "floats.f32").write_bytes(flat.tobytes())
+    small, scales = meaning.quantize_file(tmp_path / "floats.f32", 3)
+    assert (small, scales) == index.quantize()
+    release.with_suffix(".meaning.i8").write_bytes(small)
+    release.with_suffix(".meaning.scales").write_bytes(scales)
+    release.with_suffix(".meaning.f32").unlink()
+    paired = MeaningIndex.load(release)
+    assert paired is not None and paired.quantize() == index.quantize()
+    assert list(paired.scores([0.5, 0.5, 0.1])) == list(loaded.scores([0.5, 0.5, 0.1]))
+    monkeypatch.setattr(meaning, "numpy", None)
+    assert MeaningIndex.load(release).quantize() == index.quantize()  # type: ignore[union-attr]
+    monkeypatch.undo()
+    release.with_suffix(".meaning.scales").write_bytes(scales[:-4])
+    with pytest.raises(ValueError):
+        MeaningIndex.load(release)
 
 
 def test_a_card_stands_out_from_its_kind_by_the_questions_own_bar() -> None:
