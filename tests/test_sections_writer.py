@@ -131,3 +131,47 @@ def test_a_request_can_ask_for_the_direct_writer_and_the_prompt_never_changes() 
     later = one_call.messages("other", None, [], date(2026, 12, 1),
                               prompt=one_call.DIRECT_PROMPT, now=datetime(2026, 12, 1, 22, 40))
     assert first[0] == later[0] and "9:05 AM" in first[1]["content"]
+
+
+def ask_read_first(gateway: Any, message: str) -> Any:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, meaning_service(), output="written", howto_one_call=True,
+                        page_writer="direct", read_first=True, reads=1)
+    return asyncio.run(engine.answer(intake(request, now=NOW), request))
+
+
+def test_the_direct_writer_embeds_the_students_words_while_the_message_is_read() -> None:
+    # Audit item 6 (11-17): the embedding waited for the read (1.2 s); now it runs beside it and
+    # the search uses it when the read keeps the student's words.
+    from test_triage import read
+    gateway = ToolsSeen(read(), direct_reply(TUTOR))
+    result = ask_read_first(gateway, "how do i become a peer tutor")
+    assert "by March 1. [1]" in result.body["answer"]
+    assert gateway.embedded == [["how do i become a peer tutor"]]
+    assert result.trace is not None and result.trace["pageWriter"] == "direct"
+
+
+def test_the_search_embeds_again_when_the_read_asks_in_its_own_words() -> None:
+    from test_triage import read
+    gateway = ToolsSeen(read(question="How do I become a peer tutor?"), direct_reply(TUTOR))
+    result = ask_read_first(gateway, "how do i becom a peer tutr")
+    assert "by March 1. [1]" in result.body["answer"]
+    assert gateway.embedded[0] == ["how do i becom a peer tutr"]
+    assert gateway.embedded[-1] == ["How do I become a peer tutor?"]
+
+
+def test_a_failed_early_embedding_leaves_the_search_its_own() -> None:
+    from rockygpt_brain.provider import GatewayError
+    from test_triage import read
+
+    class FailsFirst(ToolsSeen):
+        async def embed_many(self, texts: Any, *, dimensions: int, budget: Any) -> Any:
+            if not self.embedded:
+                self.embedded.append(["failed"])
+                raise GatewayError("provider_unavailable")
+            return await super().embed_many(texts, dimensions=dimensions, budget=budget)
+
+    gateway = FailsFirst(read(), direct_reply(TUTOR))
+    result = ask_read_first(gateway, "how do i become a peer tutor")
+    assert "by March 1. [1]" in result.body["answer"]
+    assert gateway.embedded == [["failed"], ["how do i become a peer tutor"]]

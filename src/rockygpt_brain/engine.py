@@ -116,6 +116,15 @@ _Value = TypeVar("_Value")
 # never sends it, so students get the settings' writers.
 _REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_writer", default=None)
+# The direct writer's search embeds the student's own words while the message is read, since the
+# read keeps them for most questions: (the parts searched, the task giving their size and vectors).
+# The search uses the vectors only when it searches the same parts (audit item 6, 11-17: the read
+# took 1.2 s and the embedding 0.4 to 0.6 s after it, one after the other).
+_EARLY_VECTORS: contextvars.ContextVar[
+    tuple[tuple[str, ...], asyncio.Task[tuple[int, list[list[float]]] | None]] | None] = \
+    contextvars.ContextVar("early_vectors", default=None)
+# How long the early embedding may take; the search embeds again on its own after a failure.
+EARLY_EMBED_SECONDS = 8.0
 # The page writer that reads whole plain sections of current pages in one call (BRAIN_PAGE_WRITER
 # or a request's writer; plan "one simple page writer", 11-16). The old writers stay as they are.
 SECTIONS_WRITER = "sections"
@@ -3199,9 +3208,13 @@ class ChatEngine:
                 if searchable:
                     assert index is not None and embed_many is not None
                     parts = one_call.parts_of(question)
-                    with measure("Embed the question's parts"):
-                        vectors = await embed_many(parts, dimensions=index.dimensions,
-                                                   budget=budget)
+                    early = await self._early_vectors(parts, index.dimensions)
+                    if early is not None:
+                        vectors = early
+                    else:
+                        with measure("Embed the question's parts"):
+                            vectors = await embed_many(parts, dimensions=index.dimensions,
+                                                       budget=budget)
                 if calendar_asked:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
@@ -4181,6 +4194,60 @@ class ChatEngine:
         if not (self.read_first and self.output == "written" and floor_situation is None):
             return await self._campus_answer(turn, request, trace, floor_situation)
         context = build_context(request)
+        early = self._embed_early(turn, context)
+        _EARLY_VECTORS.set(early)
+        try:
+            return await self._read_then_answer(turn, request, trace, context, started,
+                                                beside_emergency)
+        finally:
+            _EARLY_VECTORS.set(None)
+            if early is not None and not early[1].done():
+                early[1].cancel()
+
+    def _embed_early(self, turn: Turn, context: Context) -> tuple[
+            tuple[str, ...], asyncio.Task[tuple[int, list[list[float]]] | None]] | None:
+        """With the direct writer, embed the parts its search reads from the student's own words
+        now, beside the read; None for any other writer or a gateway that cannot embed."""
+        embed_many = getattr(self.gateway, "embed_many", None)
+        if self._page_writer_now() != DIRECT_WRITER or embed_many is None:
+            return None
+        earlier = next((m.content for m in reversed(context.recent_messages)
+                        if m.role == "user"), None)
+        parts = one_call.parts_of(one_call.search_text(context.latest_message, earlier))
+
+        async def embed() -> tuple[int, list[list[float]]] | None:
+            index = await asyncio.to_thread(self.facts.meaning_index)
+            if index is None:
+                return None
+            budget = TurnBudget(turn.request_id, time.monotonic() + EARLY_EMBED_SECONDS,
+                                max_calls=1, max_cost_nusd=self.max_turn_nusd // 10)
+            return index.dimensions, await embed_many(parts, dimensions=index.dimensions,
+                                                      budget=budget)
+        task = asyncio.create_task(embed())
+        # A failure nobody waited for (the read changed the question) is read here, not logged.
+        task.add_done_callback(lambda done: done.cancelled() or done.exception())
+        return tuple(parts), task
+
+    async def _early_vectors(self, parts: Sequence[str],
+                             dimensions: int) -> list[list[float]] | None:
+        """The early embedding's vectors when it embedded these very parts at this size; None
+        when there is none, the read changed the question, or it failed (the search then embeds
+        on its own)."""
+        early = _EARLY_VECTORS.get()
+        if early is None or early[0] != tuple(parts):
+            return None
+        try:
+            with measure("Wait for the early embedding"):
+                got = await early[1]
+        except Exception as error:  # the search's own embedding runs instead
+            LOG.warning("brain_early_embed_failed code=%s",
+                        getattr(error, "code", type(error).__name__))
+            return None
+        return got[1] if got is not None and got[0] == dimensions else None
+
+    async def _read_then_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
+                                context: Context, started: float,
+                                beside_emergency: bool) -> ChatResult:
         reading = None if await self._code_understands(context) else await self._read(
             turn, context, trace)
         if reading is None:
