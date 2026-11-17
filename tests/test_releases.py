@@ -1,12 +1,17 @@
 """Moving to a new release only once it is ready (api/releases.py).
 
 On 11-04 the follower installed the new release first and read its lists after, while students
-asked; questions then built their own copies and fell to the slow AI path. These tests hold the
-Brain to reading a new release in full in an engine of its own while the old one answers, and to
-never installing or serving one that fails to open or check."""
+asked; questions then built their own copies and fell to the slow AI path. On 11-17 reading the
+new release beside the old one was killed for memory 4 times in 4 in a box the size of Render's.
+These tests hold the Brain to pause and swap: new questions wait, the old engine is dropped, the
+new release is read in full before anyone is answered from it, and one that fails to open or
+check is never installed or served (the Brain goes back to the release it served)."""
 
+import asyncio
 import gc
 import json
+import threading
+import time
 import weakref
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +20,8 @@ from typing import Any
 import pytest
 
 import rockygpt_brain.api.app as app_module
-from rockygpt_brain.api.releases import Releases
+import rockygpt_brain.api.releases as releases_module
+from rockygpt_brain.api.releases import Gate, Releases
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.retrieval.graph_store import (
     POINTER,
@@ -43,35 +49,36 @@ def damaged(tmp_path: Path, version: str) -> Path:
     return folder
 
 
-def test_a_new_release_is_read_in_full_before_the_brain_switches_to_it(
+def test_a_new_release_is_read_in_full_with_the_old_engine_gone_and_questions_held(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     bucket, brain = Bucket(), tmp_path / "brain"
     with bucket.client() as client:
         publish(STORE, build(tmp_path, "release-1"), client=client)
         sync(STORE, brain, client=client)
         state = serving(brain)
-        old = state.engine
+        old = weakref.ref(state.engine)
         publish(STORE, build(tmp_path, "release-2", office_name="Registrar 2"), client=client)
         releases = Releases(state, brain, GraphFollower(STORE, brain, client=client))
-        seen: list[tuple[object, str]] = []
+        seen: list[tuple[object, str, bool, bool]] = []
         warm = ChatEngine.warm
 
         def watched(engine: ChatEngine) -> dict[str, float]:
             pointer = read_pointer(brain)
-            seen.append((state.engine, pointer["dataset_version"] if pointer else ""))
+            seen.append((state.engine, pointer["dataset_version"] if pointer else "",
+                         state.gate.closed, old() is None))
             return warm(engine)
 
         monkeypatch.setattr(ChatEngine, "warm", watched)
         assert releases.check_once()
         assert not releases.check_once()  # Nothing newer: nothing is read again.
-    # While the new release was read, the old engine answered and the old release was installed.
-    assert seen == [(old, "release-1")]
+    # While the new release was read: no engine served, questions waited at the closed gate, the
+    # old engine was already gone, and the old release was still the one installed.
+    assert seen == [(None, "release-1", True, True)]
+    assert not state.gate.closed
     new = state.engine
-    assert new is not old and new.facts.release["dataset_version"] == "release-2"
+    assert new.facts.release["dataset_version"] == "release-2"
     assert read_pointer(brain)["dataset_version"] == "release-2"  # type: ignore[index]
     assert new._directory_cache is not None and new._labels_cache is not None  # Read already.
-    # A question the old engine is still answering finishes on the release it began on.
-    assert old.facts.active_release() == ("release-1", "identities-1")
 
 
 def test_a_release_that_fails_its_checks_is_never_installed_or_served(tmp_path: Path) -> None:
@@ -80,11 +87,13 @@ def test_a_release_that_fails_its_checks_is_never_installed_or_served(tmp_path: 
         publish(STORE, build(tmp_path, "release-1"), client=client)
         sync(STORE, brain, client=client)
         state = serving(brain)
-        old = state.engine
         publish(STORE, damaged(tmp_path, "release-2"), client=client)
         releases = Releases(state, brain, GraphFollower(STORE, brain, client=client))
         assert not releases.check_once()
-        assert state.engine is old and releases.refused is not None
+        # Back on the release it served, read in full again, and the gate open.
+        assert state.engine.facts.release["dataset_version"] == "release-1"
+        assert state.engine._directory_cache is not None
+        assert releases.refused is not None and not state.gate.closed
         assert read_pointer(brain)["dataset_version"] == "release-1"  # type: ignore[index]
         bucket.requests.clear()
         assert not releases.check_once()  # Refused: not downloaded or read again.
@@ -92,6 +101,64 @@ def test_a_release_that_fails_its_checks_is_never_installed_or_served(tmp_path: 
         publish(STORE, build(tmp_path, "release-3", office_name="Registrar 3"), client=client)
         assert releases.check_once()  # The next release is read as usual.
     assert state.engine.facts.release["dataset_version"] == "release-3"
+
+
+def test_a_switch_waits_for_the_answers_in_flight_and_is_put_off_when_they_run_long(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    bucket, brain = Bucket(), tmp_path / "brain"
+    with bucket.client() as client:
+        publish(STORE, build(tmp_path, "release-1"), client=client)
+        sync(STORE, brain, client=client)
+        state = serving(brain)
+        publish(STORE, build(tmp_path, "release-2", office_name="Registrar 2"), client=client)
+        releases = Releases(state, brain, GraphFollower(STORE, brain, client=client))
+        monkeypatch.setattr(releases_module, "PAUSE_LIMIT_SECONDS", 0.2)
+        with state.gate.passing_now() as passed:  # An answer still being written.
+            assert passed
+            assert not releases.check_once()
+            first = state.engine
+        # Put off: the same engine serves and new questions were let in again.
+        assert first.facts.release["dataset_version"] == "release-1"
+        assert not state.gate.closed
+        del first
+
+        def answer_for(seconds: float) -> None:
+            with state.gate.passing_now():
+                time.sleep(seconds)
+
+        writing = threading.Thread(target=answer_for, args=(0.1,))
+        writing.start()
+        time.sleep(0.02)
+        assert releases.check_once()  # It waited for that answer, then switched.
+        writing.join()
+    assert state.engine.facts.release["dataset_version"] == "release-2"
+
+
+def test_questions_wait_at_a_closed_gate_and_the_emergency_floor_never_does() -> None:
+    gate = Gate()
+
+    async def scene() -> list[str]:
+        order: list[str] = []
+        assert gate.close(0.1)
+
+        async def question() -> None:
+            async with gate.passing():
+                order.append("answered")
+
+        asked = asyncio.create_task(question())
+        await asyncio.sleep(0.2)
+        with gate.passing_now() as passed:
+            order.append(f"floor passed={passed}")
+        order.append("switched")
+        gate.open()
+        await asked
+        return order
+
+    assert asyncio.run(scene()) == ["floor passed=False", "switched", "answered"]
+    with gate.passing_now() as passed:
+        assert passed
+        assert not gate.close(0.05)  # Someone is past the gate: the close gives up, and opens.
+    assert not gate.closed and gate.close(0.05)
 
 
 def test_a_damaged_release_is_not_installed_before_the_first_question_either(
@@ -238,22 +305,17 @@ def test_the_app_holds_no_engine_a_new_release_replaced(monkeypatch: pytest.Monk
         assert gone() is None
 
 
-def test_memory_is_given_back_once_the_replaced_engine_is_gone(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    import threading
-
-    import rockygpt_brain.api.releases as releases_module
-
-    class Engine:
-        pass
-
-    held = [Engine()]
-    gone = weakref.ref(held[0])
-    given: list[bool] = []
-    monkeypatch.setattr(releases_module, "give_back_memory", lambda: given.append(gone() is None))
-    releases = Releases(SimpleNamespace(engine=None), Path("unused"))
-    releases.replaced = gone  # type: ignore[assignment]
-    threading.Timer(0.2, held.clear).start()  # Its last question finishes a moment later.
-    releases.give_back()
-    assert given == [True]  # Given back once, after the replaced engine was gone.
-    releases_module.give_back_memory()  # The real call never fails, with or without glibc.
+def test_an_engine_blueprint_holds_none_of_the_engine_or_its_release(tmp_path: Path) -> None:
+    bucket, brain = Bucket(), tmp_path / "brain"
+    with bucket.client() as client:
+        publish(STORE, build(tmp_path, "release-1"), client=client)
+        sync(STORE, brain, client=client)
+    engine = ChatEngine(ScriptedGateway(), GraphOnlyFacts(brain), output="written", reads=3)
+    gateway = engine.gateway
+    make = engine.blueprint()
+    gone = weakref.ref(engine)
+    del engine
+    gc.collect()
+    assert gone() is None  # The switch can drop the serving engine and still build the next.
+    made = make(GraphOnlyFacts(brain, release=read_pointer(brain)))
+    assert made.gateway is gateway and made.output == "written" and made.reads == 3

@@ -125,11 +125,13 @@ boundary. Install the extra first: `pip install -e '.[graph]'`. There are two wa
    keeps the newest three releases.
 2. **Serve**: start the Brain with `BRAIN_GRAPH_ONLY_DIR=DIR`. It needs no `DATABASE_URL`, never
    opens a Postgres connection for campus data, and serves the release `active.json` names. When
-   `active.json` names a newer release, the Brain opens and checks it, and reads it in full (meaning
-   index, how-to sections, every list) in an engine of its own while the engine serving keeps
-   answering; only then does it switch (`api/releases.py`). A question already being answered
-   finishes on the release it began on. (The AI spending ledger is a separate database and is
-   still used.)
+   `active.json` names a newer release, the Brain pauses and swaps (`api/releases.py`): new
+   questions wait, the answers in flight finish, the old engine is dropped and its memory given
+   back, and only then is the new release opened, checked and read in full (meaning index, how-to
+   sections, every list). Two releases are never held at once: read side by side, the dev graph
+   was killed for memory 4 times in 4 in a 512 MB box. Questions wait about 11 to 21 s once per
+   release; an emergency question never waits. A release that fails is refused and the Brain reads
+   the one it served again. (The AI spending ledger is a separate database and is still used.)
 3. **No fallback**: no published release, a damaged file, a pointer that disagrees with its file,
    or a failed read is an error for the question, `/readiness` fails, and the log says why. A
    graph that failed a read is opened afresh for the next question.
@@ -152,8 +154,8 @@ release before it too.
 - **The laptop** gives its Brain no store keys, so its copy changes only when synced by hand:
   `python -m rockygpt_brain.retrieval.graph_sync DIR [--force] [--events]` (the workspace's
   `./run-local.sh sync-prod` and the dev UI's "Sync from production"). Its running Brain looks
-  at its folder every 5 seconds and moves to a newly synced copy the way production does: read
-  in full first, then switched.
+  at its folder every 5 seconds and moves to a newly synced copy the way production does: pause,
+  drop the old engine, read the new copy in full, then answer again.
 
 ### The graph file
 

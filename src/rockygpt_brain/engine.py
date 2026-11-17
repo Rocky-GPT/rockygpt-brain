@@ -1507,14 +1507,24 @@ class ChatEngine:
         self._builders_lock = threading.Lock()
 
     def for_release(self, facts: EntityFacts) -> "ChatEngine":
-        """An engine with this one's settings over another release's facts, nothing read yet. A
-        new release is read in full in an engine of its own while this one keeps answering, and
-        the Brain switches engines once it is ready (api/releases.py)."""
-        return ChatEngine(self.gateway, facts, turn_seconds=self.turn_seconds,
-                          max_turn_nusd=self.max_turn_nusd, output=self.output,
-                          howto_one_call=self.howto_one_call, lookup_writer=self.lookup_writer,
-                          read_first=self.read_first, reads=self.reads, picks=self.picks,
-                          page_writer=self.page_writer, card_answers=self.card_answers)
+        """An engine with this one's settings over another release's facts, nothing read yet."""
+        return self.blueprint()(facts)
+
+    def blueprint(self) -> Callable[[EntityFacts], "ChatEngine"]:
+        """Makes engines with this one's settings over other facts, nothing read yet, and holds
+        none of this engine or its release: a release switch drops the serving engine before it
+        reads the new release (api/releases.py), so the two are never in memory together."""
+        gateway = self.gateway
+        settings: dict[str, Any] = {
+            "turn_seconds": self.turn_seconds, "max_turn_nusd": self.max_turn_nusd,
+            "output": self.output, "howto_one_call": self.howto_one_call,
+            "lookup_writer": self.lookup_writer, "read_first": self.read_first,
+            "reads": self.reads, "picks": self.picks, "page_writer": self.page_writer,
+            "card_answers": self.card_answers}
+
+        def make(facts: EntityFacts) -> "ChatEngine":
+            return ChatEngine(gateway, facts, **settings)
+        return make
 
     def _cards_now(self) -> bool:
         """Whether this turn uses the answer cards: the request's word, if it has one, else the
