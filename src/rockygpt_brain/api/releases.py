@@ -9,12 +9,14 @@ that way was killed for memory 4 times out of 4.
 
 Now a switch pauses instead (pause and swap): new questions wait at the gate, the answers in flight
 finish, the old engine is dropped and its memory given back, and only then is the new release
-opened, checked and read in full in an engine of its own. In the same box that held at most
-378 MB, 0 kills in 3, and new questions waited 11 to 21 s once per release (most nights a release
-arrives before students are up). A release that fails to open or pass its checks is never
-installed: the Brain reads the release it served again and is back on it, and does not try the
-refused one again until another arrives. If the answers in flight do not finish within
-PAUSE_LIMIT_SECONDS the switch is put off to the next check and nobody waits longer.
+opened, checked and read in full in an engine of its own. In the same box, this switch (Releases
+and Gate as written here) moved 10 times over the dev and live graphs with 0 to 4 questions
+asked at once: 0 kills, the box's memory at most 402 MB, 0 failed answers, and new questions
+waited at most 21 s once per release (most nights a release arrives before students are up).
+A release that fails to open or pass its checks is never installed: the Brain reads the release
+it served again and is back on it, and does not try the refused one again until another arrives.
+If the answers in flight do not finish within PAUSE_LIMIT_SECONDS the switch is put off to the
+next check and nobody waits longer.
 
 Production's Brain gets each release from the file store (GraphFollower). The laptop's copy
 changes only when Dan syncs it by hand (run-local.sh sync-prod), and its running Brain moves to
