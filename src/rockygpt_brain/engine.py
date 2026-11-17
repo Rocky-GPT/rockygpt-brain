@@ -1427,6 +1427,30 @@ def _lookup_status(result: OfficeResult) -> str:
     return "ok" if "office" in result.detail else "not_found"
 
 
+@dataclass(frozen=True, slots=True)
+class AnswerPath:
+    """Which answer paths a campus question is for: the calendar's events and the clubs, people,
+    or the pages (the one-call page answer) before the lookups."""
+
+    calendar: bool = False
+    people: bool = False
+    pages: bool = False
+
+
+def picked_path(topic: str | None, message: str) -> AnswerPath:
+    """The paths for a question: by the read's topic (audit plan item 8, 11-17), or by the word
+    rules when there was no read (topic None). Every topic but the lookups' own (an office's or
+    venue's contacts, hours and menu, the shuttle) is answered from the pages, never the lookup
+    loop, which was the weakest path (2 of 6 good on its practice questions, 11-17 audit)."""
+    if topic is not None:
+        return AnswerPath(calendar=topic in ("event", "club"), people=topic == "person",
+                          pages=topic not in triage.LOOKUP_TOPICS)
+    calendar = events.asks_events(message) or events.asks_clubs(message)
+    people = people_module.asks_people(message)
+    return AnswerPath(calendar=calendar, people=people,
+                      pages=not (calendar or people) and one_call.routes_here(message))
+
+
 class ChatEngine:
     def __init__(self, gateway: ModelGateway, facts: EntityFacts, *,
                  turn_seconds: float = TURN_SECONDS, max_turn_nusd: int = 25_000_000,
@@ -4266,7 +4290,8 @@ class ChatEngine:
         # (11-03 practice: "Hi!" then the whole greeting after the answer).
         result = await self._campus_answer(turn, request, trace, question=question,
                                            started=started,
-                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)))
+                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)),
+                                           topic=reading.topic)
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result
@@ -4341,10 +4366,11 @@ class ChatEngine:
             buildings = await asyncio.to_thread(self._buildings)
             if places_named(context.latest_message, offices, venues, buildings):
                 corrected = replace(reading, social="none",
-                                    question=context.latest_message.strip())
+                                    question=context.latest_message.strip(), topic=None)
                 why = "names_a_place"
         elif not reading.question and reading.limit in triage.LIMIT_QUESTIONS:
-            corrected = replace(reading, question=triage.LIMIT_QUESTIONS[reading.limit])
+            corrected = replace(reading, question=triage.LIMIT_QUESTIONS[reading.limit],
+                                topic=None)
             why = "limit_question"
         elif reading.limit == "clock" and triage.asks_only_the_clock(reading.question):
             # "whats todays date": the clock line answers it whole; asked again as a campus
@@ -4368,7 +4394,8 @@ class ChatEngine:
             # naming only a time: "what's the weather this weekend" stays a prediction (11-03
             # practice: corrected, it listed the weekend's events).
             corrected = replace(reading, limit="none",
-                                question=reading.question or context.latest_message.strip())
+                                question=reading.question or context.latest_message.strip(),
+                                topic=reading.topic if reading.question else None)
             why = "calendar_lookup"
         elif (reading.limit in ("my_records", "prediction") and reading.question
               and reading.danger == "none"
@@ -4735,11 +4762,14 @@ class ChatEngine:
 
     async def _campus_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
                              floor_situation: str | None = None, *, question: str | None = None,
-                             started: float | None = None, greeted: bool = False) -> ChatResult:
+                             started: float | None = None, greeted: bool = False,
+                             topic: str | None = None) -> ChatResult:
         """The campus answer: code's routes, then the model's. `question` is the read's clean
         question, which every route and search reads in place of the student's words; `started`
         is when the turn began, so the read's time comes out of the turn's own; `greeted` is
-        whether code's lead already says hello or thanks."""
+        whether code's lead already says hello or thanks; `topic` is what the read says the
+        question asks for (triage.TOPICS), which picks the path in place of the word rules, None
+        when there was no read."""
         with measure("Prepare conversation and root"):
             context = build_context(request)
             if question:
@@ -4777,13 +4807,17 @@ class ChatEngine:
         named_programs = (await asyncio.to_thread(self._programs_named, context.latest_message)
                           if self.output == "written" and floor_situation is None
                           else ([], [], []))
-        calendar_asked = (self.output == "written" and floor_situation is None
-                          and (events.asks_events(context.latest_message)
-                               or events.asks_clubs(context.latest_message)))
+        # Audit plan item 8 (11-17): the read's topic picks the path. The word rules pick it only
+        # when there was no read (a long message, a read that failed, a plain lookup code
+        # understood without one).
+        if topic is not None:
+            trace["path"] = {"topic": topic, "by": "read"}
+        paths = (picked_path(topic, context.latest_message)
+                 if self.output == "written" and floor_situation is None else AnswerPath())
+        calendar_asked = paths.calendar
         named_people = (await asyncio.to_thread(self._people_named, context.latest_message)
                         if self.output == "written" and floor_situation is None else [])
-        people_asked = (self.output == "written" and floor_situation is None
-                        and people_module.asks_people(context.latest_message))
+        people_asked = paths.people
         if named_programs[0] or named_programs[2] or calendar_asked or named_people \
                 or people_asked:
             done = await self._one_call(turn, context, budget, trace, programs=named_programs,
@@ -4798,8 +4832,7 @@ class ChatEngine:
                  and floor_situation is None and not names_a_danger(context.latest_message))
         if (not (named_programs[0] or named_programs[2] or calendar_asked or named_people
                  or people_asked)
-                and self.howto_one_call and self.output == "written" and floor_situation is None
-                and one_call.routes_here(context.latest_message)):
+                and self.howto_one_call and paths.pages):
             # "Who do I contact for help with Canvas?" names the Instructional Design Center by
             # its listed service label and asks only how to reach it: the lookup code is sure of
             # comes before the pages (11-03, the live answer gave the IT Help Desk's number).
