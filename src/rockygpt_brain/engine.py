@@ -2127,6 +2127,13 @@ class ChatEngine:
                               **({"now": True} if _NOW_ASKED.search(latest) else {})}
             part["when"] = when
             detail["day"] = when
+            if closed := self._closed_on(date.fromisoformat(when["date"])):
+                # The calendar marks the date asked a day the college is closed: said first, in
+                # the calendar's own words, beside the office's published hours.
+                part["closed"] = closed
+                detail["closed"] = closed
+                rendered = replace(rendered, text=f"{closed}\n\n{rendered.text}")
+                leads.insert(0, (closed, []))
         return OfficeResult(rendered, detail=detail, part=part, leads=leads)
 
     async def _meaning(self, requests: Sequence[Any], latest: str, budget: TurnBudget,
@@ -2640,6 +2647,20 @@ class ChatEngine:
             return academic_calendar.break_spans(calendar, today)
 
         return self._per_release("_breaks_cache", (version, today), read)
+
+    def _closed_on(self, day: date) -> str | None:
+        """The sentence that the release's academic calendar marks `day` as a day the college is
+        closed (academic_calendar.closed_on); None when it does not or there is no calendar."""
+        version, identity_hash = self.facts.active_release()
+
+        def read() -> dict[str, list[dict[str, Any]]] | None:
+            try:
+                return self.facts.academic_calendar(version, identity_hash=identity_hash)
+            except (EvidenceUnavailable, DatasetChanged):
+                return None
+
+        calendar = self._per_release("_calendar_cache", version, read)
+        return academic_calendar.closed_on(calendar, day) if calendar else None
 
     def _calendar_part(self, message: str, kind: str, today: date, numbered_from: int,
                        ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:

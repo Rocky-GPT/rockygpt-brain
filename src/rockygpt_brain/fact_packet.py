@@ -649,6 +649,10 @@ class _Builder:
             self.shuttle(part)
         elif kind == "office_facts":
             self.office(part)
+            closed = {"type": "college_closed", "approved_text": part.get("closed")}
+            if part.get("closed") and closed not in self.notices:
+                # The calendar marks the date asked closed (engine._closed_on): said as written.
+                self.notices.append(closed)
             if part.get("topic"):
                 self.add(part["topic"])  # The site the student named sends them to this office.
             if part.get("also"):
