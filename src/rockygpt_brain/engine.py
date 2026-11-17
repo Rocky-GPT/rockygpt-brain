@@ -3688,7 +3688,9 @@ class ChatEngine:
                             input=one_call.messages(
                                 latest, earlier if question != latest else None, offices,
                                 turn.campus_now.date(), academic, calendar, clubs, people,
-                                computed, code_parts, contacts_by_code=True),
+                                computed, code_parts, contacts_by_code=True,
+                                prompt=(one_call.SECTIONS_PROMPT if sectioned
+                                        else one_call.ONE_CALL_PROMPT)),
                             tools=[one_call.ONE_CALL_TOOL], budget=budget)
         except GatewayError as error:
             return fallback(error.code)
@@ -3737,7 +3739,9 @@ class ChatEngine:
                                     latest, earlier if question != latest else None,
                                     [*offices, *more], turn.campus_now.date(), academic,
                                     calendar, clubs, people, computed, code_parts,
-                                    contacts_by_code=True),
+                                    contacts_by_code=True,
+                                    prompt=(one_call.SECTIONS_PROMPT if sectioned
+                                            else one_call.ONE_CALL_PROMPT)),
                                 tools=[one_call.ONE_CALL_TOOL], budget=budget)
                 second = (None if restaged is not None else
                           again.tool_calls[0] if len(again.tool_calls) == 1 else None)

@@ -49,3 +49,19 @@ def test_a_number_no_section_holds_is_dropped_as_for_every_one_call_answer() -> 
     made_up = TUTOR + " Call (201) 684-9999 for help. [1]"
     result = ask(PartsGateway(one_reply(made_up, [1])), setting="sections")
     assert "684-9999" not in result.body["answer"] and "March 1" in result.body["answer"]
+
+
+def test_the_sections_writer_gives_the_newer_page_alone_and_never_a_page_date() -> None:
+    # 11-16: answers on adding a parent as an authorized user said a page was "older, updated
+    # March 2026"; the student did not ask, and graders read it as a claim the pages do not make.
+    from datetime import date
+
+    from rockygpt_brain import one_call
+    sections_rules = one_call.SECTIONS_PROMPT
+    assert "do not mention the older page" in sections_rules
+    assert "never say a page's date" in sections_rules
+    assert "with its page_updated month and year" not in sections_rules
+    # Today's writers keep their own rules.
+    assert "with its page_updated month and year" in one_call.ONE_CALL_PROMPT
+    sent = one_call.messages("q", None, [], date(2026, 11, 16), prompt=sections_rules)
+    assert sent[0]["content"] == sections_rules

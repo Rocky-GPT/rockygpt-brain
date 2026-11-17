@@ -81,3 +81,15 @@ def test_a_section_is_said_from_its_start_unless_its_matched_piece_lies_past_wha
     index.scores = scores  # type: ignore[method-assign]
     found, _ = sections(index, [QUERY], TODAY)
     assert found.at == {("long", "0"): 2_500}
+
+
+def test_a_page_read_in_part_also_gives_its_short_opening_first() -> None:
+    # 11-16: ResNET's registration page was read from its later sections; its opening says the
+    # page is only for devices that cannot log in.
+    index = index_of([("wifi", "0", 0.95), ("register", "1", 0.90), ("register", "2", 0.85),
+                      ("register", "0", 0.10), ("other", "0", 0.05)])
+    keys = sections(index, [QUERY], TODAY, cap=3)[1]
+    assert keys == [("wifi", "0"), ("register", "0"), ("register", "1"), ("register", "2")]
+    # An opening read already is not given again.
+    assert ("register", "0") not in sections(index, [QUERY], TODAY, cap=3,
+                                             skip={("register", "0")})[1]
