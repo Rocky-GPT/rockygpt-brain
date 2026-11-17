@@ -592,6 +592,22 @@ def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
     return [question] if _GAVE_UP.search(text) else []
 
 
+# The sections writer's rules: the same, except that the newer page's value is given alone and no
+# page's date is ever said. On 11-16 its answers on adding a parent as an authorized user said one
+# page was "older, updated March 2026": the student did not ask, and the pages make no such claim.
+_OLDER_PAGE_SAID = (
+    "  the newer page wins: when their page_updated dates differ, give the value of the section"
+    " whose\n  page_updated is later, with its mark, then say in one short sentence that an older"
+    " page (named by\n  office or title, with its page_updated month and year) says otherwise."
+    " When page_updated is")
+_NEWER_PAGE_ONLY = (
+    "  the newer page wins: when their page_updated dates differ, give only the value of the"
+    " section\n  whose page_updated is later, with its mark; do not mention the older page."
+    " When page_updated is")
+_DATE_MEANS = "page_updated is the day a section's page was last\n  changed."
+SECTIONS_PROMPT = ONE_CALL_PROMPT.replace(_OLDER_PAGE_SAID, _NEWER_PAGE_ONLY).replace(
+    _DATE_MEANS, _DATE_MEANS[:-1] + "; never say a page's date.")
+
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
              today: date, programs: Sequence[dict[str, Any]] = (),
              calendar: dict[str, Any] | None = None,
@@ -599,7 +615,8 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              people: Sequence[dict[str, Any]] = (),
              computed: Sequence[dict[str, Any]] = (),
              already_written: Sequence[str] = (),
-             contacts_by_code: bool = False) -> list[dict[str, Any]]:
+             contacts_by_code: bool = False,
+             prompt: str = ONE_CALL_PROMPT) -> list[dict[str, Any]]:
     given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
              **({"contacts_written_by_code": True} if contacts_by_code else {}),
@@ -610,7 +627,7 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              **({"calendar": calendar} if calendar else {}),
              **({"clubs": list(clubs)} if clubs else {}),
              **({"people": list(people)} if people else {}), "offices": offices}
-    return [{"role": "system", "content": ONE_CALL_PROMPT},
+    return [{"role": "system", "content": prompt},
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
 
