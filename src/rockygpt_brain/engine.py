@@ -2965,9 +2965,13 @@ class ChatEngine:
         """Who teaches the courses a question names (people.courses_named): everyone whose
         faculty profile lists one, by its code or by its title, in code's words, numbered after
         `numbered_from`, with the sources and the facts said, for the check; None when it names
-        no course, or no profile lists it (the profiles' own words are then read as before)."""
+        no course, or no profile lists it (the profiles' own words are then read as before).
+        A title that is only a catalog subject's name ("Computer Science I") names the subject
+        when asked without its number, and its faculty are the catalog's (_faculty_part)."""
         titles = self._course_titles()
-        codes = people_module.courses_named(message, titles)
+        subjects = {academics.program_core(str(p["name"]))
+                    for p in self.facts.identities(("program",))}
+        codes = people_module.courses_named(message, titles, subjects)
         if not codes or len(codes) > MAX_COURSES_TAUGHT:
             return None
         found = [e for e in people_module.course_teachers(self._directory(), codes, titles)
@@ -3488,7 +3492,15 @@ class ChatEngine:
                         people, found_people = await asyncio.to_thread(
                             self._people_listed, latest, len(sources))
                         sources = [*sources, *found_people]
-                    if (people_asked and index.academic and not stand_ins
+                    # A field's faculty asked as a list are the catalog's (_faculty_part, below),
+                    # not the profiles whose own words hold the field's name: "who is on the
+                    # social work faculty" was given 8 business professors whose interests say
+                    # "social", none of them among the 8 the catalog lists (11-17 list check).
+                    field_listed = bool(programs and programs[0] and not named_people
+                                        and course_answer is None
+                                        and (people_module.asks_faculty_list(latest)
+                                             or people_module.asks_program_lead(latest)))
+                    if (people_asked and index.academic and not stand_ins and not field_listed
                             and course_answer is None and people_module.asks_people_topic(latest)
                             and not people_module.asks_leadership(latest)):
                         # Code first: the profiles whose own courses, interests or title hold
