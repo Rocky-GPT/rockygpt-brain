@@ -290,6 +290,9 @@ class GraphEntityFacts(EntityFacts):
             raise GraphUnavailable("The release graph is missing its release details.") from exc
         self._registry_lock = threading.Lock()
         self._registry: tuple[list[dict[str, Any]], list[dict[str, Any]]] | None = None
+        # What readers worked out from this file's rows (Snapshot.kept). A file never changes,
+        # so it holds for as long as the file is served and goes when the file does.
+        self._kept: dict[Any, Any] = {}
 
     def _read(self, connection: Any, query: str, params: dict[str, Any] | None = None
               ) -> list[Any]:
@@ -351,6 +354,7 @@ class GraphEntityFacts(EntityFacts):
                 lambda entity, collection: (
                     self._evidence(connection, entity, collection)
                     if collection in RECORD_COLLECTIONS else []),
+                self._kept,
             )
         finally:
             connection.close()
