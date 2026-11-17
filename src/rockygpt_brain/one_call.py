@@ -14,7 +14,7 @@ lookups: a question about them is not routed here.
 import json
 import re
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
@@ -133,6 +133,36 @@ ONE_CALL_TOOL: dict[str, Any] = {
                                "not_on_pages": {"type": "boolean"},
                                "sections": {"type": "array", "items": {"type": "integer"}}}}},
                        "text": {"type": "string", "maxLength": 8000}}},
+}
+
+# The "direct" page writer (audit plan item 6, 11-17): one call at the writer's effort, a short
+# fixed prompt, the reply alone. In the audit's practice runs a nine-line prompt over the Brain's
+# own section search answered as well as the parts-first prompt (70 of 81 good vs 69) in about
+# half the time. The prompt never changes per question; today and now ride in the JSON.
+DIRECT_PROMPT = """You are RockyGPT, a campus assistant for Ramapo College students. Answer the \
+student's question using only the college's own pages, given as JSON: each office's numbered \
+sections (n), and anything code wrote.
+- Give what the sections say for what was asked, exactly as written: every step, link, form, \
+date, deadline, amount, condition, room, phone number and email.
+- Put the number of the section a statement comes from after it, like [3]. Numbers are only marks.
+- When two sections disagree, give the value of the one whose page_updated is later. A section \
+with past_term is for a term or deadline that is over: never give its dates as coming up.
+- already_written is the start of the reply, written by code: never repeat or contradict it; \
+write only what else is asked, or an empty text when it answers everything. computed facts are \
+true as given: state each that answers the question, with its number.
+- When contacts_written_by_code is true, code adds the phone, email and room of each office you \
+cite: name the office, but do not list those yourself.
+- For a part of the question no section answers, say once that you don't have verified \
+information about it, and name the office most likely to help.
+- Never add anything the JSON does not say. today and now are the campus date and time.
+- Short plain sentences; numbered steps are fine. Under 1,600 characters. No greeting. Answer \
+only with the write_answer tool."""
+
+DIRECT_TOOL: dict[str, Any] = {
+    "type": "function", "name": "write_answer", "strict": True,
+    "description": "The reply.",
+    "parameters": {"type": "object", "additionalProperties": False, "required": ["text"],
+                   "properties": {"text": {"type": "string", "maxLength": 8000}}},
 }
 
 # Questions with their own code-computed answers (menus, dining hours, the shuttle) and plain
@@ -273,12 +303,17 @@ def code_text(facts: Sequence[dict[str, Any]]) -> str | None:
     return " ".join(lines)
 
 
-def parts_of(question: str) -> list[str]:
-    """The texts searched: the whole question, then its sentences and its clauses joined by "and
-    what/how/who/...", up to MAX_PARTS of them."""
-    bits = [b.strip() for b in re.split(
+def pieces_of(question: str) -> list[str]:
+    """A message's sentences and its clauses joined by "and what/how/who/...", every one."""
+    return [b.strip() for b in re.split(
         r"(?<=[?.!])\s+|\s+(?:and|also|plus)\s+(?=(?:what|how|who|when|where|can|do|does|will|is|"
-        r"are|should)\b)", question, flags=re.IGNORECASE) if len(b.strip()) > 12]
+        r"are|should)\b)", question, flags=re.IGNORECASE) if b.strip()]
+
+
+def parts_of(question: str) -> list[str]:
+    """The texts searched: the whole question, then its pieces (pieces_of) longer than a few
+    words, up to MAX_PARTS of them."""
+    bits = [b for b in pieces_of(question) if len(b) > 12]
     return [question, *[b for b in bits if b != question][:MAX_PARTS]]
 
 
@@ -587,6 +622,22 @@ def gave_up(arguments: dict[str, Any], question: str) -> list[str]:
     return [question] if _GAVE_UP.search(text) else []
 
 
+# The sections writer's rules: the same, except that the newer page's value is given alone and no
+# page's date is ever said. On 11-16 its answers on adding a parent as an authorized user said one
+# page was "older, updated March 2026": the student did not ask, and the pages make no such claim.
+_OLDER_PAGE_SAID = (
+    "  the newer page wins: when their page_updated dates differ, give the value of the section"
+    " whose\n  page_updated is later, with its mark, then say in one short sentence that an older"
+    " page (named by\n  office or title, with its page_updated month and year) says otherwise."
+    " When page_updated is")
+_NEWER_PAGE_ONLY = (
+    "  the newer page wins: when their page_updated dates differ, give only the value of the"
+    " section\n  whose page_updated is later, with its mark; do not mention the older page."
+    " When page_updated is")
+_DATE_MEANS = "page_updated is the day a section's page was last\n  changed."
+SECTIONS_PROMPT = ONE_CALL_PROMPT.replace(_OLDER_PAGE_SAID, _NEWER_PAGE_ONLY).replace(
+    _DATE_MEANS, _DATE_MEANS[:-1] + "; never say a page's date.")
+
 def messages(question: str, earlier_user: str | None, offices: list[dict[str, Any]],
              today: date, programs: Sequence[dict[str, Any]] = (),
              calendar: dict[str, Any] | None = None,
@@ -594,8 +645,12 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              people: Sequence[dict[str, Any]] = (),
              computed: Sequence[dict[str, Any]] = (),
              already_written: Sequence[str] = (),
-             contacts_by_code: bool = False) -> list[dict[str, Any]]:
-    given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
+             contacts_by_code: bool = False,
+             prompt: str = ONE_CALL_PROMPT,
+             now: datetime | None = None) -> list[dict[str, Any]]:
+    given = {"today": f"{today:%A, %B} {today.day}, {today.year}",
+             **({"now": f"{now:%I:%M %p}".lstrip("0")} if now is not None else {}),
+             "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
              **({"contacts_written_by_code": True} if contacts_by_code else {}),
              **({"already_written": "\n\n".join(already_written)} if already_written else {}),
@@ -605,7 +660,7 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              **({"calendar": calendar} if calendar else {}),
              **({"clubs": list(clubs)} if clubs else {}),
              **({"people": list(people)} if people else {}), "offices": offices}
-    return [{"role": "system", "content": ONE_CALL_PROMPT},
+    return [{"role": "system", "content": prompt},
             {"role": "user", "content": json.dumps(given, ensure_ascii=False)}]
 
 
@@ -822,79 +877,3 @@ def _deadlines(text: str) -> list[tuple[str, date]]:
         said = " ".join((lead + m.group(0)).split()).strip(" ,–-")
         found.append((said, when))
     return found
-
-
-# The every-word check (Dan 11-02, "no made-up facts"): each statement of a reply may use only words
-# the facts it cites hold. Report only for now: it lists what it would cut, and cuts nothing.
-_GRAMMAR = frozenset("""
-the and for with from that this these those you your yours are was were been being can could will
-would must may might not have has had into onto over under than then there their they them its
-also only just more most less such each every any all both either neither but nor yet some same
-about after before during while when where which who whom whose what why how here very much many
-other another one ones per via within without upon among between because since until unless
-though although whether does did done doing make makes made get gets got use used using say says
-said see listed lists list given gives give note notes noted states stated state shows show
-page pages section sections site sites source sources verified information official published
-publish publishes college ramapo office offices contact contacts email phone call visit student
-students you're it's don't doesn't isn't aren't can't won't i'm we our us please need needs
-able like way ways first next last new also yes include includes including part parts asked ask
-handle handles handled handling offer offers offered provide provides provided describe describes
-described mean means meaning allow allows tell tells told try tries help helps helping her his
-him she hers own well officially according different differ differs difference either whether
-regarding related another both
-""".split())
-
-
-def _stem(word: str) -> str:
-    for suffix in ("ing", "ies", "ed", "es", "s", "ly"):
-        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-            return word[: -len(suffix)] + ("y" if suffix == "ies" else "")
-    return word
-
-
-def _content(text: str) -> set[str]:
-    return {_stem(w) for w in re.findall(r"[a-z]+", text.casefold().replace("’", "'"))
-            if len(w) >= 3 and w not in _GRAMMAR}
-
-
-def unbacked(text: str, evidence: dict[int, str], shared: str) -> list[dict[str, Any]]:
-    """Each statement's words that neither the facts its marks cite nor the shared words (names,
-    the question, fixed wording) hold: what the every-word check would cut."""
-    held_shared = _content(shared)
-    found = []
-    # A mark covers its paragraph or list: the model cites a list's steps or a paragraph's
-    # sentences once, at its end (88 of 124 statements flagged on 11-02 had no mark of their own).
-    for paragraph in text.split("\n\n"):
-        block = cited(paragraph)
-        for piece in statements(paragraph):
-            statement = piece.strip()
-            if not statement or statement.startswith("Sources:"):
-                continue
-            marks = cited(statement) or block
-            held = held_shared.union(*(_content(evidence.get(n, "")) for n in marks))
-            words = sorted(_content(re.sub(r"\[[\d,\s–-]+\]", "", statement)) - held)
-            if words:
-                found.append({"statement": statement[:240], "words": words[:12],
-                              **({} if marks else {"uncited": True})})
-    return found
-
-
-def evidence_by_mark(offices: Sequence[dict[str, Any]], computed: Sequence[dict[str, Any]],
-                     *entries: Sequence[dict[str, Any]]) -> dict[int, str]:
-    """Everything each source number stands for, as text: a section with its office's name and
-    contacts, a computed fact, a person's, program's, event's or club's entry."""
-    by_n: dict[int, list[str]] = {}
-    for office in offices:
-        contacts = json.dumps({k: office.get(k) for k in ("office", "email", "phones", "rooms")},
-                              ensure_ascii=False)
-        for section in office.get("sections") or []:
-            by_n.setdefault(section["n"], []).append(
-                json.dumps(section, ensure_ascii=False) + contacts)
-    for fact in computed:
-        if isinstance(fact, dict) and isinstance(fact.get("n"), int):
-            by_n.setdefault(fact["n"], []).append(str(fact.get("fact", "")))
-    for listed in entries:
-        for entry in listed or []:
-            if isinstance(entry, dict) and isinstance(entry.get("n"), int):
-                by_n.setdefault(entry["n"], []).append(json.dumps(entry, ensure_ascii=False))
-    return {n: " ".join(texts) for n, texts in by_n.items()}

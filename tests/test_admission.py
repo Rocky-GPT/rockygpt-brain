@@ -61,6 +61,16 @@ def test_authentication_happens_before_parsing_or_work() -> None:
         assert authorized.status_code == 200
         assert engine.calls == 1
         assert client.get("/readiness").status_code == 200
+        # No API docs in production, with or without the token.
+        for page in ("/docs", "/redoc", "/openapi.json"):
+            assert client.get(page).status_code == 404, page
+            assert client.get(page, headers={
+                "x-rockygpt-environment-token": "fixture-secret"}).status_code == 404, page
+
+
+def test_development_keeps_its_api_docs() -> None:
+    with TestClient(create_app(BoundaryEngine(), environment="development")) as client:
+        assert client.get("/openapi.json").status_code == 200
 
 
 def test_production_without_token_fails_closed_but_remains_live() -> None:

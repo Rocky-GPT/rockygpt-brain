@@ -22,9 +22,8 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
-Writer = Literal["template", "ai"]
 WRITERS: tuple[str, ...] = ("template", "ai")
 
 # At most this many facts are said: a three-step appeal with its deadline and its form fits; the
@@ -166,22 +165,50 @@ def shape_of(question: str) -> str:
     return "_then_".join(shapes[:2]) or "list"
 
 
+# A page with a how-to list is read as its task entries (retrieval/entity_facts._procedure_units):
+# the page read's steps, each with the page's own words beside it as 'N. step (page: “quote”)',
+# and the words of the entry's own section riding along (section_words). Numbered as they come,
+# every fact was listed twice, once as a step and once in its section, and each step's number
+# read as a number the writer must say. On the blind 60 of 2026-11-16, the first run with such
+# entries in the data, the middle answer was offered 220 sentences (106 on Nov 9), the writer's
+# reply failed its check in 48 of 103 answers (13 of 106), and the template then printed the
+# quote marks in 8 first tries.
+_STEP_QUOTE = re.compile(
+    r"\s*\(page: \u201c.*?\u201d\)(?=\s+\d{1,2}\.\s|\s*$)|\s*\(page: \u201c[^\u201d]*$", re.DOTALL)
+_STEP_NUMBER = re.compile(r"^\d{1,2}\.\s+")
+
+
+def entry_steps(text: str) -> list[str] | None:
+    """The steps of a task entry as a how-to read says them, without their numbers and page
+    quotes (a quote cut short at the end goes too); None when the text is a page section's
+    own words."""
+    if "(page: \u201c" not in text:
+        return None
+    steps = [_STEP_NUMBER.sub("", " ".join(piece.split())) for piece in _STEP_QUOTE.split(text)]
+    return [step for step in steps if step]
+
+
 def numbered(offices: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Every sentence of every section given, numbered from 1 in the order read, each with its
     section's number (the source cited), office and heading, and what it holds. A sentence said
-    word for word in an earlier section is given once."""
+    word for word in an earlier section is given once. A task entry is numbered once, in the
+    page's own words: the sentences of its own section, or its steps (each one sentence, with no
+    number and no quote) when no section came with it."""
     found: list[dict[str, Any]] = []
     seen: set[str] = set()
     for office in offices:
         for section in office.get("sections") or []:
-            text = " ".join(str(section.get(k) or "") for k in ("text", "section_words")
-                            if section.get(k))
-            for place, said in enumerate(sentences(text)):
+            text = str(section.get("text") or "")
+            own = str(section.get("section_words") or "")
+            steps = None if own else entry_steps(text)
+            for place, said in enumerate(sentences(own or text) if steps is None else steps):
                 key = re.sub(r"\W+", " ", said.casefold()).strip()
                 if key in seen:
                     continue
                 seen.add(key)
-                found.append({"n": len(found) + 1, "says": said, "kinds": kinds_of(said),
+                # A step's number went with its quote; the step is still a step.
+                kinds = kinds_of(said if steps is None else f"1. {said}")
+                found.append({"n": len(found) + 1, "says": said, "kinds": kinds,
                               "office": office.get("office"), "source": section.get("n"),
                               "heading": section.get("heading"), "place": place,
                               **({"past_term": True} if section.get("past_term") else {}),

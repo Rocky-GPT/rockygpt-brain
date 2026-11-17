@@ -53,9 +53,13 @@ meaning index before the next question goes on, rather than answering without it
 
 All model calls go through the same gateway. It reserves against the durable
 environment allowance before sending, accounts for returned usage, and keeps a
-reservation charged when delivery or usage is uncertain. No automated retries are
-made. Operators must reconcile uncertain reservations; waiting for a new month
-does not erase them.
+reservation charged when delivery or usage is uncertain. A call the provider failed on its
+side (never sent, no answer, or a 5xx) is asked once more while the turn has 6 s left; a 429 or
+a timeout is not. Operators must reconcile uncertain reservations; waiting for a new month
+does not erase them: `scripts/clear_stuck_holds.py` lists the holds no call settled, and with
+`--release` settles them at no cost (check the provider's usage page first).
+
+Production serves no API docs pages (`/docs`, `/redoc`, `/openapi.json`); development keeps them.
 
 The bundled [provider release](src/rockygpt_brain/provider-release.json) records the
 model, pricing evidence, and expiry. Expired pricing blocks readiness and provider
@@ -242,8 +246,12 @@ contacts) next to them. The facts go out with the answer as `pageFacts`, with `w
 model that sees only that JSON; code checks the model's reply says every fact's numbers,
 emails and links and nothing no fact holds, gives it one repair try, then sends the template's
 text instead. `one_call` (the default until the check set shows the two stages better) is the
-one model call that chooses the facts while it writes. A request's `writer` field (`template`
-or `ai`; `rocky ask --writer`) overrides both settings for that turn.
+one model call that chooses the facts while it writes. `sections` (plan "one simple page writer",
+2026-11-16; off until it beats today's writer on a graded run) is that same one call reading what
+`src/rockygpt_brain/retrieval/section_search.py` finds: whole plain sections (no task entries),
+at most 2 a page and 20 in all, never a page the meaning index marks not current
+(`retrieval/page_marks.py`), with no section pick before it. A request's `writer` field
+(`template`, `ai` or `sections`; `rocky ask --writer`) overrides both settings for that turn.
 
 A writer is never handed the full packet. The packet is the Brain's record (ids, hashes, the pages
 that were read); a template or a model with no other context only needs what it can say.

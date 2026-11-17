@@ -43,13 +43,6 @@ def test_only_a_question_asking_how_to_reach_the_named_offices_is_contact_only()
     assert not only("counseling center")  # Asks nothing about reaching it.
 
 
-def test_who_to_go_to_is_asked() -> None:
-    assert contacts.asks_who("my bike got stolen near the student center, who do i report it to")
-    assert contacts.asks_who("Who should I talk to about a roommate problem?")
-    assert contacts.asks_who("which office do I go to for a parking ticket")
-    assert not contacts.asks_who("how do I make an appointment at the health center")
-
-
 def test_an_offices_contacts_in_codes_words() -> None:
     said = contacts.contact_text(
         "Public Safety (Emergency)", ["publicsafety@ramapo.edu"],

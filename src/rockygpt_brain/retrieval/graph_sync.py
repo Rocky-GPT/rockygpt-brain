@@ -9,7 +9,8 @@ DIR`, run by the workspace's sync-prod). So both serve the same bytes, through t
 
 Store layout, under BRAIN_GRAPH_STORE_PREFIX (default `brain-graph/`):
 
-    release-<hash>.lbug, release-<hash>.meaning.json, release-<hash>.meaning.f32
+    release-<hash>.lbug, release-<hash>.meaning.json, release-<hash>.meaning.i8 and .scales
+                  (and, while every Brain still may need them, release-<hash>.meaning.f32)
     active.json   the pointer GraphOnlyFacts reads, plus each file's size and sha256 ("files"),
                   written last so a reader sees the old release or the whole new one
 
@@ -340,14 +341,13 @@ class GraphFollower:
     but not served yet; install() then serves it from this folder. The Brain installs a release
     only once it has read it in full in an engine of its own (api/releases.py checks every
     FOLLOW_SECONDS, RETRY_SECONDS after a failure), so a release that fails to open is never
-    installed. sync_once() does both at once."""
+    installed."""
 
     def __init__(self, store: GraphStore, directory: Path, *,
                  interval: float = FOLLOW_SECONDS, client: httpx.Client | None = None) -> None:
         self.store, self.directory, self.interval = store, Path(directory), interval
         self.client = client  # None: each check opens (and closes) its own.
         self.last_error: str | None = None
-        self.last_message: str | None = None
 
     def wait(self) -> float:
         """Seconds until the next check: sooner after a failed one."""
@@ -377,20 +377,8 @@ class GraphFollower:
         except OSError as error:
             self._failed(error)
             return False
-        self.last_message = message
         LOG.info("brain_graph_sync_installed %s", message)
         return True
-
-    def sync_once(self) -> bool:
-        try:
-            changed, message = sync(self.store, self.directory, client=self.client)
-        except (SyncError, httpx.HTTPError, OSError) as error:
-            self._failed(error)
-            return False
-        self.last_error, self.last_message = None, message
-        if changed:
-            LOG.info("brain_graph_sync_installed %s", message)
-        return changed
 
 
 # --- uploading (the daily data run, scripts/publish_graph.py) ----------------------------------

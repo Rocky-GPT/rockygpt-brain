@@ -1265,7 +1265,6 @@ _FOOD_WORDS = {
     "pasta": ("pasta", "macaroni", "penne", "rigatoni", "rotini", "spaghetti", "ziti", "lasagna",
               "linguine", "fettuccine", "tortellini", "ravioli", "orzo", "gnocchi"),
 }
-MAX_MENU_WORDS = 3
 MAX_REST_OF_MENU = 40  # The rest of a filtered meal by name: "what is for dinner" is said.
 # A filter that keeps more items than a reply can say lists this many per station, with the count.
 MAX_MATCHES_LISTED, MATCHES_PER_STATION, MATCHES_SHOWN = 30, 3, 24
@@ -1832,15 +1831,21 @@ _PAGE_TERM = re.compile(r"(winter|spring|summer|fall)[-_]?(20\d\d)(?!\d)")
 _PAGE_YEAR = re.compile(r"(?<!\d)(20\d\d)(?!\d)")
 
 
-def past_page(url: str, today: date) -> str | None:
-    """The latest term or year a page's own address names (/previous-deadlines-2021/,
-    /wellness-services-fall-2023/), when every one it names has ended by today; else None. A year
-    alone is read as the academic year it starts, ending August 31 of the next."""
+def address_terms(url: str) -> list[tuple[date, str]]:
+    """Each term or year a page's own address names, with the day it ends. A year alone is read as
+    the academic year it starts, ending August 31 of the next."""
     path = urlsplit(url).path.casefold()
     named = [(date(int(year), *_TERM_ENDS[season.title()]), f"{season.title()} {year}")
              for season, year in _PAGE_TERM.findall(path)]
     rest = _PAGE_TERM.sub(" ", path)
     named += [(date(int(year) + 1, 8, 31), year) for year in _PAGE_YEAR.findall(rest)]
+    return named
+
+
+def past_page(url: str, today: date) -> str | None:
+    """The latest term or year a page's own address names (/previous-deadlines-2021/,
+    /wellness-services-fall-2023/), when every one it names has ended by today; else None."""
+    named = address_terms(url)
     if not named or max(end for end, _ in named) >= today:
         return None
     return max(named)[1]
@@ -1849,11 +1854,14 @@ def past_page(url: str, today: date) -> str | None:
 _MONTHS = {m: n for n, m in enumerate(("january february march april may june july august "
                                         "september october november december").split(), 1)}
 # A deadline's date: a full date said after a deadline word ("due", "by", "deadline", "refund",
-# "last day"), not an effective or revision date.
+# "last day"), not an effective or revision date. The date is written out ("August 12, 2026") or
+# in numbers, month first ("9/23/26": the scholarships page's "apply by 9/23/26" was said as
+# today's on November 11).
 _DEADLINE_DATE = re.compile(
     r"\b(?:deadline|due|by|before|until|no later than|last day|refund|payment|pay|close[sd]?)\b"
-    r"[^.;|]{0,40}?\b(January|February|March|April|May|June|July|August|September|October|"
-    r"November|December)\s+(\d{1,2}),?\s+(20\d\d)", re.IGNORECASE)
+    r"[^.;|]{0,40}?\b(?:(January|February|March|April|May|June|July|August|September|October|"
+    r"November|December)\s+(\d{1,2}),?\s+(20\d\d)|(\d{1,2})/(\d{1,2})/(20\d\d|\d\d)\b)",
+    re.IGNORECASE)
 
 
 def past_dates(text: str, today: date) -> str | None:
@@ -1861,9 +1869,10 @@ def past_dates(text: str, today: date) -> str | None:
     deadline date it names is before today; else None. "When is my bill due" was answered with
     August's deadline on October 21 while December's was published beside it."""
     named = []
-    for month, day, year in _DEADLINE_DATE.findall(text):
+    for month, day, year, month_number, day_number, short_year in _DEADLINE_DATE.findall(text):
         try:
-            named.append(date(int(year), _MONTHS[month.casefold()], int(day)))
+            named.append(date(int(year), _MONTHS[month.casefold()], int(day)) if month else
+                         date(int(short_year) % 100 + 2000, int(month_number), int(day_number)))
         except ValueError:
             continue
     if not named or max(named) >= today:
@@ -1879,6 +1888,18 @@ def past_heading(heading: str, today: date) -> str | None:
     if not years or max(years) > today.year - 2:
         return None
     return str(max(years))
+
+
+def unit_over(row: Mapping[str, Any], unit: Mapping[str, Any], today: date) -> str | None:
+    """The term, year or deadline a how-to unit is for, when it is over by today; else None. The
+    unit's own term, heading and opening words are read, then its page's address, then a year in
+    its term or heading (a task whose term is "2019" is not today's), then its deadline dates."""
+    url = str(row.get("url") or "")
+    named = f"{unit.get('term', '')} {unit['heading']}"
+    return (past_term(f"{named} {unit['text'][:600]} {url}", today)
+            or past_page(url, today)
+            or past_heading(f"{named} {unit.get('section', '')}", today)
+            or past_dates(f"{unit['heading']} {unit['text'][:600]}", today))
 
 
 def _stem(word: str) -> str:
@@ -2116,11 +2137,7 @@ def procedures_property(
         # By meaning when the question was embedded (the student's words and the page's need share
         # none: "excused for a funeral", "attendance is determined by the instructor"); else by
         # the asked words.
-        over = past_term(
-            f"{unit.get('term', '')} {unit['heading']} {unit['text'][:600]} {row.get('url') or ''}",
-            today) or past_page(str(row.get("url") or ""), today) or past_heading(
-            f"{unit['heading']} {unit.get('section', '')}", today) or past_dates(
-            f"{unit['heading']} {unit['text'][:600]}", today)
+        over = unit_over(row, unit, today)
         old = old_page(page_updated(row), today)
         if meaning is not None:
             similarity = meaning.get((str(row["id"]), index))

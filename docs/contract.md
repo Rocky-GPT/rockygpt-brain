@@ -27,9 +27,9 @@ of this office-facts slice.
 - `omittedMessages` is an optional integer from 0 to 100,000. It records messages
   removed by the caller. The service also reports its own context truncation to
   the model. Missing history is not evidence that something was never said.
-- `writer` is optional, `template` or `ai`: which writer says this answer's facts, for
-  lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
-  `BRAIN_PAGE_WRITER`). It is for trying both writers on one question; the student app never
+- `writer` is optional, `template`, `ai` or `sections`: which writer says this answer's facts,
+  for lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
+  `BRAIN_PAGE_WRITER`); `sections` is for page answers only (lookups keep their setting). It is for trying both writers on one question; the student app never
   sends it.
 - Unknown JSON fields are rejected. Malformed input returns HTTP 422 with the
   standard failure envelope and sanitized validation details; student input is
@@ -204,6 +204,14 @@ how many make a dollar.
   what each does, and `fixedTexts`: the reply texts the code writes, each with `pickedBy` (who
   chooses it: the model, the danger phrase list, a lookup result, a provider failure, or the code itself) and `when`.
   How facts are worded and the error messages are not in `fixedTexts`.
+- `GET /v1/dev/budget`: this month's spending allowance, read from the ledger the Brain admits
+  every paid call against and counted exactly as admission counts it: `environment`, `month` (the
+  campus month's first day), `paused`, `capNusd`, `extraNusd` (the month's dated development extra),
+  `allowanceNusd` (the two added), `settledNusd` (this month's settled costs), `heldNusd` (every
+  unsettled hold, whatever its month, split into `reservedNusd`/`reservedCalls` and
+  `uncertainNusd`/`uncertainCalls`), `leftNusd` (allowance minus settled and held, never below 0)
+  and `checkedAt`. It is read without the account lock, so it never delays an answer. 503
+  `ledger_unavailable` when the ledger can't be read.
 - `GET /v1/dev/offices`: `datasetVersion`, `identityHash`, `truncated`, and each published office's
   `entityId`, `name` and `aliases`. The ids and pins feed `GET /v1/entities/{id}/facts`.
 - `GET /v1/dev/offices/search?q=`: `query`, `datasetVersion`, `identityHash`, `truncated`, the
@@ -216,7 +224,6 @@ how many make a dollar.
   (about 4 KB for 34 offices; names only when the list passes 12 KB, `null` when it still
   does, when it was cut off, or when it cannot be read), and the reader still matches only
   published names, so a name the model gets wrong is a `not_found`, never a guess.
-
 ## Failure envelope
 
 ```json
