@@ -31,11 +31,6 @@ of this office-facts slice.
   for lookups and page answers alike, in place of the Brain's settings (`BRAIN_LOOKUP_WRITER`,
   `BRAIN_PAGE_WRITER`); `sections` is for page answers only (lookups keep their setting). It is for trying both writers on one question; the student app never
   sends it.
-- `cards` is optional, `true` or `false`: whether the answer cards are used for this answer, in
-  place of the Brain's setting (`BRAIN_CARD_ANSWERS`, off by default). With them, a plain how-to
-  question that clearly matches one card is answered from it by code, and a page answer reads
-  the page each card chose. It is for trying a question with and without the cards; the student
-  app never sends it.
 - Unknown JSON fields are rejected. Malformed input returns HTTP 422 with the
   standard failure envelope and sanitized validation details; student input is
   not echoed into those details.
@@ -229,60 +224,6 @@ how many make a dollar.
   (about 4 KB for 34 offices; names only when the list passes 12 KB, `null` when it still
   does, when it was cut off, or when it cannot be read), and the reader still matches only
   published names, so a name the model gets wrong is a `not_found`, never a guess.
-- `GET /v1/dev/answer-cards`: every how-to task the release holds, as its page lists it, and
-  the answer cards joined from them. `cards` is `null` for a release built without cards; else
-  it has `built_on` (the day the cards were built: a term is over and a page is old as of that
-  day), `rules` (`join_mean`, `join_least`, `big_group`, `near_mean`, `near_least`) and
-  `items`, one per card: `id`,
-  `status` (`ready`, `needs_look` or `date_passed`), `flags` (why it needs a look:
-  `owner_unclear`, `no_date`, `big_group`), `notes` (`old_page`, `owner_has_no_page`), `owners`
-  (node ids), `near` (the ids of its near-copies: cards for the same task worded apart on
-  another page, which the join kept apart for its average alone), `ahead` (the near-copies
-  whose winning page is said in place of its own: a page that is not old in place of an old
-  one, a shared owner's own page in place of another office's; both absent on cards built
-  before 2026-11-11) and `members`, the card's tasks by `record_id` and `key`, the winner first, each
-  with its `role`: `winner` (with `label`, the date or term that passed, on a `date_passed`
-  card), `owner_page` (the owner's other current pages), `mentions` (another office's current
-  page) or `left_out` (`why` is `over`, with the past term or date as `label`, or `old`). Every
-  task is in exactly one card; only the winner's steps are a card's steps. The cards are joined
-  by rules alone (`retrieval/card_join.py`), written beside the release by
-  `scripts/build_answer_cards.py` as `release-<hash>.cards.json`, and shared like its meaning
-  index. Also `dataset_version`, `identity_hash`, `totals` (`pages_read`, `pages_with_tasks`,
-  `tasks`, `steps`), `nodes` (every node that links a page with a task, and every node a card
-  names as an owner: `entity_id`, `name`, `kind`, and its `pages` and `tasks` counts, both 0
-  for an owner none of whose pages lists a task) and `pages` (only pages with a task, by
-  address): `record_id`,
-  `url`, `path`, `updated` (the day the page says it last changed, or `null`), `collected_at`,
-  `nodes` (the ids of the nodes linking it) and `tasks`, each with its `key` (`e<n>`, the key the
-  meaning index and a how-to answer give it), `task`, `steps` (a count) and, when the page says
-  them, `applies_to`, `handled_by`, `term` and `section`. A page no node links is not in a
-  release graph and is not listed. The first read of a release opens every office page and is
-  kept; later reads of that release are that list. Paired `dataset_version` and `identity_hash`
-  pins are optional; an inactive publication returns 409.
-- `GET /v1/dev/answer-cards/task?node_id=&record_id=&key=`: one task in full. `node_id` is any
-  node the list names for the page. `task` has the list's fields with `steps` as a list of
-  `text` and `quote` (the page's own words for that step, `null` when the page read gave none),
-  `page` has the list's page fields and `other_tasks` (the `key` and `task` of the page's other
-  tasks), and `nodes` names every node that links the page. 422 for a task that is not in the
-  release, 409 for an inactive publication.
-- `GET /v1/dev/answer-cards/card?card_id=`: one card in full, and what the bot would say from
-  it. `card` has the list's `id`, `status`, `flags` and `notes`; `owners` (`entity_id`, `name`,
-  `kind`); `task`, the winning page's task with its steps as `text` and `quote`; `page`, that
-  page; `label`, the date or term that had passed when the cards were built; `over_now`, the
-  same judged today; and `passed`, at most two deadlines its left-out pages name that are over
-  (`task`, `label`, `url`). `answer` is the reply code writes from the card, with no model
-  call: `text` (the task's name; its term and who it is for; the winning page's steps in the
-  page read's words, each citing the page, with a link the page gives beside a step that names
-  none; the passed deadlines; then the owning offices' directory contacts; then the sources)
-  and `citations`. `answer` is `null` when code does not answer from the card, and `not_said`
-  says why: `needs_look`, `date_changed` (its date passed, or stopped being past, since the
-  cards were built), `no_steps`, `too_long` (more than 12 steps: a table, not a procedure),
-  `no_page`, or `check` (the reply held a number, address or phone its facts do not). 422 for
-  a card that is not in the release or whose winning page cannot be read, 409 for an inactive
-  publication.
-
-  The three routes read only; none feeds a chat reply.
-
 ## Failure envelope
 
 ```json
