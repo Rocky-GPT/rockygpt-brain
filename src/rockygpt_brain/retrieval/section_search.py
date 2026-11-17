@@ -17,10 +17,16 @@ guest limit ("no more than three (3) nights ... within a seven (7) day period", 
 into the 2,292 of Guest Procedures) and the 1098-T download steps were both read but cut off.
 Taking more sections from the leading page, or dropping a section another page repeats, held the
 graders' page less often (14 or 15 of the 19 older misses) and was dropped.
+
+A page read in part also gives its opening section when that is short, since a page often says
+there whom or what it is for. On 11-16 the Wi-Fi answers sent students to ResNET's device
+registration, read from its later sections; its opening says the page is "exclusively" for devices
+that cannot log in.
 """
 
 from collections.abc import Collection, Sequence
 from datetime import date
+from weakref import WeakKeyDictionary
 
 from rockygpt_brain.retrieval.entity_facts import MAX_PROCEDURE_CHARS
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
@@ -28,8 +34,12 @@ from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 # About 20 whole sections, at most 2 from one page, fit one writer call with room for the question.
 SECTIONS = 20
 PER_PAGE = 2
-# The size of the pieces a long section is embedded in past its opening (build_meaning_index).
+# The size of the pieces a long section is embedded in past its opening (build_meaning_index); a
+# section embedded in no piece but its opening is at most about this long.
 PIECE_CHARS = 1_000
+
+# Each index's short page openings: the first plain section of each page, when it has no pieces.
+_OPENINGS: "WeakKeyDictionary[MeaningIndex, dict[str, tuple[str, str]]]" = WeakKeyDictionary()
 
 
 def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: date, *,
@@ -37,8 +47,9 @@ def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: dat
              skip: Collection[tuple[str, str]] = ()) -> tuple[MeaningScores, list[tuple[str, str]]]:
     """The (record id, unit) keys of the sections read for a question's parts (one vector each,
     the whole question first): each part's best in turn, at most `per_page` from one page and
-    `cap` in all, none in `skip` (read already); with each one's best score, and its match offset
-    only when the matched piece lies past what a section is said in (MAX_PROCEDURE_CHARS)."""
+    `cap` in all, none in `skip` (read already), and the short opening of each page read, just
+    before the page's first section read; with each one's best score, and its match offset only
+    when the matched piece lies past what a section is said in (MAX_PROCEDURE_CHARS)."""
     by_part = [_ranked(index, vector, today, skip) for vector in vectors]
     chosen: list[tuple[str, str]] = []
     best: dict[tuple[str, str], float] = {}
@@ -63,6 +74,11 @@ def sections(index: MeaningIndex, vectors: Sequence[Sequence[float]], today: dat
                 continue
             on_page[key[0]] = on_page.get(key[0], 0) + 1
             chosen.append(key)
+    openings = _openings(index)
+    for page in dict.fromkeys(key[0] for key in list(chosen)):
+        opening = openings.get(page)
+        if opening and opening in best and opening not in chosen and opening not in skip:
+            chosen.insert(chosen.index(next(k for k in chosen if k[0] == page)), opening)
     found = MeaningScores({key: best[key] for key in chosen})
     # Only a piece past what a section is said in moves where it is said from.
     found.at = {key: at[key] for key in chosen
@@ -79,6 +95,22 @@ def _ranked(index: MeaningIndex, vector: Sequence[float], today: date,
                          and _current(index, key[0], today))
     kept.at = {key: raw.at[key] for key in kept if key in raw.at}
     return kept
+
+
+def _openings(index: MeaningIndex) -> dict[str, tuple[str, str]]:
+    """Each page's first plain section, by record id, when it is short (embedded in no piece)."""
+    held = _OPENINGS.get(index)
+    if held is None:
+        long = {index.owner[k] for k, at in enumerate(index.offsets) if at > 0}
+        first: dict[str, tuple[int, int]] = {}
+        for n, unit in enumerate(index.units):
+            if unit.index.startswith("e") or not unit.index.isdigit():
+                continue
+            if unit.record_id not in first or int(unit.index) < first[unit.record_id][0]:
+                first[unit.record_id] = (int(unit.index), n)
+        held = {rid: (rid, str(i)) for rid, (i, n) in first.items() if n not in long}
+        _OPENINGS[index] = held
+    return held
 
 
 def _current(index: MeaningIndex, record_id: str, today: date) -> bool:
