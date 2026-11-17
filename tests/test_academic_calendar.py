@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from rockygpt_brain.academic_calendar import (
+    closed_on,
     dates_said,
     entries_asked,
     kind_asked,
@@ -278,3 +279,26 @@ def test_the_breaks_an_event_question_can_name() -> None:
     assert ("Spring Break (No Classes)", date(2027, 3, 14), date(2027, 3, 21)) in spans
     assert ("Winter Break", date(2026, 12, 16), date(2027, 1, 18)) in spans
     assert ("Summer Break", date(2027, 5, 12), date(2027, 8, 24)) in spans
+
+
+def test_a_day_the_calendar_marks_college_closed_is_said_with_its_page() -> None:
+    year = {"dates": YEAR}
+    said = closed_on(year, date(2026, 9, 7))
+    assert said == (f"Ramapo's [academic calendar]({URL}) lists Monday, September 7, 2026 as "
+                    "Labor Day (College Closed - No Classes).")
+    # "No Classes" alone is no closure: offices keep their hours over a break.
+    assert closed_on(year, date(2026, 11, 26)) is None
+    assert closed_on(year, date(2026, 9, 8)) is None
+    # A span closes every day in it; an entry with no page is never said.
+    span = entry("2026-12-24", "College Closed", "holiday", "Fall 2026",
+                 "December 24, 12:00 am -- January 01, 11:59 pm")
+    assert closed_on({"dates": [span]}, date(2027, 1, 1)) is not None
+    assert closed_on({"dates": [{**span, "source_url": None}]}, date(2026, 12, 25)) is None
+
+
+def test_the_engine_reads_the_closure_from_the_release_calendar() -> None:
+    engine = ChatEngine(ScriptedGateway(), calendar(dates=YEAR), output="written")
+    assert engine._closed_on(date(2026, 9, 7)) is not None
+    assert engine._closed_on(date(2026, 9, 8)) is None
+    assert ChatEngine(ScriptedGateway(), calendar(), output="written")._closed_on(
+        date(2026, 9, 7)) is None

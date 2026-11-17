@@ -2082,3 +2082,32 @@ def test_emergency_numbers_keep_the_name_of_each_extra_line() -> None:
                     messages=[{"role": "user", "content": "there's a fire in my dorm"}])
     text = result.body["answer"]
     assert "\\(201\\) 555-6666; \\(201\\) 555-7789 (Director of Public Safety)." in text
+
+
+def test_hours_on_a_day_the_calendar_marks_closed_say_so_first() -> None:
+    base = hours_facts()
+    url = "https://www.ramapo.edu/academic-calendars/"
+    closed = {"source_key": "academic-calendar", "source_record_key": "2026-10-12:Closed",
+              "date": "2026-10-12", "title": "Columbus Day (College Closed)", "kind": "holiday",
+              "terms": ["Fall 2026"], "source_url": url}
+    entities = [*base.entities, {
+        "id": "d-closed", "name": closed["title"], "kind": "calendar_date", "aliases": [],
+        "links": [{"collection": "calendar_dates", "source_key": "academic-calendar",
+                   "source_record_keys": [closed["source_record_key"]]}]}]
+    service = MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1", entities=entities,
+        contacts=base.contacts, schedules=base.schedules, records={"calendar_dates": [closed]},
+        now=lambda: NOW)
+    asked = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["hours"], "day": "2026-10-12"}]})
+    result = answer(ScriptedGateway(asked, finish()), service=service,
+                    messages=[{"role": "user", "content": "is the registrar open october 12"}])
+    text = result.body["answer"]
+    assert text.index("lists Monday, October 12, 2026 as Columbus Day (College Closed).") \
+        < text.index("8:30am-4:30pm")
+    assert f"[academic calendar]({url})" in text
+    other = completion("graph_lookup", {"requests": [
+        {"query": "Registrar", "fields": ["hours"], "day": "2026-10-13"}]})
+    result = answer(ScriptedGateway(other, finish()), service=service,
+                    messages=[{"role": "user", "content": "is the registrar open october 13"}])
+    assert "College Closed" not in result.body["answer"]
