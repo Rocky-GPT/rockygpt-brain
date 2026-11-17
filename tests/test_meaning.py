@@ -2,6 +2,7 @@ import array
 import json
 import math
 from collections.abc import Sequence
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -212,6 +213,46 @@ def test_an_entrys_section_is_said_from_where_its_meaning_matched() -> None:
     prop, _ = procedures_property([page], NOW, "keep a cat in the dorm", index.scores([0.0, 1.0]))
     entry = next(v["value"] for v in prop["values"] if v["value"]["heading"].startswith("Avoid"))
     assert "Animals of any kind except fish." in entry["section_words"]
+
+
+def test_kept_word_counts_change_nothing_a_read_by_meaning_says() -> None:
+    """Read by meaning, only the pages that matched are taken apart when the office's word counts
+    are kept, and what is said stays the same: how rare an asked word is still comes from every
+    page of the office, not from the matched page alone."""
+    def page(n: int, sections: list[dict[str, str]]) -> dict[str, Any]:
+        return {"id": f"page-{n}", "source_key": "office-pages", "source_record_key": f"r{n}",
+                "url": f"https://www.ramapo.edu/reslife/page-{n}/", "collected_at": NOW,
+                "freshness_sla_hours": 168, "content_hash": f"h{n}", "sections": sections}
+    filler = "Quiet hours are kept on every floor. " * 90
+    rules = (filler + "A microwave is allowed in a room. " + filler
+             + "A ferret may not live in a room.")
+    kitchens = [{"heading": f"Kitchen {n}", "text": "Each kitchen has a microwave."}
+                for n in range(3)]
+    pages = [page(1, [{"heading": "Room rules", "text": rules}]), page(2, kitchens),
+             page(3, kitchens)]
+    asked, meaning = "a microwave and a ferret", {("page-1", "0"): 0.9}
+
+    plain = procedures_property(pages, NOW, asked, meaning)
+    # "ferret" is in one of the office's seven sections and "microwave" in all of them, so the
+    # long section is said from the ferret's sentence. Counted on the matched page alone, the
+    # two words tie and it is said from the microwave's.
+    assert plain[0]["values"][0]["value"]["text"].startswith("A ferret may not live")
+    alone = procedures_property(pages[:1], NOW, asked, meaning)
+    assert alone[0]["values"][0]["value"]["text"].startswith("A microwave is allowed")
+
+    kept: dict[Any, Any] = {}
+    first = procedures_property(pages, NOW, asked, meaning, kept)
+    held = deepcopy(kept)
+    assert first == plain and len(kept) == 1
+    assert next(iter(kept.values()))[0] == 7
+    # A second read takes the counts as kept and changes nothing in them.
+    assert procedures_property(pages, NOW, asked, meaning, kept) == plain
+    assert kept == held
+    # Read by its words, an office is counted as before: nothing is kept.
+    by_words: dict[Any, Any] = {}
+    assert (procedures_property(pages, NOW, asked, None, by_words)
+            == procedures_property(pages, NOW, asked))
+    assert not by_words
 
 
 def test_a_long_text_is_cut_between_words_never_inside_a_link() -> None:
