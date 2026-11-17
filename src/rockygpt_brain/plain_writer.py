@@ -27,7 +27,7 @@ _DERIVED_KEYS = frozenset({"subject", "predicate", "day", "date", "value", "sour
                            "applicability", "applicability_reason", "current"})
 _DAY_KEYS = frozenset({"schedule", "hours", "periods", "notes", "season", "status", "absence",
                        "dates_not_published", "listed_hours", "closed_gaps", "meal_asked",
-                       "window", "meals_not_labelled", "meal_not_served"})
+                       "window", "meals_not_labelled", "meal_not_served", "special_hours"})
 _OPEN_KEYS = frozenset({"state", "now", "closes", "meal", "meal_ends", "then_meal", "reopens",
                         "reopens_meal", "last_closes", "next_meal", "next_opens"})
 # What the hours say for a time the student asked about (fact_packet.open_at).
@@ -443,6 +443,10 @@ def _day_hours(reply: _Reply, entry: dict[str, Any], brief: bool = False) -> Non
     elif periods and not any(p.get("label") for p in periods):
         spans = ", ".join(f"{p['opens']} to {p['closes']}" for p in periods)
         reply.say(subject, f"{named} on {day}: {spans}.", sources)
+    elif value.get("special_hours"):
+        # The schedule's own special hours for these dates, said as such (a holiday closure).
+        reply.say(subject, f"{named} on {day}: {literal(value['hours'])}, its special hours for "
+                           f"{literal(value['special_hours'])}.", sources)
     else:
         reply.say(subject, f"{named} on {day}: {literal(value['hours'])}.", sources)
     for sentence in later:
