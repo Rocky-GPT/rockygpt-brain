@@ -131,12 +131,15 @@ Fill every field:
   dining (what a dining place serves, or when it is open), shuttle (shuttle or bus times, stops
   or routes), dates (a date on the academic calendar: when classes start or end, finals, breaks,
   the last day to add, drop or withdraw), team (a Ramapo varsity team's coaches, games or
-  results), program (a major, minor, certificate or course: its requirements, credits,
-  prerequisites or what it covers), person (a professor or staff member, or who holds a job or
-  teaches something), event (events on campus: what is on and when), club (student clubs and
-  organizations), else how_to (how to do something, a rule, a cost, a form, a deadline that is
-  not on the academic calendar, what an office or service does, where to get help). A question
-  that also asks how to do something is how_to. how_to when the question is empty.
+  results, or whether Ramapo has a team in a sport), program (a major, minor, certificate or
+  course: its requirements, credits, prerequisites or what it covers), person (a professor or
+  staff member by name, who holds a named job such as a school's dean or a department's chair,
+  or who teaches a course or subject), event (what is on the campus calendar: events, games,
+  activities, and when and where they are), club (student clubs and organizations), else how_to
+  (how to do something, a rule, a cost, a form, a deadline that is not on the academic calendar,
+  what an office or service does, where to get help, a trip or program to sign up or apply for).
+  Who handles, signs, approves or helps with something is how_to: it asks which office. A
+  question that also asks how to do something is how_to. how_to when the question is empty.
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {

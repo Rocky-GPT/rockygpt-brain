@@ -1443,7 +1443,9 @@ def picked_path(topic: str | None, message: str) -> AnswerPath:
     venue's contacts, hours and menu, the shuttle) is answered from the pages, never the lookup
     loop, which was the weakest path (2 of 6 good on its practice questions, 11-17 audit)."""
     if topic is not None:
-        return AnswerPath(calendar=topic in ("event", "club"), people=topic == "person",
+        # A team question code's team route did not answer ("any games coming up", "is there a
+        # hockey team") is the calendar's games and the club directory's teams (11-17 practice).
+        return AnswerPath(calendar=topic in ("event", "club", "team"), people=topic == "person",
                           pages=topic not in triage.LOOKUP_TOPICS)
     calendar = events.asks_events(message) or events.asks_clubs(message)
     people = people_module.asks_people(message)

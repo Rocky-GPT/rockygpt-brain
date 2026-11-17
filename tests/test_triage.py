@@ -781,6 +781,7 @@ def test_the_topic_picks_the_path_and_the_word_rules_only_without_a_read() -> No
     assert picked_path("event", "what is on tonight").calendar
     assert picked_path("club", "is there a chess thing").calendar
     assert picked_path("person", "who runs EOF").people
+    assert picked_path("team", "is there a hockey team").calendar
     for lookup in ("office", "dining", "shuttle"):
         assert picked_path(lookup, message) == picked_path(lookup, "")
         assert not picked_path(lookup, message).pages
