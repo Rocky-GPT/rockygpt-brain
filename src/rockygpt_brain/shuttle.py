@@ -28,7 +28,6 @@ from datetime import date, timedelta
 from typing import Any
 
 SERVICE_DAYS = ("weekday", "saturday", "sunday")
-WHICH = ("next", "first", "last", "all")
 MAX_LISTED = 2  # How many upcoming departures "next" shows: the one asked for and the one after.
 # How many of today's departures a whole-day answer lists from now: the rest are counted, with the
 # last of them, and the posted timetable has the full day (11-03: "shuttle to the train station

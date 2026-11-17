@@ -1265,7 +1265,6 @@ _FOOD_WORDS = {
     "pasta": ("pasta", "macaroni", "penne", "rigatoni", "rotini", "spaghetti", "ziti", "lasagna",
               "linguine", "fettuccine", "tortellini", "ravioli", "orzo", "gnocchi"),
 }
-MAX_MENU_WORDS = 3
 MAX_REST_OF_MENU = 40  # The rest of a filtered meal by name: "what is for dinner" is said.
 # A filter that keeps more items than a reply can say lists this many per station, with the count.
 MAX_MATCHES_LISTED, MATCHES_PER_STATION, MATCHES_SHOWN = 30, 3, 24
