@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import re
+import sys
 import threading
 import unicodedata
 from array import array
@@ -154,6 +155,11 @@ class Snapshot:
     # with none reads nothing.
     record_reader: Callable[[dict[str, Any], str], list[dict[str, Any]]] = (
         lambda entity, collection: [])
+    # What a reader worked out from a release's rows and keeps for as long as that release is
+    # served (how many of an office's sections have each word). Only an adapter whose rows never
+    # change holds one, a built graph file; with none, a reader works it out on every read.
+    # Readers share it, so nothing kept is ever changed.
+    kept: dict[Any, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -2036,9 +2042,39 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
     return units
 
 
+def _page_units(row: dict[str, Any]) -> list[tuple[str, dict[str, Any], set[str], set[str]]]:
+    """A page's listed entries and its own sections; a section is kept only when it matches
+    better than every entry of its page (the asked rule can be in a list no entry was written
+    for: protests in a policy's definitions, bed risers in prohibited items)."""
+    units = _procedure_units(row)
+    if units and units[0][0].startswith("e"):
+        units = [*units, *_procedure_units(row, sections_only=True)]
+    return units
+
+
+def _office_word_counts(rows: Sequence[dict[str, Any]], kept: dict[Any, Any],
+                        ) -> tuple[int, dict[str, int]]:
+    """How many sections these pages have, and how many of them each word is in, counted once
+    for a release and kept. Counting takes every page apart, and every read of an office did it:
+    69% of the time the Brain's own code took on 61 page answers of the dev graph."""
+    key = ("office_word_counts", tuple(str(row["id"]) for row in rows))
+    held: tuple[int, dict[str, int]] | None = kept.get(key)
+    if held is None:
+        total, counts = 0, dict[str, int]()
+        for row in rows:
+            for _, _, top, body in _page_units(row):
+                total += 1
+                for word in top | body:
+                    one = sys.intern(word)  # One copy of a word, whichever offices have it.
+                    counts[one] = counts.get(one, 0) + 1
+        held = kept[key] = (total, counts)
+    return held
+
+
 def procedures_property(
     rows: Sequence[dict[str, Any]], now: datetime, about: str | None,
     meaning: Mapping[tuple[str, str], float] | None = None,
+    kept: dict[Any, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The sections of an office's own pages that speak to what the student wants to do.
 
@@ -2054,20 +2090,26 @@ def procedures_property(
     wanted = _procedure_words(about or "")
     if not rows or not wanted:
         return empty, []
+    # By meaning, only the sections that matched are read, so only their pages are taken apart
+    # when the office's word counts are kept; the answer is the same either way.
+    counted = (_office_word_counts(rows, kept)
+               if meaning is not None and kept is not None else None)
+    matched = {page for page, _ in meaning} if meaning is not None else set()
     found: list[tuple[int, str, dict[str, Any], dict[str, Any], set[str], set[str]]] = []
     for row_index, row in enumerate(rows):
-        # A page offers its listed entries and its own sections; a section is kept below only when
-        # it matches better than every entry of its page (the asked rule can be in a list no entry
-        # was written for: protests in a policy's definitions, bed risers in prohibited items).
-        units = _procedure_units(row)
-        if units and units[0][0].startswith("e"):
-            units = [*units, *_procedure_units(row, sections_only=True)]
-        for index, unit, top, body in units:
+        if counted is not None and str(row["id"]) not in matched:
+            continue
+        for index, unit, top, body in _page_units(row):
             found.append((row_index, index, row, unit, top, body))
     # How many of the office's sections each asked word is in: a rare word tells sections apart.
-    seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
-            for word in wanted}
-    weight = {word: math.log(1 + len(found) / count) for word, count in seen.items() if count}
+    if counted is None:
+        total = len(found)
+        seen = {word: sum(1 for *_, top, body in found if word in top or word in body)
+                for word in wanted}
+    else:
+        total, counts = counted
+        seen = {word: counts.get(word, 0) for word in wanted}
+    weight = {word: math.log(1 + total / count) for word, count in seen.items() if count}
     today = now.astimezone(CAMPUS_TIMEZONE).date()
     scored: list[tuple[float, int, str, dict[str, Any], dict[str, Any]]] = []
     for row_index, index, row, unit, top, body in found:
@@ -2978,7 +3020,8 @@ class EntityFacts:
                 if len(linked_rows(entity, pages, "office_sections")) != len(pages):
                     raise EvidenceUnavailable(
                         "An office page has no exact canonical identity link.")
-                procedures, page_sources = procedures_property(pages, now, about, meaning)
+                procedures, page_sources = procedures_property(
+                    pages, now, about, meaning, snapshot.kept)
                 sources.extend(page_sources)
                 properties = sorted([*properties, procedures],
                                     key=lambda prop: list(selected).index(prop["key"]))

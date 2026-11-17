@@ -696,3 +696,36 @@ def test_an_offices_own_pages_survive_the_graph_and_answer_a_procedure_the_same(
     expected = read(memory)
     assert expected["properties"][0]["status"] == "known"
     assert read(graph) == expected
+
+
+def test_a_file_counts_an_offices_words_once_and_reads_by_meaning_the_same(folder: Path) -> None:
+    """A file never changes, so how many of an office's sections have each word is counted on the
+    first read by meaning and kept with the file; the source, whose rows can change, keeps
+    nothing. Both say the same, on the first read and on every later one."""
+    from test_engine import registrar_with_pages
+    memory = registrar_with_pages()
+    graph = GraphEntityFacts(build_release_graph(memory, folder), now=lambda: NOW)
+    meaning = {("page-1", "0"): 0.9, ("page-2", "0"): 0.4}
+
+    def read(service: EntityFacts) -> dict[str, Any]:
+        return service.get_office_facts("registrar", ["procedures"], "release-1",
+                                        identity_hash="identities-1", as_of=NOW,
+                                        about="request a transcript", meaning=meaning)
+    expected = read(memory)
+    assert [value["value"]["heading"] for value in expected["properties"][0]["values"]] == [
+        "How do I request an official transcript?", "Change of Major"]
+    with memory.snapshot() as source:
+        assert source.kept is None
+    assert read(graph) == expected
+    with graph.snapshot() as first:
+        kept = first.kept
+        assert kept is not None and len(kept) == 1
+        before = deepcopy(kept)
+    assert read(graph) == expected
+    with graph.snapshot() as later:
+        assert later.kept is kept and kept == before
+    # Another file of the same release starts with nothing kept.
+    other = GraphEntityFacts(build_release_graph(memory, folder.parent / "other"),
+                             now=lambda: NOW)
+    with other.snapshot() as fresh:
+        assert fresh.kept == {}
