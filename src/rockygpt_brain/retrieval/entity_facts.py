@@ -2001,6 +2001,15 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
     entries = row.get("howto_entries")
     units: list[tuple[str, dict[str, Any], set[str], set[str]]] = []
     if isinstance(entries, list) and entries and not sections_only:
+        # The page's own words: a listed entry can leave out a row of its table (a second
+        # violation's sanction), or the asked rule can sit in another section of the same page
+        # (an allowed-items entry, the prohibited-items list), which a reader still needs. Joined
+        # once for the page, not once for each of its entries: every entry holding its own copy
+        # of the page's text was most of the memory an answer took while it was read.
+        page_text = " ".join(
+            f"{heading}: {text}" for section in sections if isinstance(section, dict)
+            if isinstance(heading := clean(section.get("heading")), str)
+            and isinstance(text := clean(section.get("text")), str) and text)
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict) or not isinstance(entry.get("steps"), list):
                 continue
@@ -2011,13 +2020,6 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
                 continue
             extra = {key: value for key in ("applies_to", "handled_by", "term", "section")
                      if isinstance(value := clean(entry.get(key)), str) and value}
-            # The page's own words: a listed entry can leave out a row of its table (a second
-            # violation's sanction), or the asked rule can sit in another section of the same page
-            # (an allowed-items entry, the prohibited-items list), which a reader still needs.
-            page_text = " ".join(
-                f"{heading}: {text}" for section in sections if isinstance(section, dict)
-                if isinstance(heading := clean(section.get("heading")), str)
-                and isinstance(text := clean(section.get("text")), str) and text)
             if page_text:
                 extra["source_text"] = page_text
             # The entry's own section in full: its steps are written from it and can leave out a
