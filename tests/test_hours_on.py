@@ -166,3 +166,52 @@ def test_a_time_asked_with_another_day_named_is_that_days() -> None:
                     "what's open after 9pm on weekends", "is birch usually open after 9pm"):
         assert names_another_day(message), message
     assert not names_another_day("where can i get food after 9pm tonight")
+
+
+LIBRARY = {"schedule": "Library (Main Building)",
+           "days": [{"day": d, "hours": "7:45am-12:00am"} for d in
+                    ("Monday", "Tuesday", "Wednesday", "Thursday")]
+           + [{"day": "Friday", "hours": "7:45am-6:00pm"},
+              {"day": "Saturday", "hours": "10:00am-6:00pm"},
+              {"day": "Sunday", "hours": "12:00pm-12:00am"}],
+           "notes": ["Fall Semester (Aug. 26 - Dec. 15, 2026). Special Hours: Nov 25 - Nov 28: "
+                     "CLOSED; Nov 29: 4:00pm-12:00am. Please note that the front doors will be "
+                     "locked fifteen minutes before closing time."]}
+LIBRARY_FALL = [{"valid_from": "2026-08-26", "valid_until": "2026-12-15"}]
+
+
+def test_a_named_date_is_that_date_and_a_date_that_does_not_exist_is_refused() -> None:
+    from rockygpt_brain.hours_on import asked_day
+    assert target_date("2026-11-27", date(2026, 11, 17)) == date(2026, 11, 27)
+    assert asked_day("2026-11-27") == "2026-11-27" and asked_day("friday") == "friday"
+    assert asked_day(None) is None
+    for bad in ("2026-02-30", "next friday", "11/27"):
+        with pytest.raises(ValueError):
+            asked_day(bad)
+
+
+def test_special_hours_in_the_note_are_the_hours_on_those_dates() -> None:
+    # 11-17 audit: "library hours on Friday, November 27?" was answered with an ordinary Friday.
+    friday = hours_on(LIBRARY, LIBRARY_FALL, date(2026, 11, 27))["value"]
+    assert friday["hours"] == "CLOSED" and friday["special_hours"] == "Nov 25 - Nov 28"
+    sunday = hours_on(LIBRARY, LIBRARY_FALL, date(2026, 11, 29))["value"]
+    assert sunday["hours"] == "4:00pm-12:00am" and sunday["special_hours"] == "Nov 29"
+    # The days around them are the weekday's own hours.
+    assert hours_on(LIBRARY, LIBRARY_FALL, date(2026, 11, 24))["value"] == {
+        "schedule": "Library (Main Building)", "hours": "7:45am-12:00am",
+        "notes": LIBRARY["notes"]}
+    assert "special_hours" not in hours_on(LIBRARY, LIBRARY_FALL, date(2026, 11, 30))["value"]
+    # A date outside the schedule's window gets no hours, special or not.
+    outside = hours_on(LIBRARY, [{"valid_from": "2027-01-20", "valid_until": "2027-05-12"}],
+                       date(2026, 11, 27))
+    assert outside["applies"] is False and outside["value"]["hours"] is None
+
+
+def test_special_dates_are_placed_in_the_schedule_window_year() -> None:
+    from rockygpt_brain.hours_on import special_hours
+    winter = [{"valid_from": "2026-12-16", "valid_until": "2027-01-19"}]
+    notes = ["Special Hours: Dec. 24 - Jan. 1: CLOSED; Jan 2: 10:00am-4:00pm"]
+    assert special_hours(notes, winter, date(2026, 12, 25)) == {
+        "dates": "Dec. 24 - Jan. 1", "hours": "CLOSED"}
+    assert special_hours(notes, winter, date(2027, 1, 2))["hours"] == "10:00am-4:00pm"
+    assert special_hours(notes, [], date(2026, 12, 25)) is None  # no window, no year
