@@ -7,7 +7,7 @@ cluster. The normal offline test suite skips this explicit integration check.
 
 import asyncio
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -148,6 +148,22 @@ async def _exercise(url: str) -> None:
             assert balance["heldNusd"] == 8_750_000_000
             assert balance["leftNusd"] == 4_000_000_000
             assert (await development.balance(PREVIOUS_MONTH))["extraNusd"] == 0
+            # Stuck holds: listed, then released at no cost; production's hold is not touched,
+            # and a fresh hold is not old enough to be stuck.
+            stuck = await development.stuck_holds(timedelta(0))
+            assert len(stuck) == 9 and {h["state"] for h in stuck} == {"reserved"}
+            assert not await development.stuck_holds(timedelta(hours=1))
+            released = await development.stuck_holds(timedelta(0), release=True)
+            assert len(released) == 9
+            assert not await development.stuck_holds(timedelta(0))
+            balance = await development.balance(NOW)
+            assert balance["heldNusd"] == 0 and balance["settledNusd"] == 2_250_000_000
+            assert (await production.balance(NOW))["heldNusd"] == 1_000_000_000
+            cursor = await admin.execute(
+                "SELECT COUNT(*) FROM brain_ops.operations "
+                "WHERE error_code LIKE '%released by hand'")
+            marked: Any = await cursor.fetchone()
+            assert marked[0] == 9
         finally:
             for ledger in ledgers:
                 await ledger.close()
