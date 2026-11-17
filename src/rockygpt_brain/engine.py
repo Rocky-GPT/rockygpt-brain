@@ -119,6 +119,9 @@ _REQUEST_WRITER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 # The page writer that reads whole plain sections of current pages in one call (BRAIN_PAGE_WRITER
 # or a request's writer; plan "one simple page writer", 11-16). The old writers stay as they are.
 SECTIONS_WRITER = "sections"
+# The page writer that reads the same sections and writes the reply alone, in one call under a short
+# fixed prompt, with no second look (audit plan item 6, 11-17).
+DIRECT_WRITER = "direct"
 def _writer_setting(name: str, default: str, allowed: Sequence[str]) -> str:
     """A writer setting's value, or the default when it is unset or not one allowed. "1" is
     "ai", as BRAIN_LOOKUP_WRITER=1 was before the setting named its writer."""
@@ -1454,7 +1457,8 @@ class ChatEngine:
         # (page_facts.py); "one_call", the default until the check set shows the two stages
         # better, is one model call that chooses the facts while it writes (one_call.py).
         self.page_writer = (page_writer if page_writer is not None else _writer_setting(
-            "BRAIN_PAGE_WRITER", "one_call", (*page_facts.WRITERS, "one_call", SECTIONS_WRITER)))
+            "BRAIN_PAGE_WRITER", "one_call",
+            (*page_facts.WRITERS, "one_call", SECTIONS_WRITER, DIRECT_WRITER)))
         # Every person's and club's directory entry for list questions, read once per release.
         self._directory_cache: tuple[str, list[dict[str, Any]]] | None = None
         self._club_cache: tuple[str, list[dict[str, Any]]] | None = None
@@ -1505,7 +1509,8 @@ class ChatEngine:
     def _page_writer_now(self) -> str:
         """This turn's page-answer writer: the request's, if it names one, else the setting."""
         asked = _REQUEST_WRITER.get()
-        return asked if asked in (*page_facts.WRITERS, SECTIONS_WRITER) else self.page_writer
+        return (asked if asked in (*page_facts.WRITERS, SECTIONS_WRITER, DIRECT_WRITER)
+                else self.page_writer)
 
     def _per_release(self, name: str, key: Hashable, build: Callable[[], _Value]) -> _Value:
         """A value read once per release (or per release and day), held as (key, value) in the
@@ -3052,6 +3057,7 @@ class ChatEngine:
         sources: list[dict[str, Any]] = []
         dataset_version = index.dataset_version if index else ""
         staged: dict[str, Any] | None = None  # The two stages' reply, when they wrote it.
+        direct = False  # The direct writer wrote the reply (no second look).
         # An academic question is read from what the model picks among the catalog's own names
         # when the meaning index is published; the code-named programs are its hints.
         # A question code answers alone (one_call.code_kind): its facts are read by code and said
@@ -3380,10 +3386,12 @@ class ChatEngine:
                              and not academic and not calendar and not people)
                 # The "sections" writer (plan "one simple page writer", 11-16): one call reads
                 # whole plain sections of current pages (section_search) and writes the answer.
-                sectioned = (self._page_writer_now() == SECTIONS_WRITER
+                sectioned = (self._page_writer_now() in (SECTIONS_WRITER, DIRECT_WRITER)
                              and not academic and not calendar and not people)
+                # The "direct" writer reads the same sections and writes the reply alone.
+                direct = sectioned and self._page_writer_now() == DIRECT_WRITER
                 if sectioned:
-                    trace["pageWriter"] = SECTIONS_WRITER
+                    trace["pageWriter"] = self._page_writer_now()
                 if two_stage and searchable and index is not None:
                     chosen = one_call.with_picked(index, vectors, MeaningScores({}), [], None)
                     trace["oneCallRead"] = one_call.unit_labels(index, chosen[1])
@@ -3498,9 +3506,12 @@ class ChatEngine:
                                 latest, earlier if question != latest else None, offices,
                                 turn.campus_now.date(), academic, calendar, clubs, people,
                                 computed, code_parts, contacts_by_code=True,
-                                prompt=(one_call.SECTIONS_PROMPT if sectioned
-                                        else one_call.ONE_CALL_PROMPT)),
-                            tools=[one_call.ONE_CALL_TOOL], budget=budget)
+                                prompt=(one_call.DIRECT_PROMPT if direct
+                                        else one_call.SECTIONS_PROMPT if sectioned
+                                        else one_call.ONE_CALL_PROMPT),
+                                now=turn.campus_now if direct else None),
+                            tools=[one_call.DIRECT_TOOL if direct else one_call.ONE_CALL_TOOL],
+                            budget=budget)
         except GatewayError as error:
             return fallback(error.code)
         except TimeoutError:
@@ -3516,7 +3527,8 @@ class ChatEngine:
             arguments = call.arguments
         # A second look: the parts the reply found no section for are searched on their own, and
         # the reply is written again with what that finds beside the first evidence.
-        asks = one_call.gave_up(arguments, latest) if searchable else []
+        # The direct writer makes one call: no second look.
+        asks = one_call.gave_up(arguments, latest) if searchable and not direct else []
         if asks and index is not None and embed_many is not None:
             try:
                 async with asyncio.timeout(max(budget.deadline - time.monotonic(), 0.001)):

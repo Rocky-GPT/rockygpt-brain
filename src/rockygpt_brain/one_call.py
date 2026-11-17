@@ -14,7 +14,7 @@ lookups: a question about them is not routed here.
 import json
 import re
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from rockygpt_brain.academics import asks_academics
@@ -133,6 +133,36 @@ ONE_CALL_TOOL: dict[str, Any] = {
                                "not_on_pages": {"type": "boolean"},
                                "sections": {"type": "array", "items": {"type": "integer"}}}}},
                        "text": {"type": "string", "maxLength": 8000}}},
+}
+
+# The "direct" page writer (audit plan item 6, 11-17): one call at the writer's effort, a short
+# fixed prompt, the reply alone. In the audit's practice runs a nine-line prompt over the Brain's
+# own section search answered as well as the parts-first prompt (70 of 81 good vs 69) in about
+# half the time. The prompt never changes per question; today and now ride in the JSON.
+DIRECT_PROMPT = """You are RockyGPT, a campus assistant for Ramapo College students. Answer the \
+student's question using only the college's own pages, given as JSON: each office's numbered \
+sections (n), and anything code wrote.
+- Give what the sections say for what was asked, exactly as written: every step, link, form, \
+date, deadline, amount, condition, room, phone number and email.
+- Put the number of the section a statement comes from after it, like [3]. Numbers are only marks.
+- When two sections disagree, give the value of the one whose page_updated is later. A section \
+with past_term is for a term or deadline that is over: never give its dates as coming up.
+- already_written is the start of the reply, written by code: never repeat or contradict it; \
+write only what else is asked, or an empty text when it answers everything. computed facts are \
+true as given: state each that answers the question, with its number.
+- When contacts_written_by_code is true, code adds the phone, email and room of each office you \
+cite: name the office, but do not list those yourself.
+- For a part of the question no section answers, say once that you don't have verified \
+information about it, and name the office most likely to help.
+- Never add anything the JSON does not say. today and now are the campus date and time.
+- Short plain sentences; numbered steps are fine. Under 1,600 characters. No greeting. Answer \
+only with the write_answer tool."""
+
+DIRECT_TOOL: dict[str, Any] = {
+    "type": "function", "name": "write_answer", "strict": True,
+    "description": "The reply.",
+    "parameters": {"type": "object", "additionalProperties": False, "required": ["text"],
+                   "properties": {"text": {"type": "string", "maxLength": 8000}}},
 }
 
 # Questions with their own code-computed answers (menus, dining hours, the shuttle) and plain
@@ -616,8 +646,11 @@ def messages(question: str, earlier_user: str | None, offices: list[dict[str, An
              computed: Sequence[dict[str, Any]] = (),
              already_written: Sequence[str] = (),
              contacts_by_code: bool = False,
-             prompt: str = ONE_CALL_PROMPT) -> list[dict[str, Any]]:
-    given = {"today": f"{today:%A, %B} {today.day}, {today.year}", "question": question,
+             prompt: str = ONE_CALL_PROMPT,
+             now: datetime | None = None) -> list[dict[str, Any]]:
+    given = {"today": f"{today:%A, %B} {today.day}, {today.year}",
+             **({"now": f"{now:%I:%M %p}".lstrip("0")} if now is not None else {}),
+             "question": question,
              **({"earlier_question": earlier_user} if earlier_user else {}),
              **({"contacts_written_by_code": True} if contacts_by_code else {}),
              **({"already_written": "\n\n".join(already_written)} if already_written else {}),
