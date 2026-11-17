@@ -213,5 +213,6 @@ def test_special_dates_are_placed_in_the_schedule_window_year() -> None:
     notes = ["Special Hours: Dec. 24 - Jan. 1: CLOSED; Jan 2: 10:00am-4:00pm"]
     assert special_hours(notes, winter, date(2026, 12, 25)) == {
         "dates": "Dec. 24 - Jan. 1", "hours": "CLOSED"}
-    assert special_hours(notes, winter, date(2027, 1, 2))["hours"] == "10:00am-4:00pm"
+    assert special_hours(notes, winter, date(2027, 1, 2)) == {
+        "dates": "Jan 2", "hours": "10:00am-4:00pm"}
     assert special_hours(notes, [], date(2026, 12, 25)) is None  # no window, no year
