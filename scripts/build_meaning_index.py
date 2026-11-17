@@ -10,8 +10,8 @@ are cached by their text (CACHE_DIR), so a new release only pays for units that 
 Run it through local-env.py brain (it reads BRAIN_OPENAI_API_KEY and BRAIN_OPENAI_PROJECT, never
 prints them) after scripts/build_graph.py. It writes release-*.meaning.json, the 8-bit
 vectors .meaning.i8 with their .meaning.scales, and (until MEANING_FLOATS=0) the float vectors
-.meaning.f32 next to the active release file; the Brain uses them only for that release. Embeddings find units; they
-are never evidence.
+.meaning.f32 next to the active release file; the Brain uses them only for that release.
+Embeddings find units; they are never evidence.
 
 Each event and club card is also given its kinds (rockygpt_brain/kinds.py: art and crafts,
 cultural, sports...) by the chat model, cached by the card's text, so "any art events" lists every
