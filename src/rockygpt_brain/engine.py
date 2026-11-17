@@ -17,9 +17,9 @@ from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, Protocol, TypeVar, cast, get_args
+from typing import Annotated, Any, Literal, Protocol, TypeVar, cast, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 
 from rockygpt_brain import (
     academic_calendar,
@@ -63,7 +63,13 @@ from rockygpt_brain.contract import (
     ChatRequest,
 )
 from rockygpt_brain.fact_packet import PacketInvalid, build_packet
-from rockygpt_brain.hours_on import DAY_CHOICES, asked_clock, names_another_day, target_date
+from rockygpt_brain.hours_on import (
+    DAY_PATTERN,
+    asked_clock,
+    asked_day,
+    names_another_day,
+    target_date,
+)
 from rockygpt_brain.plain_writer import plain_text
 from rockygpt_brain.provider import Completion, GatewayError, ToolCall, TurnBudget
 from rockygpt_brain.retrieval import (
@@ -320,11 +326,19 @@ OfficeField = Literal[
 ]
 
 
+# A day asked: today, tomorrow, a weekday name, or the date itself when the student names one
+# ("Friday, November 27" is 2026-11-27 asked in November 2026). Code checks the date is real.
+AskedDay = Annotated[str, Field(
+    pattern=DAY_PATTERN,
+    description="today, tomorrow, a weekday name in lower case, or the date the student names "
+                "as YYYY-MM-DD (worked out from campus_now)"), AfterValidator(asked_day)]
+
+
 class OfficeRequest(StrictModel):
     query: str = Field(min_length=1, max_length=160)
     fields: list[OfficeField] = Field(min_length=1, max_length=10)
     # The one day the student asked the hours of. Code turns it into a date and reads that day.
-    day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
+    day: AskedDay | None = None
     # For phones only: fax when the student asks for the fax number. Code keeps only the lines
     # published as a fax; null reads every phone line.
     phone_kind: Literal["fax"] | None = None
@@ -369,7 +383,7 @@ class ShuttleRequest(StrictModel):
     # The route the student named, as published_routes lists it; null is every route.
     route: str | None = Field(default=None, max_length=120)
     # The one day the student asked about; null is today.
-    day: Literal[DAY_CHOICES] | None = None  # type: ignore[valid-type]
+    day: AskedDay | None = None
     which: Literal["next", "first", "last", "all"]
     # A clock time the student gave ("6:00 PM"): only trips leaving campus after it.
     after: str | None = Field(default=None, max_length=20)

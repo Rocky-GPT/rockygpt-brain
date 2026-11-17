@@ -7,7 +7,11 @@ arithmetic and no picking.
 
 Rules, all in code:
   - "today" and "tomorrow" are the campus date and the one after; a weekday name is its next
-    occurrence counting today (asked on a Saturday, "Saturday" is today).
+    occurrence counting today (asked on a Saturday, "Saturday" is today); a date the student names
+    ("Friday, November 27") is that date, given as YYYY-MM-DD.
+  - A schedule's special hours ("Special Hours: Nov 25 - Nov 28: CLOSED; Nov 29: 4:00pm-12:00am",
+    as the data reader keeps them in its note) are its hours on those dates, in place of the
+    weekday's.
   - A schedule says nothing about a date outside the validity window it was published for, so such a
     date gets no hours, only the window.
   - A weekday the schedule does not list has no hours here. The shared reader represents an
@@ -28,6 +32,21 @@ from typing import Any
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 DAY_CHOICES = ("today", "tomorrow", *(name.lower() for name in WEEKDAYS))
+# The day field of a lookup: one of DAY_CHOICES, or the date itself.
+DAY_PATTERN = "^(?:" + "|".join(DAY_CHOICES) + r"|\d{4}-\d{2}-\d{2})$"
+_ISO_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def asked_day(value: str | None) -> str | None:
+    """A lookup's day, checked: a day word, or a real calendar date. Anything else is refused."""
+    if value is None:
+        return None
+    if value in DAY_CHOICES:
+        return value
+    if _ISO_DAY.match(value):
+        date.fromisoformat(value)  # Raises for a date that does not exist (2026-02-30).
+        return value
+    raise ValueError(f"Not a day: {value!r}")
 MIDNIGHT = 24 * 60
 EARLIEST = 5 * 60  # The first time of day a clock time is read as that day's.
 
@@ -81,7 +100,9 @@ def names_another_day(message: str) -> bool:
 
 
 def target_date(day: str, today: date) -> date:
-    """The date a day word means, counting from the campus date `today`."""
+    """The date a day word means, counting from the campus date `today`; a date is itself."""
+    if _ISO_DAY.match(day):
+        return date.fromisoformat(day)
     if day == "today":
         return today
     if day == "tomorrow":
@@ -125,6 +146,52 @@ def window(sources: list[dict[str, Any]]) -> dict[str, str]:
     return out
 
 
+_MONTHS = {name: number for number, name in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1)}
+_SPECIAL_DATE = r"([A-Za-z]{3,9})\.? (\d{1,2})"
+# One dated line of a note's special hours, as the data reader writes them: "Nov 25 - Nov 28:
+# CLOSED", "Sept. 8: 4:00pm-12:00am", each ended by "; ", by ". " or by the note's end.
+_SPECIAL_ENTRY = re.compile(
+    rf"{_SPECIAL_DATE}(?: - {_SPECIAL_DATE})?: ([^;]+?)(?:; |\.(?:\s|$)|$)")
+
+
+def _month_day(month: str, day: str, sources: list[dict[str, Any]]) -> date | None:
+    """A month and day with no year, placed in the year of the schedule's published window."""
+    number = _MONTHS.get(month[:3].casefold())
+    bounds = window(sources)
+    if number is None or not bounds:
+        return None
+    years = sorted({int(bounds[end][:4]) for end in ("from", "until") if end in bounds})
+    for year in years:
+        try:
+            found = date(year, number, int(day))
+        except ValueError:
+            return None
+        if covers(sources, found):
+            return found
+    return None
+
+
+def special_hours(notes: Any, sources: list[dict[str, Any]], day: date) -> dict[str, str] | None:
+    """The special hours a schedule's note gives for `day`: {"dates", "hours"} as published, or
+    None. The dates carry no year, so each is placed inside the schedule's own window; a date that
+    cannot be placed there is not read."""
+    for note in notes if isinstance(notes, list) else [notes]:
+        at = note.find("Special Hours: ") if isinstance(note, str) else -1
+        if at < 0:
+            continue
+        rest = note[at + len("Special Hours: "):]
+        while parts := _SPECIAL_ENTRY.match(rest):
+            first = _month_day(parts[1], parts[2], sources)
+            last = _month_day(parts[3], parts[4], sources) if parts[3] else first
+            if first and last and first <= day <= last:
+                return {"dates": parts[0].split(": ", 1)[0], "hours": parts[5].strip()}
+            if not parts[0].endswith("; "):
+                break
+            rest = rest[parts.end():]
+    return None
+
+
 def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) -> dict[str, Any]:
     """One schedule's answer for `day`: {"schedule", "hours", "notes"?} plus whether it applies.
 
@@ -149,7 +216,12 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
         applies = False
     listed = (e for e in value.get("days", []) if isinstance(e, dict))
     entry = next((e for e in listed if e.get("day") == name), None)
-    if applies:
+    special = special_hours(value.get("notes"), sources, day) if applies else None
+    if special:
+        # The schedule's own special hours for this date, in place of the weekday's.
+        out["hours"] = special["hours"]
+        out["special_hours"] = special["dates"]
+    elif applies:
         out["hours"] = entry.get("hours") if entry else None
     elif unverified:
         # Nothing says this schedule covers the date, so there are no hours for it. What the
@@ -161,8 +233,8 @@ def hours_on(value: dict[str, Any], sources: list[dict[str, Any]], day: date) ->
     else:
         out["hours"] = None
         out["window"] = window(sources)
-    if (applies or unverified) and entry and entry.get("status") == "not_published" \
-            and entry.get("absence"):
+    if (applies or unverified) and not special and entry \
+            and entry.get("status") == "not_published" and entry.get("absence"):
         out["status"] = "not_published"
         out["absence"] = entry["absence"]
     if value.get("notes"):
