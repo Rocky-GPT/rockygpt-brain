@@ -516,3 +516,11 @@ def test_a_venue_open_through_meals_that_meet_closes_at_the_end_of_service() -> 
     late = datetime(2026, 10, 15, 21, 30, tzinfo=ZoneInfo("America/New_York"))
     assert open_now(hours, late) == {"state": "open", "now": "9:30pm", "closes": "11:00pm",
                                      "meal": "Late Night"}
+
+
+def test_a_day_the_calendar_marks_closed_is_one_notice_in_its_own_words() -> None:
+    said = "Ramapo's [academic calendar](https://www.ramapo.edu/x/) lists Monday as Closed."
+    part = {**part_for(registrar(), "registrar", "Registrar", ["email"]), "closed": said}
+    packet = build_packet(AS_OF, [part, part])
+    assert [n for n in packet["notices"] if n["type"] == "college_closed"] == [
+        {"type": "college_closed", "approved_text": said}]

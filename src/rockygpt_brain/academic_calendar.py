@@ -279,6 +279,32 @@ def last_day(entry: dict[str, Any]) -> date:
     return first
 
 
+# A calendar entry that says the college itself is closed that day ("Labor Day (College Closed -
+# No Classes)"). "No Classes" alone is not a closure: offices keep their hours on a reading day.
+_CLOSED = re.compile(r"\b(?:college|campus|offices?)\s+(?:is\s+|are\s+)?closed\b", re.I)
+# Said before an office's hours on a day the calendar marks closed: the calendar's own title and
+# page, never a conclusion about one office (its weekly hours stay as published).
+CLOSED_TEXT = "Ramapo's [academic calendar]({url}) lists {day} as {title}."
+
+
+def closed_on(calendar: Mapping[str, Any], day: date) -> str | None:
+    """The sentence that the academic calendar marks `day` as a day the college is closed, with
+    the entry's title and page; None when no entry with a page says so (2026-11-17 audit: asked
+    about the library over Thanksgiving, the bot gave its weekly hours)."""
+    for entry in calendar.get("dates") or []:
+        title = " ".join(str(entry.get("title") or "").split())
+        url = str(entry.get("source_url") or "")
+        if not _CLOSED.search(title) or not url.startswith("https://"):
+            continue
+        try:
+            first, last = date.fromisoformat(str(entry["date"])), last_day(entry)
+        except (KeyError, ValueError):
+            continue
+        if first <= day <= last:
+            return CLOSED_TEXT.format(url=url, day=_day(day.isoformat()), title=literal(title))
+    return None
+
+
 def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
                n: int = 1) -> tuple[str, str, dict[str, Any]] | None:
     """Code's answer to when one kind of academic date is, from the calendar's own entries: its
