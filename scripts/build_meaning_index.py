@@ -8,8 +8,9 @@ are cached by their text (CACHE_DIR), so a new release only pays for units that 
     python scripts/build_meaning_index.py --dir PUBLISHED_DIR --cache CACHE_DIR
 
 Run it through local-env.py brain (it reads BRAIN_OPENAI_API_KEY and BRAIN_OPENAI_PROJECT, never
-prints them) after scripts/build_graph.py. It writes release-*.meaning.json and .meaning.f32 next
-to the active release file; the Brain uses them only for that release. Embeddings find units; they
+prints them) after scripts/build_graph.py. It writes release-*.meaning.json, the 8-bit
+vectors .meaning.i8 with their .meaning.scales, and (until MEANING_FLOATS=0) the float vectors
+.meaning.f32 next to the active release file; the Brain uses them only for that release. Embeddings find units; they
 are never evidence.
 
 Each event and club card is also given its kinds (rockygpt_brain/kinds.py: art and crafts,
@@ -43,7 +44,13 @@ from rockygpt_brain.kinds import KINDS, KINDS_VERSION, LABEL_READS
 from rockygpt_brain.kinds import RULES as KINDS_RULES
 from rockygpt_brain.retrieval.entity_facts import _procedure_units, linked_rows
 from rockygpt_brain.retrieval.graph_store import POINTER, GraphOnlyFacts
-from rockygpt_brain.retrieval.meaning import MEANING_SUFFIX, VECTORS_SUFFIX
+from rockygpt_brain.retrieval.meaning import (
+    MEANING_SUFFIX,
+    SCALES_SUFFIX,
+    SMALL_VECTORS_SUFFIX,
+    VECTORS_SUFFIX,
+    quantize_file,
+)
 from rockygpt_brain.retrieval.page_marks import page_marks, page_owners
 
 EMBED_MODEL, DIMENSIONS, CHAT_MODEL = "text-embedding-3-large", 512, "gpt-6-luna"
@@ -658,11 +665,21 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
     # Each file is written whole and renamed into place, so a running Brain never reads half of one.
-    for suffix, data in ((VECTORS_SUFFIX, flat.tobytes()),
+    # The 8-bit pair is what a Brain loads (MeaningIndex.load); the floats stay beside it until
+    # every Brain reads the pair, and MEANING_FLOATS=0 then leaves them out (audit item 17).
+    floats = release_file.with_suffix(VECTORS_SUFFIX + ".floats")
+    floats.write_bytes(flat.tobytes())
+    small, scales = quantize_file(floats, DIMENSIONS)
+    for suffix, data in ((SMALL_VECTORS_SUFFIX, small), (SCALES_SUFFIX, scales),
                          (MEANING_SUFFIX, json.dumps(meta).encode())):
         temporary = release_file.with_suffix(suffix + ".tmp")
         temporary.write_bytes(data)
         os.replace(temporary, release_file.with_suffix(suffix))
+    if os.environ.get("MEANING_FLOATS", "1") == "0":
+        floats.unlink()
+        release_file.with_suffix(VECTORS_SUFFIX).unlink(missing_ok=True)
+    else:
+        os.replace(floats, release_file.with_suffix(VECTORS_SUFFIX))
     print(f"meaning index for {version}: {len(units)} units, {len(cards)} office cards, "
           f"{len(academic)} program and course cards, "
           f"{len(texts)} vectors "
