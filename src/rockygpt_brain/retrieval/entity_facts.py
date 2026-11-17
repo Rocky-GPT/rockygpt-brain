@@ -2595,11 +2595,6 @@ class EntityFacts:
         without one, how-to sections are found by the asked words."""
         return None
 
-    def answer_cards(self) -> dict[str, Any] | None:
-        """The answer cards built beside the active release (retrieval/card_join.py), when the
-        reader's release has them."""
-        return None
-
     def warm_meaning_index(self) -> None:
         """Have the active release's meaning index ready before the first question. Adapters that
         load it in the background override this to load it now, on the caller's thread."""

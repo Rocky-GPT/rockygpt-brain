@@ -7,25 +7,22 @@ They are left out of the OpenAPI schema, so the route count the dev UI shows sta
 
 import asyncio
 from datetime import UTC, date, datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from rockygpt_brain import card_answer
 from rockygpt_brain.failures import failure
 from rockygpt_brain.retrieval import (
     DatasetChanged,
-    EntityFacts,
     EvidenceUnavailable,
     InvalidFactRequest,
     UnknownEntity,
-    answer_cards,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, lookup_choice
 from rockygpt_brain.retrieval.graph_browse import browse
 from rockygpt_brain.spending import PostgresLedger, SpendingError
-from rockygpt_brain.turn import CAMPUS_TZ, new_id
+from rockygpt_brain.turn import new_id
 
 DIAGNOSTICS_HEADER = "x-rockygpt-diagnostics"
 NO_STORE = {"Cache-Control": "no-store"}
@@ -148,129 +145,6 @@ def add_dev_routes(application: FastAPI) -> None:
             return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
                            retryable=True)
         return JSONResponse(node, headers=NO_STORE)
-
-    def cards_listing(facts: EntityFacts) -> dict[str, Any]:
-        """The active release's tasks. A release never changes, so its list is read once and
-        kept; the next release replaces it."""
-        with facts.snapshot() as snapshot:
-            active = (snapshot.dataset_version, snapshot.identity_hash)
-        held: tuple[tuple[str, str], dict[str, Any]] | None = getattr(
-            application.state, "answer_cards", None)
-        if held is None or held[0] != active:
-            found = answer_cards.listing(facts)
-            held = ((found["dataset_version"], found["identity_hash"]), found)
-            application.state.answer_cards = held
-        return held[1]
-
-    @router.get("/answer-cards")
-    async def answer_cards_list(
-        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
-        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-    ) -> JSONResponse:
-        """Every how-to task the release holds, under its page, with the nodes that link the
-        page, and the release's answer cards (`cards`, null for a release built without)."""
-        engine = application.state.engine
-        if engine is None:
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
-        if (dataset_version is None) != (identity_hash is None):
-            return failure(422, "invalid_request", "Supply both publication pins or neither.",
-                           new_id())
-        try:
-            # The first read of a release opens every office page (about 2,500); later reads
-            # of the same release are the kept list.
-            async with asyncio.timeout(30):
-                found = await asyncio.to_thread(cards_listing, engine.facts)
-        except (EvidenceUnavailable, TimeoutError):
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
-                           retryable=True)
-        if dataset_version is not None and (dataset_version, identity_hash) != (
-                found["dataset_version"], found["identity_hash"]):
-            return failure(409, "dataset_changed",
-                           "This publication is no longer active; open the current list.",
-                           new_id())
-        return JSONResponse(found, headers=NO_STORE)
-
-    @router.get("/answer-cards/task")
-    async def answer_cards_task(
-        node_id: Annotated[str, Query(min_length=1, max_length=160)],
-        record_id: Annotated[str, Query(min_length=1, max_length=160)],
-        key: Annotated[str, Query(pattern=r"^e\d{1,4}$")],
-        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
-        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-    ) -> JSONResponse:
-        """One task in full: each step beside the page's own words, its page, the other tasks
-        on that page, and the nodes that link the page. `node_id` is any node the list names
-        for the page."""
-        engine = application.state.engine
-        if engine is None:
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
-        if (dataset_version is None) != (identity_hash is None):
-            return failure(422, "invalid_request", "Supply both publication pins or neither.",
-                           new_id())
-        try:
-            async with asyncio.timeout(10):
-                found = await asyncio.to_thread(
-                    answer_cards.task, engine.facts, node_id, record_id, key,
-                    dataset_version=dataset_version, identity_hash=identity_hash)
-        except DatasetChanged:
-            return failure(409, "dataset_changed",
-                           "This publication is no longer active; open the current list.",
-                           new_id())
-        except InvalidFactRequest:
-            return failure(422, "invalid_request", "This task is not in the release.", new_id())
-        except (EvidenceUnavailable, TimeoutError):
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
-                           retryable=True)
-        return JSONResponse(found, headers=NO_STORE)
-
-    @router.get("/answer-cards/card")
-    async def answer_cards_card(
-        card_id: Annotated[str, Query(pattern=r"^c[0-9a-f]{12}$")],
-        dataset_version: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
-        identity_hash: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-    ) -> JSONResponse:
-        """One answer card in full, and what the bot would say from it: `answer` is the reply
-        code writes from the card (its text and citations), with no model call; it is null when
-        code does not answer from this card, and `not_said` says why ("needs_look",
-        "date_changed", "no_steps", "too_long", "no_page", or "check" when the reply held
-        something its facts do not)."""
-        engine = application.state.engine
-        if engine is None:
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
-        if (dataset_version is None) != (identity_hash is None):
-            return failure(422, "invalid_request", "Supply both publication pins or neither.",
-                           new_id())
-
-        def read() -> dict[str, Any]:
-            listed = cards_listing(engine.facts)
-            chosen = next((card for card in (listed["cards"] or {}).get("items", [])
-                           if card.get("id") == card_id), None)
-            if chosen is None:
-                raise InvalidFactRequest("This release has no such card.")
-            today = engine.facts.now().astimezone(CAMPUS_TZ).date()
-            found = answer_cards.view(engine.facts, chosen, answer_cards.page_nodes(listed),
-                                      today, dataset_version=dataset_version,
-                                      identity_hash=identity_hash)
-            why = card_answer.refusal(found["card"])
-            said = engine.card_said(found["card"], today) if why is None else None
-            return {**found,
-                    "answer": None if said is None else {"text": said[0], "citations": said[1]},
-                    "not_said": why if said is None and why is not None
-                    else "check" if said is None else None}
-
-        try:
-            async with asyncio.timeout(30):
-                found = await asyncio.to_thread(read)
-        except DatasetChanged:
-            return failure(409, "dataset_changed",
-                           "This publication is no longer active; open the current list.",
-                           new_id())
-        except InvalidFactRequest:
-            return failure(422, "invalid_request", "This card is not in the release.", new_id())
-        except (EvidenceUnavailable, TimeoutError):
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
-                           retryable=True)
-        return JSONResponse(found, headers=NO_STORE)
 
     @router.get("/offices/search")
     async def search(q: Annotated[str, Query(min_length=1, max_length=200)]) -> JSONResponse:
