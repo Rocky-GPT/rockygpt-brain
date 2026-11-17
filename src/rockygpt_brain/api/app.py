@@ -22,7 +22,7 @@ from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from rockygpt_brain.api.dev import add_dev_routes
-from rockygpt_brain.api.releases import Releases
+from rockygpt_brain.api.releases import Gate, Releases
 from rockygpt_brain.boundary import check
 from rockygpt_brain.contract import CONVERSATION_ID_HEADER, CONVERSATION_ID_PATTERN, ChatRequest
 from rockygpt_brain.engine import HELP_SECONDS, ChatEngine, ChatResult, answered, failed
@@ -315,6 +315,8 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
 
     application = FastAPI(title="RockyGPT Brain", lifespan=lifespan)
     application.state.engine = engine
+    # Where questions wait while a new release replaces the engine (api/releases.py).
+    application.state.gate = Gate()
     application.state.startup_error = None
     application.state.capacity = asyncio.Semaphore(max_concurrent)
     application.add_middleware(Admission, token=token, environment=active_environment)
@@ -344,10 +346,13 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
 
     @application.api_route("/readiness", methods=["GET", "HEAD"])
     async def readiness() -> JSONResponse:
-        active = application.state.engine
-        ready = (not application.state.startup_error and active is not None
-                 and (active_environment != "production" or bool(token))
-                 and await active.readiness())
+        gate: Gate = application.state.gate
+        async with gate.passing():  # During a release switch this waits, then reads the new one.
+            active = application.state.engine
+            ready = (not application.state.startup_error and active is not None
+                     and (active_environment != "production" or bool(token))
+                     and await active.readiness())
+            del active
         return JSONResponse({"status": "ready" if ready else "not_ready"},
                             status_code=200 if ready else 503)
 
@@ -362,34 +367,46 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
             turn = (intake(request, conversation_id, now=clock()) if clock
                     else intake(request, conversation_id))
             boundary = check(turn)
+        gate: Gate = application.state.gate
         if boundary.kind == "safety":
-            floor = application.state.engine
-            if floor is None or application.state.startup_error:
-                result = replace(answered(turn, boundary.message, "partial"), trace={
-                    "decidedBy": "phrase_floor", "modelCalls": 0, "situation": boundary.situation})
-            else:  # The emergency text, then the campus numbers if they can be read in time.
-                result = await floor.safety_reply(turn, boundary.situation)
-                if boundary.also_answer and not application.state.capacity.locked():
-                    # Only a "not 911" tripped the floor: answer the question beside the same
-                    # emergency text. Any failure leaves the floor's own reply, which is complete.
-                    try:
-                        async with application.state.capacity:
-                            fuller = await _connected_answer(
-                                floor, turn, request, transport,
-                                floor_situation=boundary.situation)
-                        if fuller.status_code == 200:
-                            result = fuller
-                    except Exception:  # noqa: BLE001 - the floor's reply stands
-                        LOG.warning("brain_floor_answer_failed")
-        elif application.state.engine is None or application.state.startup_error:
-            result = failed(turn, application.state.startup_error or "model_not_configured")
+            # The emergency text never waits: during a release switch it goes out on its own.
+            with gate.passing_now() as passed:
+                floor = application.state.engine if passed else None
+                if floor is None or application.state.startup_error:
+                    result = replace(answered(turn, boundary.message, "partial"), trace={
+                        "decidedBy": "phrase_floor", "modelCalls": 0,
+                        "situation": boundary.situation})
+                else:  # The emergency text, then the campus numbers if they can be read in time.
+                    result = await floor.safety_reply(turn, boundary.situation)
+                    if boundary.also_answer and not application.state.capacity.locked():
+                        # Only a "not 911" tripped the floor: answer the question beside the same
+                        # emergency text. Any failure leaves the floor's own reply, which is
+                        # complete.
+                        try:
+                            async with application.state.capacity:
+                                fuller = await _connected_answer(
+                                    floor, turn, request, transport,
+                                    floor_situation=boundary.situation)
+                            if fuller.status_code == 200:
+                                result = fuller
+                        except Exception:  # noqa: BLE001 - the floor's reply stands
+                            LOG.warning("brain_floor_answer_failed")
+                del floor
         else:
             capacity = application.state.capacity
             if capacity.locked():
                 return failure(429, "busy", "RockyGPT is busy. Please try again shortly.",
                                turn.request_id, retryable=True)
             async with capacity:
-                result = await _connected_answer(application.state.engine, turn, request, transport)
+                # During a release switch the question waits here, then the new release answers.
+                async with gate.passing():
+                    active = application.state.engine
+                    if active is None or application.state.startup_error:
+                        result = failed(turn, application.state.startup_error
+                                        or "model_not_configured")
+                    else:
+                        result = await _connected_answer(active, turn, request, transport)
+                    del active
         body = result.body
         if active_environment == "development" and transport.headers.get(DEBUG_HEADER) == "1":
             if result.trace is None:  # The turn failed outside the engine, so nothing was kept.
@@ -407,24 +424,32 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
         dataset_version: Annotated[str, Query(min_length=1, max_length=256)],
         identity_hash: Annotated[str, Query(min_length=1, max_length=128)],
     ) -> JSONResponse:
-        active = application.state.engine
-        if active is None:
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id())
-        try:
-            async with asyncio.timeout(5):
-                facts = await asyncio.to_thread(
-                    active.facts.get_office_facts, entity_id, None, dataset_version,
-                    identity_hash=identity_hash)
-            return JSONResponse(facts, headers={"Cache-Control": "no-store"})
-        except DatasetChanged:
-            return failure(409, "dataset_changed", "Published data changed. Reload it.", new_id())
-        except UnknownEntity:
-            return failure(404, "unknown_entity", "Office not found in this publication.", new_id())
-        except InvalidFactRequest:
-            return failure(422, "invalid_request", INVALID, new_id())
-        except (EvidenceUnavailable, TimeoutError):
-            return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
-                           retryable=True)
+        gate: Gate = application.state.gate
+        # Never waits: during a release switch the release asked about is going away.
+        with gate.passing_now() as passed:
+            active = application.state.engine if passed else None
+            if active is None:
+                return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                               retryable=passed is False)
+            try:
+                async with asyncio.timeout(5):
+                    facts = await asyncio.to_thread(
+                        active.facts.get_office_facts, entity_id, None, dataset_version,
+                        identity_hash=identity_hash)
+                return JSONResponse(facts, headers={"Cache-Control": "no-store"})
+            except DatasetChanged:
+                return failure(409, "dataset_changed", "Published data changed. Reload it.",
+                               new_id())
+            except UnknownEntity:
+                return failure(404, "unknown_entity", "Office not found in this publication.",
+                               new_id())
+            except InvalidFactRequest:
+                return failure(422, "invalid_request", INVALID, new_id())
+            except (EvidenceUnavailable, TimeoutError):
+                return failure(503, "data_unavailable", "Campus data is unavailable.", new_id(),
+                               retryable=True)
+            finally:
+                del active
 
     if active_environment == "development":
         add_dev_routes(application)
