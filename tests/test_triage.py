@@ -274,7 +274,8 @@ def test_a_follow_up_keeps_the_students_own_words() -> None:
                {"role": "assistant", "content": "Registrar email: published@example.edu. [1]"})
     gateway = ScriptedGateway(read(question="And their phone number?"), LOOKUP, finish())
     ask(gateway, "n there # ?", history=history)
-    assert latest_asked(gateway.inputs[1]) == "n there # ?"
+    # Only its safe text-speak is spelled out (triage.spelled_out).
+    assert latest_asked(gateway.inputs[1]) == "and there # ?"
 
 
 def test_a_feeling_beside_a_question_gets_the_kind_sentence_the_answer_and_the_offices() -> None:
@@ -797,3 +798,24 @@ def test_the_reads_topic_is_traced_and_a_lookup_topic_keeps_the_lookup() -> None
     assert result.trace is not None
     assert result.trace["path"] == {"topic": "office", "by": "read"}
     assert result.trace["read"]["topic"] == "office"
+
+
+def test_safe_text_speak_is_spelled_out_for_code_word_matching() -> None:
+    # 11-18 blind run: "n" kept a two-part events question as one topic, so the next play was
+    # missed. Only text-speak with one meaning is spelled out; real words and contractions stay.
+    assert triage.spelled_out("when's the next theater show n do students get tix") == (
+        "when's the next theater show and do students get tix")
+    assert triage.spelled_out("wen r finals? u kno") == "when are finals? you kno"
+    assert triage.spelled_out("is the pool open sat n do i need my id") == (
+        "is the pool open sat and do i need my id")
+    assert triage.spelled_out("n/a, u.s. history, r&b") == "n/a, u.s. history, r&b"
+
+
+def test_more_text_speak_keeps_the_reads_clean_question() -> None:
+    # 11-18 check: 9 of 20 fresh texting questions lost the read's clean words over these.
+    assert triage.keeps_words("is the pool open sat n do i need my id",
+                              "Is the pool open Saturday, and do I need my ID?")
+    assert triage.keeps_words("who do i talk 2 abt a hold on my acct n where r they",
+                              "Who do I talk to about a hold on my account, and where are they?")
+    assert triage.keeps_words("hw do i get a parking permit n how much is it",
+                              "How do I get a parking permit, and how much is it?")

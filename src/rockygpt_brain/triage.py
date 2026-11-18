@@ -324,7 +324,25 @@ SPELLED_OUT: dict[str, tuple[tuple[str, ...], ...]] = {
     "youre": (("you", "are"),), "theyre": (("they", "are"),), "hrs": (("hours",),),
     "hr": (("hour",),), "2day": (("today",),), "2nite": (("tonight",),),
     "2morrow": (("tomorrow",),), "b4": (("before",),),
+    # Text-speak the read spells out and the list above missed: on 11-18, 9 of 20 fresh two-part
+    # texting questions lost the read's clean question over one of these ("hw", "sat", "4", "2",
+    # "wk"), and the student's raw words then reached code's word matching.
+    "hw": (("how",),), "2": (("to",), ("too",)), "4": (("for",),), "wk": (("week",),),
+    "wks": (("weeks",),), "yr": (("year",),), "yrs": (("years",),), "sem": (("semester",),),
+    "pls": (("please",),), "plz": (("please",),), "sum1": (("someone",),),
+    "mon": (("monday",),), "tues": (("tuesday",),), "tue": (("tuesday",),),
+    "wed": (("wednesday",),), "thurs": (("thursday",),), "thu": (("thursday",),),
+    "fri": (("friday",),), "sat": (("saturday",),), "sun": (("sunday",),),
 }
+# The text-speak spelled out word for word whatever the read made of the message (spelled_out):
+# each has one meaning that is never a word of its own in a campus question. Contractions ("im",
+# "its") and words that are also real words or names ("id", "ill", "w", "sun", "wed", "2", "4")
+# are left as the student typed them.
+SAFE_SPELLED: dict[str, str] = {
+    word: " ".join(SPELLED_OUT[word][0]) for word in (
+        "u", "ur", "r", "n", "wen", "wat", "wut", "wht", "whr", "abt", "bc", "cuz", "thru",
+        "tmrw", "tmr", "tn", "tonite", "rn", "ppl", "hrs", "hr", "2day", "2nite", "2morrow", "b4",
+        "hw", "wk", "wks", "yr", "yrs", "pls", "plz", "sum1", "tues", "thurs")}
 # Words that ask: a message with more of them, or more questions ending in "?", than the read's
 # question asks more than it does.
 QUESTION_WORDS = frozenset("""
@@ -411,6 +429,19 @@ def keeps_words(latest: str, question: str, droppable: frozenset[str] = frozense
                 or any(_same_word(t, word) for t in typed))
     return (all(kept(w) for w in typed if w not in SMALL_TALK_WORDS and w not in droppable)
             and all(backed(w) for w in written))
+
+
+def spelled_out(text: str) -> str:
+    """The student's words with only the safe text-speak spelled out (SAFE_SPELLED), every other
+    word as they typed it: "next theater show n do students get tix" is "next theater show and do
+    students get tix". What code matches words with reads this when the read's clean question is
+    not used (asked): its event, kind and part matching split a question on "and", and a "n" left
+    in made one topic of two (11-18 blind run: the next play, listed for the next night, was missed
+    and one five months away given)."""
+    def one(found: re.Match[str]) -> str:
+        return SAFE_SPELLED.get(found.group(0).casefold(), found.group(0))
+    # A word on its own: not part of "n/a", "u.s." or "r&b".
+    return re.sub(r"(?<![\w'’./&@-])[A-Za-z0-9]+(?![\w'’/&@-]|\.\w)", one, text)
 
 
 def asks_more(latest: str, question: str) -> bool:

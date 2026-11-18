@@ -4129,7 +4129,8 @@ class ChatEngine:
             return None
         earlier = next((m.content for m in reversed(context.recent_messages)
                         if m.role == "user"), None)
-        parts = one_call.parts_of(one_call.search_text(context.latest_message, earlier))
+        parts = one_call.parts_of(one_call.search_text(
+            triage.spelled_out(context.latest_message), earlier))
 
         async def embed() -> tuple[int, list[list[float]]] | None:
             index = await asyncio.to_thread(self.facts.meaning_index)
@@ -4166,14 +4167,22 @@ class ChatEngine:
                                 beside_emergency: bool) -> ChatResult:
         reading = None if await self._code_understands(context) else await self._read(
             turn, context, trace)
+        # The student's own words, with their safe text-speak spelled out, are what code's word
+        # matching reads whenever the read's clean question is not used (triage.spelled_out).
+        spelled = triage.spelled_out(context.latest_message)
+        own = spelled if spelled != context.latest_message else None
         if reading is None:
-            return await self._campus_answer(turn, request, trace, started=started)
+            return await self._campus_answer(turn, request, trace, started=started,
+                                             question=own)
         reading = await self._read_checked(context, reading, trace)
         question = await self._asked(context, reading, beside_emergency)
         if isinstance(read := trace.get("read"), dict):
             read["asked"] = ("own_words" if question is None
                              else "read" if question == reading.question
                              else "own_words_then_campus_side")
+            if question is None and own is not None:
+                read["asked"] = "own_words_spelled_out"
+        question = own if question is None else question
         if reading.danger != "none":
             return await self._read_emergency(turn, request, reading, trace, question, started)
         if (done := await self._read_reply(turn, context, reading, trace)) is not None:

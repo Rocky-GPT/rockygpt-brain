@@ -310,10 +310,34 @@ def pieces_of(question: str) -> list[str]:
         r"are|should)\b)", question, flags=re.IGNORECASE) if b.strip()]
 
 
+# Words that say how a piece asks, not what it is about: a piece made only of these and its own
+# few words ("do I need an appointment or is it drop-in?") is about the first piece's subject.
+_ASKING_WORDS = frozenset("""
+a an the is are am was were be been do does did to of for in on at by with and or but so if i me my
+we our you your it its this that these those there here what whats when whens where wheres who
+whos whom whose which how hows why im u ur r n can could should would will may might must any some
+get got have has had need needs
+want wanna gonna go going know tell show give find help please also plus still too just really
+about from into than then them they their he she his her one ones
+""".split())
+
+
+def _subject(piece: str) -> list[str]:
+    """A piece's words that say what it is about, in order, each once."""
+    words = re.findall(r"[a-z0-9][a-z0-9'’-]*", piece.casefold())
+    return list(dict.fromkeys(w for w in words if w not in _ASKING_WORDS and len(w) > 1))
+
+
 def parts_of(question: str) -> list[str]:
     """The texts searched: the whole question, then its pieces (pieces_of) longer than a few
-    words, up to MAX_PARTS of them."""
+    words, up to MAX_PARTS of them. A later piece that shares no word of the first piece's subject
+    is searched with that subject before it, never alone (11-18 blind run: "do I need an
+    appointment or is it drop-in?" searched by itself filled 27 of 30 sections with other offices'
+    appointment rules, and the tutoring schedule asked about was misread)."""
     bits = [b for b in pieces_of(question) if len(b) > 12]
+    if len(bits) > 1 and (subject := _subject(bits[0])):
+        bits = [bits[0], *(b if set(_subject(b)) & set(subject)
+                           else f"{' '.join(subject)}: {b}" for b in bits[1:])]
     return [question, *[b for b in bits if b != question][:MAX_PARTS]]
 
 
