@@ -515,8 +515,16 @@ def test_only_published_credit_totals_and_the_programs_own_plan() -> None:
     program = {"n": 1, "program": "Theater Minor", "requirements":
                "Minor Requirements\n  Required Course all of:\n    - THEA 220 ACTING"}
     facts = [f["fact"] for f in computed_answers([program], [], "how many credits is it", 2)]
-    assert facts == ["The catalog publishes no total credit count for the Theater Minor; its "
-                     "requirements list the courses only."]
+    assert facts == ["The Theater Minor's requirement list in the catalog names courses, not a "
+                     "total credit count for the program (never add them up). This is not the "
+                     "college-wide number of credits needed to graduate, which the pages may "
+                     "state."]
+    # The recommended plan's own total is stated instead (11-18: "no total" overrode the
+    # Registrar's 128-credit graduation rule).
+    planned = {**program, "plan_credit_totals": ["Total Credits Required: 128 credits"]}
+    facts = [f["fact"] for f in computed_answers([planned], [], "how many credits is it", 2)]
+    assert facts == ["The catalog's recommended graduation plan for the Theater Minor states: "
+                     "Total Credits Required: 128 credits."]
     plans = [{"name": n, "cohort": "Fall 2026", "terms": [{}]} for n in (
         "Biology: Ramapo/NYCPM 3+4 Podiatry", "Biology (General)",
         "Biology: General Pre-Med Track")]
@@ -749,3 +757,54 @@ def test_a_degree_of_its_own_names_its_programs_and_a_root_word_is_no_short_form
                     "how do i manage my schedule"):
         assert find_programs(programs, message) == [], message
     assert names(find_programs(programs, "accounting major")) == ["Accounting BS"]
+
+
+def test_plan_totals_reach_the_evidence_but_not_a_semesters_hours() -> None:
+    from datetime import date
+
+    from rockygpt_brain.academics import program_evidence
+    plan = {"name": "Accounting", "cohort": "Fall 2026", "terms": [{"year": "Year 1"}],
+            "totals": ["Total Credits Required: 128 credits",
+                       "Required GPA for Graduation: 2.0 (overall and in the major)"]}
+    facts = {"properties": [
+        {"key": "program", "values": [{"value": {"name": "Accounting BS"}}]},
+        {"key": "plans", "values": [{"value": plan}]}]}
+    item = program_evidence(facts, 1, [], "how many credits", date(2026, 11, 18))
+    assert item["plan_credit_totals"] == ["Total Credits Required: 128 credits"]
+
+
+def test_concentrations_inside_programs_are_found_by_their_words() -> None:
+    from rockygpt_brain.academics import (
+        asks_inside,
+        computed_answers,
+        concentration_facts,
+        inside_paths,
+    )
+    inside = [("Game Design and Immersive Media Concentration", "Visual Communication Design BA"),
+              ("Clinical Track", "Psychology BA"), ("Research Track", "Psychology BA")]
+    assert inside_paths("Pre-Physical Therapy Track") and inside_paths("Option A")
+    assert not inside_paths("Major Requirements")
+    assert asks_inside("is there a game design concentration")
+    assert not asks_inside("how do i focus on finals")
+    said = [f["fact"] for f in concentration_facts(
+        "is there a game design concentration", inside, 3)]
+    assert said == ["The catalog names this inside programs for 'game design': Game Design and "
+                    "Immersive Media Concentration in the Visual Communication Design BA."]
+    said = [f["fact"] for f in concentration_facts("what tracks does psych have", inside, 3)]
+    assert said == ["The catalog's concentrations, tracks and options in programs named for "
+                    "'psych': Clinical Track in the Psychology BA; Research Track in the "
+                    "Psychology BA."]
+    said = [f["fact"] for f in concentration_facts("any cyber concentration", inside, 3)]
+    assert said == ["The catalog names no concentration, track or option for 'cyber' inside "
+                    "any program."]
+    # A major the catalog does not list, held inside another program, is not said to be missing.
+    programs = [{"name": "Visual Communication Design BA"}, {"name": "History BA"}]
+    said = [f["fact"] for f in computed_answers([], programs, "do u have a game design major", 4,
+                                                (), inside)]
+    assert said == ["The catalog lists no bachelor's major named 'game design', but it is "
+                    "offered inside a program: Game Design and Immersive Media Concentration in "
+                    "the Visual Communication Design BA."]
+    said = [f["fact"] for f in computed_answers([], programs, "is there a design major", 4,
+                                                (), inside)]
+    assert said == ["The catalog lists this bachelor's major for 'design': Visual Communication "
+                    "Design BA."]

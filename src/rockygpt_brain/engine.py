@@ -2262,6 +2262,29 @@ class ChatEngine:
 
         return self._per_release("_tracks", version, read)
 
+    def _inside_programs(self) -> list[tuple[str, str]]:
+        """Read once per release: each concentration, track or option the catalog names inside
+        a program (a requirement group's label), with the program's name. "Do you have game
+        design" was answered "not offered" while a major held a concentration of that name."""
+        version, identity_hash = self.facts.active_release()
+
+        def read() -> list[tuple[str, str]]:
+            found: list[tuple[str, str]] = []
+            for program in self.facts.identities(("program",)):
+                facts = self.facts.get_program_facts(program["id"], version,
+                                                     identity_hash=identity_hash)
+                for prop in facts["properties"]:
+                    if prop["key"] != "requirements":
+                        continue
+                    for value in prop["values"]:
+                        label = " ".join(str(value["value"].get("label") or "").split())
+                        if academics.inside_paths(label) and (label, str(program["name"])) \
+                                not in found:
+                            found.append((label, str(program["name"])))
+            return found
+
+        return self._per_release("_inside", version, read)
+
     async def _pick_catalog(self, question: str, index: MeaningIndex,
                             vectors: Sequence[Sequence[float]],
                             hints: tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]
@@ -3543,15 +3566,18 @@ class ChatEngine:
                     index.course_titles, index.course_gen_ed,
                     {e["id"]: str(e["name"]) for e in self.facts.identities(("course",))},
                     latest) if index is not None and index.course_gen_ed else [])
-                if academic or academics.asked_subjects(latest) or gen_ed_lines:
+                asks_inside = academics.asks_inside(latest)
+                if academic or academics.asked_subjects(latest) or gen_ed_lines or asks_inside:
                     catalog_n = next((e["n"] for e in academic if "catalog_programs" in e), None)
-                    if catalog_n is None and (academics.asked_subjects(latest) or gen_ed_lines):
+                    if catalog_n is None and (academics.asked_subjects(latest) or gen_ed_lines
+                                              or asks_inside):
                         catalog_n = len(sources) + 1
                         sources = [*sources, {"n": catalog_n, "url": CATALOG_URL,
                                               "title": "Programs in the college catalog"}]
                     computed = [*academics.computed_answers(
                         academic, self.facts.identities(("program",)), latest, catalog_n,
-                        gen_ed_lines), *computed]
+                        gen_ed_lines, await asyncio.to_thread(self._inside_programs)),
+                        *computed]
                 if calendar_asked and events.asks_clubs(latest) and offices and not kind_listed:
                     # A group a page given names is checked against the club directory by code.
                     # A kind asked is its listed clubs: the other groups a page about it names

@@ -79,7 +79,8 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   recommended sequence for the admission year it names: say which year it is for, and give its
   semesters and totals as written; other_plans_same_year names that year's other tracks.
   catalog_programs lists every published program by level: a major, minor or program it does
-  not list is not offered in the catalog; say so plainly.
+  not list is not offered in the catalog; say so plainly, unless computed names it as offered
+  inside a program (a concentration, track or option): then say that.
 - calendar.events are the college calendar's events in the window code chose (calendar.window):
   give each one's title, day and time, place and host as written, with its number. When
   calendar.said_by_code is true, already_written already gives these events and says whether any
