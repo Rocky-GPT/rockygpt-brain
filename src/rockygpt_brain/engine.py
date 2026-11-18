@@ -13,10 +13,12 @@ import os
 import re
 import threading
 import time
+import traceback
 from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Any, Literal, Protocol, TypeVar, cast, get_args
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
@@ -3625,7 +3627,14 @@ class ChatEngine:
         except TimeoutError:
             return fallback("timeout")
         except (DatasetChanged, EvidenceUnavailable, InvalidFactRequest, UnknownEntity) as error:
-            return fallback(type(error).__name__)
+            done = fallback(type(error).__name__)
+            # Where it was raised, for the inspector: the Brain's own innermost frame.
+            frames = [f for f in traceback.extract_tb(error.__traceback__)
+                      if "rockygpt_brain" in f.filename]
+            if frames:
+                trace["oneCall"]["at"] = f"{Path(frames[-1].filename).name}:{frames[-1].lineno}"
+                trace["oneCall"]["in"] = [f.name for f in frames[-4:]]
+            return done
         call = completion.tool_calls[0] if len(completion.tool_calls) == 1 else None
         if call is None or call.name != "write_answer":
             return fallback("no_reply")

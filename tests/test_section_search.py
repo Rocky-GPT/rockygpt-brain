@@ -93,3 +93,16 @@ def test_a_page_read_in_part_also_gives_its_short_opening_first() -> None:
     # An opening read already is not given again.
     assert ("register", "0") not in sections(index, [QUERY], TODAY, cap=3,
                                              skip={("register", "0")})[1]
+
+
+def test_a_sections_rows_stay_apart_when_its_page_is_read() -> None:
+    # 11-18, blind-miss step 6: the data side publishes a schedule a row per line; cleaning the
+    # text once joined every row into one run-on line again.
+    from rockygpt_brain.retrieval.entity_facts import _procedure_units
+    text = "Walk-in: Monday 1 PM \n Walk-in: Friday 2 PM  and&nbsp;more"
+    units = _procedure_units({"sections": [{"heading": " Calculus  I ", "text": text}]})
+    assert units[0][1] == {"heading": "Calculus I",
+                           "text": "Walk-in: Monday 1 PM\nWalk-in: Friday 2 PM and more"}
+    # Each run of spaces is still one character, where clean puts it.
+    from rockygpt_brain.retrieval.projection import clean
+    assert len(units[0][1]["text"]) == len(clean(text))
