@@ -62,6 +62,8 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
 - Answer every part of the question. Before saying a part is not covered, check every section
   given, including its section_words. For a part no section answers, say once that you don't have
   verified information about it, and point to the office most likely to help with its contacts.
+  When it is about a club, team or group, give the group's own email or page first when the
+  evidence has one; never fill the gap with another office's hours.
 - computed are facts code worked out from the catalog, the directory, the calendar and the
   dates the sections state: state every one that answers the question, exactly as given (names,
   titles, counts, dates, numbers), with its number when it has one, and do what one says (ask
@@ -158,7 +160,8 @@ name: name the office the student should contact by its name as given, but do no
 yourself. A person a section names as the one to contact is named with the email or phone that \
 section gives for them, exactly as written.
 - For a part of the question no section answers, say once that you don't have verified \
-information about it, and name the office most likely to help.
+information about it, and name the office most likely to help (for a club, team or group, its \
+own email or page first when the JSON has one).
 - Never add anything the JSON does not say. today and now are the campus date and time.
 - Short plain sentences; numbered steps are fine. Under 1,600 characters. No greeting. Answer \
 only with the write_answer tool."""
