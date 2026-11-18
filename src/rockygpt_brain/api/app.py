@@ -23,6 +23,7 @@ from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from rockygpt_brain import drafts
+from rockygpt_brain.api.client_limit import CLIENT_HEADER, NETWORK_HEADER, ClientLimit
 from rockygpt_brain.api.dev import add_dev_routes
 from rockygpt_brain.api.releases import Gate, Releases
 from rockygpt_brain.boundary import check
@@ -172,8 +173,8 @@ class Admission:
 def _configured_engine() -> ChatEngine:
     settings = ProviderSettings.from_env()
     # BRAIN_OUTPUT=json: answers carry the facts as typed JSON parts and no written text.
-    # BRAIN_OUTPUT=written: the same, and a writer with only the writer view says them: code's
-    # plain sentences (plain_writer.py), or a model with BRAIN_LOOKUP_WRITER=ai.
+    # BRAIN_OUTPUT=written: the same, and code's plain sentences (plain_writer.py) say them from
+    # the writer view alone.
     mode = os.getenv("BRAIN_OUTPUT", "").strip().lower()
     output: Literal["text", "json", "written"] = (
         "written" if mode == "written" else "json" if mode == "json" else "text")
@@ -324,6 +325,8 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
     application.state.gate = Gate()
     application.state.startup_error = None
     application.state.capacity = asyncio.Semaphore(max_concurrent)
+    # Each student's questions a minute, for every copy of the student site at once.
+    application.state.client_limit = ClientLimit()
     application.add_middleware(Admission, token=token, environment=active_environment)
 
     @application.exception_handler(RequestValidationError)
@@ -400,6 +403,16 @@ def create_app(engine: ChatEngine | None = None, *, service_token: str | None = 
                             LOG.warning("brain_floor_answer_failed")
                 del floor
         else:
+            # The emergency text above is never held back; any other question past the
+            # student's limit is (api/client_limit.py).
+            wait = application.state.client_limit.take(transport.headers.get(CLIENT_HEADER),
+                                                       transport.headers.get(NETWORK_HEADER))
+            if wait is not None:
+                refused = failure(429, "rate_limited",
+                                  "Too many questions at once. Please wait a minute and try again.",
+                                  turn.request_id, retryable=True)
+                refused.headers["Retry-After"] = str(wait)
+                return refused
             capacity = application.state.capacity
             if capacity.locked():
                 return failure(429, "busy", "RockyGPT is busy. Please try again shortly.",
