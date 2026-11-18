@@ -26,6 +26,7 @@ from rockygpt_brain.events import (
     plain_window,
 )
 from rockygpt_brain.people import about_named, asks_leadership, asks_people, only_who
+from rockygpt_brain.retrieval.entity_facts import UnknownEntity
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -575,9 +576,15 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
         only = MeaningScores({k: scores[k] for k in keys})
         only.at = {k: scores.at[k] for k in keys if k in scores.at}
         fields = ["email", "phones", "offices", *(["procedures"] if keys else [])]
-        found = facts.get_office_facts(entity_id, fields, dataset_version,
-                                       identity_hash=identity_hash, about=question,
-                                       meaning=only if keys else None)
+        try:
+            found = facts.get_office_facts(entity_id, fields, dataset_version,
+                                           identity_hash=identity_hash, about=question,
+                                           meaning=only if keys else None)
+        except UnknownEntity:
+            # A name the student typed that is no office's (a club: "wen does hillel meet") has
+            # no office facts; the club directory answers for it. It no longer sends the whole
+            # question to the lookup loop (11-18 study: 3 of 8 club questions did).
+            continue
         props = {p["key"]: p for p in found["properties"]}
 
         def values(key: str, props: dict[str, Any] = props) -> list[Any]:

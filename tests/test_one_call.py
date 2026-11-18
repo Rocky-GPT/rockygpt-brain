@@ -725,3 +725,26 @@ def test_a_section_of_a_policy_brings_the_whole_policy_in_its_order() -> None:
     _, read = with_policies(index, (chosen, [("long", "5")]), leading=1)
     assert len(read) == 1 + MAX_POLICY_UNITS
     assert read == [("long", str(k)) for k in range(5, 14)]
+
+
+def test_a_name_that_is_no_offices_is_skipped_not_the_whole_page_answer() -> None:
+    # 11-18 study: "wen does hillel meet" named a club, whose id was read as an office's, and the
+    # UnknownEntity it raised sent the whole question to the lookup loop.
+    import array
+
+    from rockygpt_brain.retrieval.entity_facts import UnknownEntity
+    from rockygpt_brain.retrieval.meaning import MeaningIndex
+
+    class Facts:
+        def get_office_facts(self, entity_id: str, *args: object, **kwargs: object) -> dict[str, object]:
+            if entity_id == "club":
+                raise UnknownEntity("No office has that canonical identity.")
+            return {"entity": {"name": "Student Involvement"}, "properties": [], "sources": []}
+    meta = {"dataset_version": "v", "identity_hash": "h", "model": "m", "dimensions": 2,
+            "units": [["r", "0", ["office"]]], "owner": [0],
+            "labels": [["ramapo.edu/r", "Heading"]], "pages": {}}
+    index = MeaningIndex(meta, array.array("f", [1.0, 0.0]))
+    from rockygpt_brain.one_call import gather
+    offices, _ = gather(Facts(), index, [[1.0, 0.0]], "when does hillel meet", "v", "h",
+                       named_offices=["club"])
+    assert [o["office"] for o in offices] == ["Student Involvement"]
