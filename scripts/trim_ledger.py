@@ -33,8 +33,9 @@ async def main(arguments: argparse.Namespace) -> int:
     if not os.getenv("PGSSLROOTCERT") and "sslrootcert" not in conninfo_to_dict(url):
         tls["sslrootcert"] = certifi.where()
     async with await AsyncConnection.connect(
-            url, autocommit=True, application_name="rockygpt-ledger-trim",
-            options="-c statement_timeout=60000", **tls) as connection:
+            url, autocommit=True, application_name="rockygpt-ledger-trim", **tls) as connection:
+        # Neon's pooler refuses startup options, so the timeout is set once connected.
+        await connection.execute("SET statement_timeout = 60000")
         result = await trim_ledger(connection, kept=timedelta(days=arguments.kept_days),
                                    dry_run=arguments.dry_run)
     verb = "Would delete" if result.dry_run else "Deleted"
