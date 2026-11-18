@@ -2470,9 +2470,11 @@ class ChatEngine:
 
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
-        """The offices a reply sends the student to: the first whose sections it cites, and a
-        second it cites and also names in its words, at most two. An office cited only for a
-        page (an employee handbook beside Public Safety's "how to report") is not one (11-03).
+        """The offices a reply sends the student to: the offices its words name, in the order
+        it names them, at most two; only when it names none, the first whose sections it cites.
+        The contacts follow the answer, not the page used (11-18 blind run: a reply that said
+        Athletics would help got Admissions' contacts, the owner of the page it cited; one about
+        switching majors got Substance Use Disorder Services' for a page cited about coffee).
         Each comes with the offices that share its name but for a part in parentheses
         (Emergency, Non-Emergency), whose names say which line is for what."""
         office_of = {section.get("n"): office.get("office") for office in offices
@@ -2482,9 +2484,11 @@ class ChatEngine:
         names = list(dict.fromkeys(office_of[n] for n in marks if office_of.get(n)))
         by_name = {str(o["name"]): o for o in self.facts.identities(("office",))}
         cited = [dict(by_name[str(name)]) for name in names if str(name) in by_name]
+        # Its words only: not a link's text, and not a sentence saying what is not known about
+        # an office's own matters ("I don't have verified information about X").
         prose = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", written)
-        named = {str(o["id"]) for o in contacts.offices_named(cited, prose)[0]}
-        chosen = [o for k, o in enumerate(cited) if k == 0 or str(o["id"]) in named][:2]
+        named = contacts.offices_named(list(by_name.values()), prose)[0]
+        chosen = named[:2] if named else cited[:1]
         return contacts.with_siblings(chosen, list(by_name.values()))[:contacts.MAX_OFFICES]
 
     def _office_contacts(self, offices: Sequence[Mapping[str, Any]], numbered_from: int,
