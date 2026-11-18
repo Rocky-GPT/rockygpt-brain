@@ -8,7 +8,8 @@ still count against the cap until settled (scripts/clear_stuck_holds.py).
 
 This used to run from the data repo's weekly cleanup (audit 2026-11-17, item 15: the ledger is
 the Brain's, so its trim lives here). It needs a login that may delete, which the Brain's own
-runtime roles may not, so it runs from the weekly ledger-trim workflow, never inside the Brain.
+runtime roles may not, so it runs from rockygpt-infra's weekly Ledger trim workflow (which holds
+that login among its synced secrets), never inside the running Brain.
 """
 
 from dataclasses import dataclass

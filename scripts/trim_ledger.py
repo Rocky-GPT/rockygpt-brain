@@ -4,7 +4,8 @@
     LEDGER_OWNER_DATABASE_URL=... python scripts/trim_ledger.py             # delete
 
 The URL is a login that may delete from brain_ops (the database owner); the Brain's runtime
-logins may not. The weekly ledger-trim workflow runs it. See rockygpt_brain/ledger_trim.py.
+logins may not. rockygpt-infra's weekly Ledger trim workflow runs it.
+See rockygpt_brain/ledger_trim.py.
 """
 
 import argparse

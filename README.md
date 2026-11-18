@@ -58,9 +58,9 @@ side (never sent, no answer, or a 5xx) is asked once more while the turn has 6 s
 a timeout is not. Operators must reconcile uncertain reservations; waiting for a new month
 does not erase them: `scripts/clear_stuck_holds.py` lists the holds no call settled, and with
 `--release` settles them at no cost (check the provider's usage page first).
-Settled calls and answer turns older than 60 days are history only; the weekly
-[Ledger trim](.github/workflows/ledger-trim.yml) workflow deletes them
-(`scripts/trim_ledger.py`, which needs the database owner's login).
+Settled calls and answer turns older than 60 days are history only;
+`scripts/trim_ledger.py` deletes them (it needs the database owner's login). rockygpt-infra's
+weekly Ledger trim workflow runs it against production's ledger.
 
 Production serves no API docs pages (`/docs`, `/redoc`, `/openapi.json`); development keeps them.
 
