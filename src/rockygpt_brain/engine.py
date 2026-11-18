@@ -141,20 +141,35 @@ _MONTH_DAY = re.compile(r"\b(" + "|".join(m[:3] for m in _MONTHS)
                         re.IGNORECASE)
 
 
-def _last_date(sentence: str, today: date | None = None) -> date | None:
-    """The last month and day a sentence names, in its year when given, else the year that
-    keeps it nearest to now; None when it names none."""
-    found = list(_MONTH_DAY.finditer(sentence))
-    if not found:
-        return None
-    month_word, day_text, year_text = found[-1].groups()
-    month = [m[:3] for m in _MONTHS].index(month_word[:3].casefold()) + 1
+def _named_dates(sentence: str, today: date | None = None) -> list[date]:
+    """The months and days a sentence names, each in its year when given, else the year that
+    keeps it nearest to now."""
     now = today or datetime.now(CAMPUS_TZ).date()
-    year = int(year_text) if year_text else now.year
-    if not year_text and month < now.month - 6:
-        year += 1
+    dates = []
+    for month_word, day_text, year_text in _MONTH_DAY.findall(sentence):
+        month = [m[:3] for m in _MONTHS].index(month_word[:3].casefold()) + 1
+        year = int(year_text) if year_text else now.year
+        if not year_text and month < now.month - 6:
+            year += 1
+        try:
+            dates.append(date(year, month, int(day_text)))
+        except ValueError:
+            continue
+    return dates
+
+
+def _last_date(sentence: str, today: date | None = None) -> date | None:
+    """The last month and day a sentence names; None when it names none."""
+    dates = _named_dates(sentence, today)
+    return dates[-1] if dates else None
+
+
+def _asked_day(detail: Mapping[str, Any]) -> date | None:
+    """The day a shuttle lookup was for, as a date."""
+    day = detail.get("day")
+    text = day.get("date") if isinstance(day, Mapping) else day
     try:
-        return date(year, month, int(day_text))
+        return date.fromisoformat(str(text)[:10])
     except ValueError:
         return None
 
@@ -1530,7 +1545,8 @@ class ChatEngine:
         self._stops_cache: tuple[tuple[str, str], list[dict[str, Any]] | None] | None = None
         self._labels_cache: tuple[tuple[str, str], _ServiceLabels] | None = None
         self._notices_cache: tuple[tuple[str, str],
-                                   dict[str, list[tuple[str, date | None]]]] | None = None
+                                   dict[str, list[tuple[str, date | None, date | None]]]
+                                   ] | None = None
         # One lock per value above, so one caller builds it while the others wait (_per_release).
         self._builders: dict[str, Any] = {}
         self._builders_lock = threading.Lock()
@@ -2506,10 +2522,10 @@ class ChatEngine:
                 if contacts.plain_name(str(o["name"])) == plain
                 and str(o["name"]) != name and str(o["name"]) not in read][:2]
 
-    def _notice_sentences(self) -> dict[str, list[tuple[str, date | None]]]:
+    def _notice_sentences(self) -> dict[str, list[tuple[str, date | None, date | None]]]:
         """Each office page's dated notices of service stopping (no service, will not run), by
-        page address, with the last date each names; read once per release."""
-        found: dict[str, list[tuple[str, date | None]]] = {}
+        page address, with the first and last date each names; read once per release."""
+        found: dict[str, list[tuple[str, date | None, date | None]]] = {}
         with self.facts.snapshot() as snapshot:
             for entity in snapshot.entities:
                 if not any(link.get("collection") == "office_sections"
@@ -2521,26 +2537,30 @@ class ChatEngine:
                     url = str(row.get("url") or "")
                     if not url or url in found:
                         continue
-                    said: list[tuple[str, date | None]] = []
+                    said: list[tuple[str, date | None, date | None]] = []
                     for section in row.get("sections") or []:
                         text = str(section.get("text") or "") if isinstance(section, dict) else ""
                         for sentence in re.split(r"(?<=[.!])\s+", text):
-                            if NOTICE_SENTENCE.search(sentence) and _MONTH_DAY.search(sentence):
-                                said.append((sentence.strip(), _last_date(sentence)))
+                            dates = (_named_dates(sentence) if NOTICE_SENTENCE.search(sentence)
+                                     else [])
+                            if dates:
+                                said.append((sentence.strip(), min(dates), max(dates)))
                     found[url] = list(dict.fromkeys(said))
         return found
 
-    def _service_notices(self, pages: set[str], today: date) -> list[tuple[str, str]]:
+    def _service_notices(self, pages: set[str], today: date,
+                         ) -> list[tuple[str, str, date | None, date | None]]:
         """The dated notices of service stopping on these pages that are not over yet, each once,
-        with the page that says it."""
+        with the page that says it and the first and last day it names."""
         by_page = self._per_release("_notices_cache", self.facts.active_release(),
                                     self._notice_sentences)
-        notices: dict[str, str] = {}
+        notices: dict[str, tuple[str, str, date | None, date | None]] = {}
         for url in sorted(pages):
-            for sentence, until in by_page.get(url, []) or by_page.get(url.rstrip("/") + "/", []):
+            for sentence, first, until in (by_page.get(url, [])
+                                           or by_page.get(url.rstrip("/") + "/", [])):
                 if until is None or until >= today:
-                    notices.setdefault(sentence, url)
-        return list(notices.items())[:2]
+                    notices.setdefault(sentence, (sentence, url, first, until))
+        return list(notices.values())[:2]
 
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
@@ -5369,7 +5389,22 @@ class ChatEngine:
                                                   turn.campus_now.date())
             except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
                 notices = []
-            for k, (sentence, url) in enumerate(notices, start=1):
+            # A day asked that the notice covers has no trips: its timetable listing is not
+            # said, and the notice is (11-18 study: "shuttle to the mall over thanksgiving" was
+            # told 9 trips on Thanksgiving Day, then that there is no service).
+            stopped = {key for key, r in shuttle_results.items()
+                       if (day := _asked_day(r.detail)) is not None
+                       and any(first is not None and until is not None and first <= day <= until
+                               for _, _, first, until in notices)}
+            if stopped:
+                said_trips = {shuttle_results[key].rendered.text for key in stopped}
+                chunks[:] = [chunk for chunk in chunks if chunk not in said_trips]
+                trace["shuttleStoppedDays"] = len(stopped)
+                days = sorted({d for key in stopped
+                               if (d := _asked_day(shuttle_results[key].detail))})
+                chunks.append("No shuttle runs on " + " or ".join(
+                    f"{d:%A}, {d:%B} {d.day}" for d in days) + ".")
+            for k, (sentence, url, _, _) in enumerate(notices, start=1):
                 chunks.append(f"Service notice: {sentence}")
                 citations[f"notice-{k}"] = {"id": f"notice-{k}", "title": "Shuttle notice",
                                             "url": url}

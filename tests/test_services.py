@@ -5,7 +5,7 @@ tests read the packet the engine returns."""
 
 import asyncio
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -1378,3 +1378,17 @@ def test_the_trips_to_the_stop_asked_are_not_listed_again_among_all_trips() -> N
         {"stop": None, "day": "today", "which": "next", "route": None, "after": None}]})
     result = ask_written("shuttle to the train and how often", facts(), both, finish())
     assert result.trace is not None and result.trace.get("shuttleRepeatDropped") == 1
+
+
+def test_a_day_the_notice_covers_gets_no_trips_only_the_notice() -> None:
+    # 11-18 study: "shuttle to the mall over thanksgiving" was told 9 trips on Thanksgiving Day,
+    # then that there is no service then.
+    day = TUESDAY_10AM.date()
+    said = (f"There is no shuttle service {day:%A}, {day:%B} {day.day} through "
+            f"{day + timedelta(days=3):%A, %B} {(day + timedelta(days=3)).day}.")
+    result = ask_written("next shuttle to the train", _with_notice(said),
+                         shuttle("Ramsey Rt 17 Train", "today", "next"), finish())
+    answer = result.body["answer"]
+    assert f"No shuttle runs on {day:%A}, {day:%B} {day.day}." in answer
+    assert "Service notice: " + said in answer
+    assert "Next shuttle" not in answer and "next shuttle" not in answer
