@@ -24,6 +24,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from rockygpt_brain import asked_time
+from rockygpt_brain.asked_time import AskedTime
+
 # Two labels of one field never start with the same four letters. The read writes its label a
 # piece at a time, so two labels that start alike are told apart only by their ends, and one slip
 # there says the opposite (11-03 practice: an insult was once read as "compliment" instead of
@@ -159,6 +162,7 @@ Fill every field:
   what an office or service does, where to get help, a trip or program to sign up or apply for).
   Who handles, signs, approves or helps with something is how_to: it asks which office. A
   question that also asks how to do something is how_to. how_to when the question is empty.
+""" + asked_time.PROMPT + """
 Answer only with the read_message tool."""
 
 READ_TOOL: dict[str, Any] = {
@@ -167,7 +171,7 @@ READ_TOOL: dict[str, Any] = {
     "parameters": {
         "type": "object", "additionalProperties": False,
         "required": ["social", "danger", "needs", "problem_words", "limit", "question",
-                     "general", "topic"],
+                     "general", "topic", "time"],
         "properties": {
             "social": {"type": "string", "enum": list(SOCIAL)},
             "danger": {"type": "string", "enum": list(DANGER)},
@@ -177,6 +181,7 @@ READ_TOOL: dict[str, Any] = {
             "question": {"type": "string"},
             "general": {"type": "string"},
             "topic": {"type": "string", "enum": list(TOPICS)},
+            "time": asked_time.SCHEMA,
         },
     },
 }
@@ -195,12 +200,17 @@ class Reading:
     topic: str | None = None
     # The part general knowledge answers (general.py), in plain English; empty when none.
     general: str = ""
+    # When the question asks about and what kind of date (asked_time.py); None when the read
+    # gave no time picks, and the word rules read the time as before.
+    time: AskedTime | None = None
 
     def as_trace(self) -> dict[str, Any]:
         return {"social": self.social, "danger": self.danger, "needs": list(self.needs),
                 "limit": self.limit, "question": self.question,
                 **({"topic": self.topic} if self.topic is not None else {}),
-                **({"general": self.general} if self.general else {})}
+                **({"general": self.general} if self.general else {}),
+                **({"time": self.time.as_trace()} if self.time is not None
+                   and self.time.as_trace() else {})}
 
 
 # Each message is read this many times at once, and what most reads say is the reading (11-03
@@ -244,10 +254,12 @@ def majority(readings: Sequence[Reading]) -> Reading | None:
     # given, the same whichever read came back first.
     general = (min(generals, key=lambda g: (-generals.count(g), len(g), g))
                if len(generals) > half else "")
+    times = [r.time for r in readings if r.time is not None]
     return Reading(most([r.social for r in readings], SOCIAL),
                    most(dangers, DANGER) if dangers else "none", needs,
                    most([r.limit for r in readings], LIMITS), question,
-                   most(topics, TOPICS) if len(topics) > half else None, general)
+                   most(topics, TOPICS) if len(topics) > half else None, general,
+                   asked_time.vote(times) if len(times) > half else None)
 
 
 def read_messages(latest: str, previous_user: str | None,
@@ -307,6 +319,9 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     topic = arguments.get("topic")
     if topic is not None and topic not in TOPICS:
         return None
+    # Time picks of the wrong shape are dropped, not the whole read: the time is then read from
+    # the words as before.
+    picked = asked_time.of(arguments["time"]) if "time" in arguments else None
     kept = tuple(sorted(dict.fromkeys(n for n in needs if n in NEEDS), key=NEED_ORDER.index))
     # A need counts only where the student says they have it: the read copies those words, and
     # code finds them in the message (11-18 blind run: 7 of 11 support lines sat on messages that
@@ -327,7 +342,7 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     elif _plain(question) == _plain(latest):
         question = latest.strip()  # Nothing to fix: the student's own words, as they wrote them.
     return Reading(str(social), str(danger), kept, str(limit), question,
-                   None if topic is None else str(topic), general)
+                   None if topic is None else str(topic), general, picked)
 
 
 def problem_said(words: str, latest: str) -> bool:

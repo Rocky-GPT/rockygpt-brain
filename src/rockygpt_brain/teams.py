@@ -126,9 +126,11 @@ def _dated(game: Mapping[str, Any]) -> date | None:
 
 
 def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
-              schedule_n: int, coaches_n: int | None) -> str | None:
+              schedule_n: int, coaches_n: int | None, site: str = "any") -> str | None:
     """What code says of one team: the coaches, the next games or the results asked, each with
-    its source's [n]. None when nothing asked is in the record."""
+    its source's [n]. With `site` home or away (the read's pick, asked_time.py), only those games
+    (18b blind run: "when's the next home swim meet?" got only the away meet). None when nothing
+    asked is in the record."""
     name = str(team.get("name") or "The team")
     parts: list[str] = []
     if "coaches" in asks:
@@ -140,7 +142,9 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
                 listed.append(f"{coach['name']}, {coach.get('title') or 'Coach'}"
                               + (f" ({reach})" if reach else ""))
             parts.append(f"{name} coaches: " + "; ".join(listed) + f" [{coaches_n}].")
-    games = [g for g in team.get("games") or [] if g.get("opponent")]
+    games = [g for g in team.get("games") or [] if g.get("opponent")
+             and (site == "any" or g.get("site") == site)]
+    which = "" if site == "any" else f"{site} "
     dated = [(d, g) for g in games if (d := _dated(g)) is not None]
     upcoming = [g for d, g in dated if d >= today and not g.get("result")]
     played = [g for d, g in dated if d <= today and g.get("result")]
@@ -149,10 +153,10 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
     if "next" in asks:
         if upcoming:
             lines = [_game_line(g, False) for g in upcoming[:MAX_GAMES]]
-            parts.append(f"{name}'s next game{'s' if len(lines) > 1 else ''}: "
+            parts.append(f"{name}'s next {which}game{'s' if len(lines) > 1 else ''}: "
                          + "; ".join(lines) + f" [{schedule_n}].")
-        elif games:
-            parts.append(f"{name} has no more games on {its} [{schedule_n}].")
+        elif games or which:
+            parts.append(f"{name} has no more {which}games on {its} [{schedule_n}].")
     if "results" in asks or ("next" in asks and not upcoming and played):
         record = team.get("record") or {}
         overall = record.get("Overall") or record.get("Overall Record")
@@ -165,7 +169,7 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
             parts.append(line + f" [{schedule_n}].")
         if played:
             last = played[-MAX_GAMES:][::-1]
-            parts.append(f"Last game{'s' if len(last) > 1 else ''}: "
+            parts.append(f"Last {which}game{'s' if len(last) > 1 else ''}: "
                          + "; ".join(_game_line(g, True) for g in last) + f" [{schedule_n}].")
     if not parts:
         return None
@@ -180,7 +184,7 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
     return " ".join(parts)
 
 
-def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date,
+def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date, site: str = "any",
            ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]] | None:
     """Code's answer to a question naming at most two teams and asking their coaches, next games
     or results: the text, its sources and the team records it was written from. None for
@@ -200,7 +204,7 @@ def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date,
             coaches_n = len(sources) + 1
             sources.append({"n": coaches_n, "url": team.get("coaches_url"),
                             "title": f"{team.get('name')} coaches (ramapoathletics.com)"})
-        said = team_text(team, asks, today, schedule_n, coaches_n)
+        said = team_text(team, asks, today, schedule_n, coaches_n, site)
         if said:
             texts.append(said)
     if not texts:

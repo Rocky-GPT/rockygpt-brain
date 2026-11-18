@@ -16,6 +16,10 @@ from collections.abc import Set as AbstractSet
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from rockygpt_brain import asked_time
+from rockygpt_brain.asked_time import DEFAULT_DAYS as DEFAULT_DAYS
+from rockygpt_brain.asked_time import DEFAULT_LABEL as DEFAULT_LABEL
+from rockygpt_brain.asked_time import AskedTime
 from rockygpt_brain.kinds import KINDS, with_included
 from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
@@ -23,8 +27,6 @@ from rockygpt_brain.retrieval.meaning import standout_bar
 
 CALENDAR_URL = "https://archway.ramapo.edu/home/events/"
 MAX_EVENTS = 15
-DEFAULT_DAYS = 14
-DEFAULT_LABEL = f"the next {DEFAULT_DAYS} days"
 _EVENT_WORDS = re.compile(
     r"\b(?:events?|happening|going on|games?|match(?:es)?|"
     r"shows?|concerts?|performances?|plays?|recitals?|fairs?|workshops?|speakers?|lectures?|"
@@ -287,11 +289,14 @@ def break_asked(message: str, breaks: Sequence[tuple[str, date, date]],
 
 
 def window(message: str, now: datetime,
-           breaks: Sequence[tuple[str, date, date]] = ()) -> tuple[datetime, datetime, str]:
+           breaks: Sequence[tuple[str, date, date]] = (),
+           asked: AskedTime | None = None) -> tuple[datetime, datetime, str]:
     """The span of campus time a question asks about, and its name; the next two weeks when the
     question names no time. A part of the day ("friday night") narrows a one-day window. A break
     the question names is read from `breaks`, the academic calendar's (name, first day, last
-    day)."""
+    day). With the read's time picks (`asked`, asked_time.py) the picks say it, not the words."""
+    if asked is not None:
+        return asked_time.window(asked, now, breaks)
     start, end, label = _days(message, now, breaks)
     if start.date() == end.date() and label != "tonight":
         for words, first, last, name in _PART_OF_DAY:

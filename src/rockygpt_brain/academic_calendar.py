@@ -72,12 +72,21 @@ _STILL = re.compile(r"\bcan (?:i|we|you) still\b|\b(?:is it|am i|are we) (?:stil
 _THIS_TERM = re.compile(r"\b(?:this|current|the current)\s+(?:semester|term)\b")
 
 
-def kind_asked(message: str) -> str | None:
-    """The one kind of calendar date a question asks when it is, or None."""
+def _kinds_in(text: str, picked: str | None) -> list[str]:
+    """The kinds of date a question names: the read's pick when there was a read (asked_time.py,
+    "none" naming none), else the kinds its words name."""
+    if picked is not None:
+        return [] if picked == "none" else [picked]
+    return [kind for kind, pattern in _KINDS if pattern.search(text)]
+
+
+def kind_asked(message: str, picked: str | None = None) -> str | None:
+    """The one kind of calendar date a question asks when it is, or None. `picked` is the read's
+    kind of date (asked_time.py), None when there was no read."""
     text = message.casefold().replace("’", "'")
     if not re.search(r"\bwhen\b|\bwhat (?:day|date)\b|\blast day\b|\bdeadline\b", text):
         return None
-    found = [kind for kind, pattern in _KINDS if pattern.search(text)]
+    found = _kinds_in(text, picked)
     words = re.findall(r"[a-z0-9]+", text.replace("'", ""))
     if len(found) != 1 or any(w not in _PLAIN and not re.fullmatch(r"20\d{2}", w)
                               for w in words):
@@ -85,7 +94,7 @@ def kind_asked(message: str) -> str | None:
     return found[0]
 
 
-def kind_named(message: str) -> str | None:
+def kind_named(message: str, picked: str | None = None) -> str | None:
     """The one kind of calendar date a question names when it asks when or a deadline, whatever
     else it asks ("what's the deadline to withdraw and what shows on my transcript"): code says
     those dates first and the model the rest (11-03: the reply gave a page's 7-week dates and left
@@ -95,7 +104,7 @@ def kind_named(message: str) -> str | None:
                       r"\bdue date\b|\bby when\b|\bhow late\b|\buntil when\b", text)
             or _STILL.search(text)):
         return None
-    found = [kind for kind, pattern in _KINDS if pattern.search(text)]
+    found = _kinds_in(text, picked)
     return found[0] if len(found) == 1 else None
 
 
@@ -114,10 +123,13 @@ def term_spans(dates: Sequence[dict[str, Any]]) -> dict[str, tuple[date, date]]:
 
 
 def term_asked(message: str, terms: Sequence[dict[str, Any]],
-               spans: dict[str, tuple[date, date]], today: date) -> dict[str, Any] | None:
+               spans: dict[str, tuple[date, date]], today: date,
+               picked: str | None = None) -> dict[str, Any] | None:
     """The term a question asks about: one it names ("spring", "fall 2026"; a season alone is its
     term in session or the next to start), the fall or spring after the current one ("next
-    semester"), else the fall or spring in session today, else the next term to start."""
+    semester"), else the fall or spring in session today, else the next term to start. `picked`
+    is the read's term (asked_time.py): it names the season or next term in place of the words;
+    a year is still read from the words."""
     text = message.casefold()
     dated = sorted((t for t in terms if t.get("name") in spans),
                    key=lambda t: spans[str(t["name"])][0])
@@ -128,14 +140,18 @@ def term_asked(message: str, terms: Sequence[dict[str, Any]],
     current = (next((t for t in dated if on(t) and t.get("season") in ("fall", "spring")), None)
                or next((t for t in dated if on(t)), None))
     named = _TERM.search(text)
-    if named:
-        season = "fall" if named.group(1) == "autumn" else named.group(1)
+    season = ("fall" if named.group(1) == "autumn" else named.group(1)) if named else None
+    year = named.group(2) if named else None
+    if picked is not None:
+        season = picked if picked in ("fall", "spring", "summer", "winter") else None
+        year = (re.search(r"\b(20\d{2})\b", text) or [None, None])[1] if season else None
+    if season:
         matches = [t for t in dated if t.get("season") == season
-                   and (not named.group(2) or t.get("year") == int(named.group(2)))]
-        if not named.group(2):
+                   and (not year or t.get("year") == int(year))]
+        if not year:
             matches = [t for t in matches if spans[str(t["name"])][1] >= today]
         return matches[0] if matches else None
-    if _NEXT.search(text):
+    if (picked == "next") if picked is not None else _NEXT.search(text):
         if current is None:
             return None
         later = [t for t in dated if spans[str(t["name"])][0] > spans[str(current["name"])][1]
@@ -306,7 +322,7 @@ def closed_on(calendar: Mapping[str, Any], day: date) -> str | None:
 
 
 def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
-               n: int = 1) -> tuple[str, str, dict[str, Any]] | None:
+               n: int = 1, term_pick: str | None = None) -> tuple[str, str, dict[str, Any]] | None:
     """Code's answer to when one kind of academic date is, from the calendar's own entries: its
     text, the calendar page it cites as [n], and the entries it says (what its text is checked
     against). None when no term or entry fits, and the model reads the calendar pages.
@@ -319,11 +335,15 @@ def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
       around them: the earlier semester's last day, the winter session's first, the later
       semester's first;
     - a break the term does not list ("fall break") is said not to be listed, beside the days with
-      no classes it does list."""
+      no classes it does list.
+
+    `term_pick` is the read's term (asked_time.py), None when there was no read: it says whether a
+    term is named, and which, in place of the words."""
     terms, dates = calendar["terms"], calendar["dates"]
     spans = term_spans(dates)
     text = message.casefold()
-    named_term = bool(_TERM.search(text) or _NEXT.search(text) or _THIS_TERM.search(text))
+    named_term = (term_pick != "none" if term_pick is not None
+                  else bool(_TERM.search(text) or _NEXT.search(text) or _THIS_TERM.search(text)))
     # "Can I still ...": this term's date is the answer, passed or not, not the next term's.
     still = bool(_STILL.search(text.replace("’", "'")))
     season = break_named(message) if kind == "break" else None
@@ -340,7 +360,7 @@ def dates_said(message: str, kind: str, calendar: dict[str, Any], today: date,
                           f"Between the {literal(ending['name'])} and "
                           f"{literal(starting['name'])} semesters it lists [{n}]:", *lines])
         return said, url, {"terms": [ending, starting], "entries": entries}
-    term = term_asked(message, terms, spans, today)
+    term = term_asked(message, terms, spans, today, term_pick)
     if term is None:
         return None
     entries = entries_asked(message, kind, term, dates)

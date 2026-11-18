@@ -26,6 +26,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationErr
 from rockygpt_brain import (
     academic_calendar,
     academics,
+    asked_time,
     catalog,
     contacts,
     events,
@@ -2449,7 +2450,8 @@ class ChatEngine:
         if events.asks_events(message):
             sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
                             "title": "Campus events calendar"})
-            start, end, label = events.window(message, now, self._breaks(now.date()))
+            start, end, label = events.window(message, now, self._breaks(now.date()),
+                                            asked_time.ASKED.get())
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
@@ -2749,7 +2751,9 @@ class ChatEngine:
         except (EvidenceUnavailable, DatasetChanged):
             return None, [], {}
         n = numbered_from + 1
-        found = academic_calendar.dates_said(message, kind, calendar, today, n)
+        picked = asked_time.ASKED.get()
+        found = academic_calendar.dates_said(message, kind, calendar, today, n,
+                                             picked.term if picked is not None else None)
         if found is None:
             return None, [], {}
         said, url, facts = found
@@ -2785,7 +2789,8 @@ class ChatEngine:
         own words (events.listing_text): the text, its sources (the calendar page is 1), the
         release, and the facts the reply's check holds it to."""
         version, identity_hash = self.facts.active_release()
-        start, end, label = events.window(message, now, self._breaks(now.date()))
+        start, end, label = events.window(message, now, self._breaks(now.date()),
+                                            asked_time.ASKED.get())
         dated = events.events_in(list(self.facts.identities(("event",))), start, end)
         timed = events.in_window(self._event_values(dated, version, identity_hash, now),
                                  start, end)
@@ -3626,7 +3631,9 @@ class ChatEngine:
                         sources = [*sources, *found_sources]
                         code_parts.append(said)
                         code_view["program_people"] = listed_people
-                if (date_kind := academic_calendar.kind_named(latest)) is not None:
+                asked = asked_time.ASKED.get()
+                if (date_kind := academic_calendar.kind_named(
+                        latest, asked.date_kind if asked is not None else None)) is not None:
                     with measure("Read the academic calendar's dates asked"):
                         said, found_sources, dated = await asyncio.to_thread(
                             self._calendar_part, latest, date_kind, turn.campus_now.date(),
@@ -3779,7 +3786,9 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None
-        found = academic_calendar.dates_said(message, kind, calendar, turn.campus_now.date())
+        picked = asked_time.ASKED.get()
+        found = academic_calendar.dates_said(message, kind, calendar, turn.campus_now.date(),
+                                             term_pick=picked.term if picked is not None else None)
         if found is None:
             return None
         said, url, facts = found
@@ -3805,7 +3814,10 @@ class ChatEngine:
             found = self.facts.teams(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None
-        said = teams.answer(message, found, turn.campus_now.date()) if found else None
+        picked = asked_time.ASKED.get()
+        said = (teams.answer(message, found, turn.campus_now.date(),
+                             picked.home_away if picked is not None else "any")
+                if found else None)
         if said is None:
             return None
         text, sources, records = said
@@ -4212,6 +4224,8 @@ class ChatEngine:
         question should still be answered beside: its text comes first, as for a model's own."""
         trace: dict[str, Any] = {"decidedBy": "model", "modelCalls": 0, "committedNusd": 0,
                                  "lookups": []}
+        # No time picks until this turn's read is in: none carry over from an earlier turn.
+        asked_time.ASKED.set(None)
         if floor_situation is not None and self.output == "written":
             result = await self._beside_emergency(turn, request, trace, floor_situation,
                                                   read=True)
@@ -4310,6 +4324,9 @@ class ChatEngine:
             return await self._campus_answer(turn, request, trace, started=started,
                                              question=own)
         reading = await self._read_checked(context, reading, trace)
+        # The read's time picks say when the question asks about, wherever a time is turned into
+        # days (asked_time.py); this turn's own, as each request runs in its own task.
+        asked_time.ASKED.set(reading.time)
         question = await self._asked(context, reading, beside_emergency)
         if isinstance(read := trace.get("read"), dict):
             read["asked"] = ("own_words" if question is None
@@ -4902,7 +4919,10 @@ class ChatEngine:
             trace["root"] = graph.root()
         # When one kind of academic calendar date is ("when are finals?"): code's answer from the
         # term's own calendar entries, when the release has them (academic_calendar.py).
-        calendar_kind = (academic_calendar.kind_asked(context.latest_message)
+        picked = asked_time.ASKED.get()
+        calendar_kind = (academic_calendar.kind_asked(
+                             context.latest_message,
+                             picked.date_kind if picked is not None else None)
                          if self.output == "written" and floor_situation is None
                          and not context.recent_messages else None)
         if calendar_kind is not None:
