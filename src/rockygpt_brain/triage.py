@@ -136,7 +136,8 @@ Fill every field:
 - general: the part of the message that is not about Ramapo but that general knowledge can
   answer, in plain English with spelling fixed: a general knowledge or science question, a word or
   grammar question, a playful "who would win", or everyday advice (cooking, studying, staying
-  motivated, making friends, saving money, finding an internship); else empty. Not general: doing
+  motivated, making friends, saving money, finding an internship), as a whole question that makes
+  sense alone and is never the campus question again; else empty. Not general: doing
   or solving their homework, quiz or test, writing their essay, which medicine or dose to take,
   live scores and news, a guess about the future, and anything about the student's own records.
   When that advice is something a college office, club or service helps with (studying,

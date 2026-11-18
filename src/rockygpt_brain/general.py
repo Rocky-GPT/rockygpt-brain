@@ -33,6 +33,7 @@ assignment for them.
 - A playful or opinion question (who would win, which hero is stronger): answer playfully in one \
 or two sentences and say it is just for fun.
 - If you are not sure of a fact, say so instead of guessing.
+- Never ask the student a question back: give the most useful short answer to what they asked.
 Answer only with the write_general tool."""
 
 GENERAL_TOOL: dict[str, Any] = {

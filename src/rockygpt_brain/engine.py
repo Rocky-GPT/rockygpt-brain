@@ -29,6 +29,7 @@ from rockygpt_brain import (
     events,
     general,
     one_call,
+    season,
     teams,
     triage,
 )
@@ -1584,7 +1585,7 @@ class ChatEngine:
             LOG.error("brain_invalid_fact_packet reason=%s", error)
             raise GatewayError("invalid_fact_packet") from error
         try:
-            writer_input = writer_view(packet)
+            writer_input = writer_view(packet, season.named(turn.message))
         except (KeyError, TypeError, ValueError) as error:
             # A packet the view cannot be cut from is one nothing may be written from.
             LOG.error("brain_invalid_writer_view exception_type=%s", type(error).__name__)
@@ -4311,10 +4312,13 @@ class ChatEngine:
     def _answers_general(self, reading: triage.Reading, context: Context) -> bool:
         """Whether the read's general part is answered from general knowledge: not beside an
         emergency, never for homework or writing done for the student, and never a request for
-        medical advice, which keeps its own line."""
+        medical advice, which keeps its own line. Nor when the general part is only the campus
+        question again ("What should I do?" read as both for "i failed my calc midterm and idk
+        what to do", 11-18): the campus answer is the answer, and a general one asks back."""
         return bool(reading.general and reading.danger == "none"
                     and reading.limit not in ("homework", "writing")
-                    and not triage.MEDICAL_ADVICE.search(context.latest_message))
+                    and not triage.MEDICAL_ADVICE.search(context.latest_message)
+                    and _words(reading.general) != _words(reading.question))
 
     async def _general(self, turn: Turn, reading: triage.Reading,
                        trace: dict[str, Any]) -> str | None:

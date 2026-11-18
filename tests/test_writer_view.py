@@ -519,3 +519,6 @@ def test_a_week_of_another_season_is_left_out_beside_one_that_could_apply() -> N
     assert _out_of_season([hours("a", "Normal", "x"), hours("b", "Summer", "y")],
                           november) == set()
     assert _out_of_season([hours("a", "Normal"), hours("b", "Summer")], "not a time") == set()
+    # A season the student named is kept: "bookstore summer hours" asked in November.
+    assert _out_of_season([hours("a", "Normal"), hours("b", "Summer")], november,
+                          frozenset({"summer"})) == set()

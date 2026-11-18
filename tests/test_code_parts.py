@@ -305,6 +305,15 @@ def test_code_says_every_event_it_chose_for_a_topic_and_none_when_none_matches()
                              [line(2, "Ceramics and Tea", 5, "words")], True,
                              [line(3, "Clay it Cool", 23, "meaning")])
     assert near is not None and "Later on the calendar, only near it in meaning:" in near
+    # A time was named and nothing then matches: the next later match answers it, without the
+    # week's other events (11-18 study: "any comedy shows this wk" got the week's 49 events).
+    week = [line(2, "Card Night", 3, None)]
+    padded = events.topic_text("this week", start, end, 40, week, False)
+    assert padded is not None and "Card Night" in padded
+    answered = events.topic_text("this week", start, end, 40, week, False,
+                                 [line(3, "Comedy Night", 24, "words")])
+    assert answered is not None and "Comedy Night" in answered
+    assert "Card Night" not in answered and "All 40" not in answered
 
 
 def test_an_offices_page_sections_are_said_by_code_once_in_their_own_words() -> None:

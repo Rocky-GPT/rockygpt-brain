@@ -925,6 +925,16 @@ def test_a_failed_general_answer_leaves_the_reply_as_it_was() -> None:
     assert answer == triage.LIMIT_TEXTS["off_topic"]
 
 
+def test_a_general_part_that_is_only_the_campus_question_again_gets_no_general_answer() -> None:
+    # 11-18 study: "i failed my calc midterm and idk what to do" was read with "What should I
+    # do?" as both, and the general writer asked the student back what was going on.
+    gateway = ByToolGateway(
+        read_message=[read(general="What should I do?", question="What should I do?")],
+        loop=[LOOKUP, finish()])
+    ask(gateway, "i failed my midterm and idk what to do")
+    assert "write_general" not in gateway.tools
+
+
 def test_transferring_in_is_not_thinking_of_leaving() -> None:
     needs, dropped = triage.needs_checked(
         ("thinking_of_leaving",), "transfering in for spring and want to say hi to my advisor")
