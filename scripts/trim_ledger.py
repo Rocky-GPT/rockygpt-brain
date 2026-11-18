@@ -13,8 +13,11 @@ import asyncio
 import os
 import sys
 from datetime import timedelta
+from typing import Any
 
+import certifi
 from psycopg import AsyncConnection
+from psycopg.conninfo import conninfo_to_dict
 
 from rockygpt_brain.ledger_trim import KEPT, trim_ledger
 
@@ -24,9 +27,14 @@ async def main(arguments: argparse.Namespace) -> int:
     if not url:
         print("LEDGER_OWNER_DATABASE_URL is not set", file=sys.stderr)
         return 2
+    # Neon's URL asks for certificate checks (sslmode=verify-full); a runner has no
+    # ~/.postgresql/root.crt, so give libpq trusted roots, as the Brain's own reader does.
+    tls: dict[str, Any] = {}
+    if not os.getenv("PGSSLROOTCERT") and "sslrootcert" not in conninfo_to_dict(url):
+        tls["sslrootcert"] = certifi.where()
     async with await AsyncConnection.connect(
             url, autocommit=True, application_name="rockygpt-ledger-trim",
-            options="-c statement_timeout=60000") as connection:
+            options="-c statement_timeout=60000", **tls) as connection:
         result = await trim_ledger(connection, kept=timedelta(days=arguments.kept_days),
                                    dry_run=arguments.dry_run)
     verb = "Would delete" if result.dry_run else "Deleted"
