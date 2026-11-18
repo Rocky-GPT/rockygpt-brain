@@ -3171,11 +3171,13 @@ class ChatEngine:
                         calendar_asked: bool = False,
                         named_people: Sequence[dict[str, Any]] = (),
                         people_asked: bool = False,
+                        topic: str | None = None,
                         ) -> ChatResult | None:
         """One model call from code-found evidence (one_call.py); None leaves the question to
         the four-call loop: no meaning index and no program named, a failed call, or a reply
         the evidence does not hold. A named program's requirements are read first; the pages
-        are searched beside them when a meaning index is published."""
+        are searched beside them when a meaning index is published. `topic` is the read's
+        (triage.Reading.topic), None when there was no read."""
         embed_many = getattr(self.gateway, "embed_many", None)
         index = await asyncio.to_thread(self.facts.meaning_index)
         searchable = embed_many is not None and index is not None
@@ -3372,10 +3374,14 @@ class ChatEngine:
                     # When none matches the topic, the pages may still say when it is held (a
                     # fair's season), and the model reads them for the rest. Sessions may be an
                     # office's (tutoring, counseling), so the model reads the pages beside them.
+                    # A question the read says is about a club ("who plans the comedy nights? i
+                    # wanna join whatever board does that") asks for the club, which the events
+                    # never say alone (11-18 measure: it got only the events list, 4 of 4 tries).
                     if events_said and earlier is None and not people_asked \
                             and (calendar or {}).get("topic_matched") is not False \
                             and not named_people and not (programs and any(programs)) \
-                            and not events.asks_clubs(latest) and not one_call.asks_more(latest) \
+                            and not events.asks_clubs(latest) and topic != "club" \
+                            and not one_call.asks_more(latest) \
                             and not events.asks_sessions(latest):
                         if done := self._code_answer(turn, trace, events_said, sources,
                                                      dataset_version, calendar=calendar,
@@ -4958,7 +4964,8 @@ class ChatEngine:
                 or people_asked:
             done = await self._one_call(turn, context, budget, trace, programs=named_programs,
                                         calendar_asked=calendar_asked,
-                                        named_people=named_people, people_asked=people_asked)
+                                        named_people=named_people, people_asked=people_asked,
+                                        topic=topic)
             if done is not None:
                 return done
         listed: tuple[Any, ...] | None = None

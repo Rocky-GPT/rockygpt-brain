@@ -461,6 +461,27 @@ def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
     assert result.trace is not None and result.trace["decidedBy"] == "code"
 
 
+def test_a_question_the_read_says_is_about_a_club_is_not_answered_by_the_events_alone() -> None:
+    # 11-18 measure: "who plans the big events like comedy nights n concerts? i wanna join
+    # whatever board does that" was read as about a club and got only an events list.
+    from test_triage import read
+    message = "trivia night this weekend, who runs it i wanna join"
+    reply = {"parts": [{"asked": "who runs it", "not_on_pages": True, "sections": []}],
+             "text": "The College Programming Board (CPB) hosts it. [2]"}
+    gateway = ScriptedGateway(
+        read(question=message, topic="club", time=asdict(picks(when="this_weekend"))),
+        Completion("", (ToolCall("w", "write_answer", reply),), [
+            {"type": "function_call", "call_id": "w", "name": "write_answer",
+             "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    # The events code chose still start the reply, and the model says the club.
+    assert result.body["answer"].startswith("The calendar lists 1 event this weekend")
+    assert "The College Programming Board (CPB) hosts it. [2]" in result.body["answer"]
+
+
 def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
     directory = [{"name": "Chess Club"}, {"name": "Math Club"}]
     for asked in ("When does the Chess Club meet?",

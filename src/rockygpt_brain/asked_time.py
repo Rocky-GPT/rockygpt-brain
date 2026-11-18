@@ -244,6 +244,11 @@ def _days(asked: AskedTime, now: datetime,
         return _break_window(asked, now, breaks)
     if when == "rest_of_term":
         return rest_of_term(now)
+    # A time the picks cannot place on their own, beside a named break: the break places it
+    # ("next mon and tues before thanksgiving break" picks next_weekday with no one weekday,
+    # 11-18 measure, which fell to the two weeks).
+    if asked.break_name != "none":
+        return _break_window(asked, now, breaks)
     return default_window(now)
 
 

@@ -79,6 +79,11 @@ def test_a_break_its_days_before_it_after_it_and_one_that_has_ended() -> None:
     assert window(over, later, BREAKS)[2] == "the rest of the semester"
     assert window(AskedTime(when="break", break_name="spring"), later, BREAKS)[2] == (
         "over Spring Break")
+    # A time the picks cannot place alone is placed by the break beside it: "next mon and tues
+    # before thanksgiving break" picks next_weekday with no one weekday (11-18 measure).
+    assert days(AskedTime(when="next_weekday", break_name="thanksgiving", side="before")) == (
+        "11-18 15:00", "11-24 23:59", "before Thanksgiving Recess")
+    assert days(AskedTime(when="next_weekday"))[2] == DEFAULT_LABEL
 
 
 def test_a_part_of_the_day_narrows_one_day_only() -> None:
