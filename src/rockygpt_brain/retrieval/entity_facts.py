@@ -6,6 +6,7 @@ identities; only exact published identity links select the evidence records.
 
 import dataclasses
 import hashlib
+import html
 import json
 import logging
 import math
@@ -1994,6 +1995,17 @@ def _section_words(row: dict[str, Any], heading: str, text: str) -> tuple[set[st
             _procedure_words(text))
 
 
+def _lined(value: Any) -> Any:
+    """A page section's text cleaned as `clean` cleans it, its lines kept: a run of spaces that
+    holds a line break is one line break. The data side publishes a section's lists and
+    schedules a row per line (11-18, blind-miss step 6), and a reader needs the rows apart. Each
+    run is still one character, so a place in the text is where `clean` puts it."""
+    if not isinstance(value, str):
+        return clean(value)
+    return re.sub(r"\s+", lambda run: "\n" if "\n" in run.group() else " ",
+                  html.unescape(value)).strip()
+
+
 def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
                      ) -> list[tuple[str, dict[str, Any], set[str], set[str]]]:
     """What a page offers a how-to read: its how-to entries when publish listed some (a task in
@@ -2056,7 +2068,7 @@ def _procedure_units(row: dict[str, Any], *, sections_only: bool = False,
     for index, section in enumerate(sections):
         if not isinstance(section, dict):
             continue
-        heading, text = clean(section.get("heading")), clean(section.get("text"))
+        heading, text = clean(section.get("heading")), _lined(section.get("text"))
         if isinstance(heading, str) and isinstance(text, str) and text:
             units.append((str(index), {"heading": heading, "text": text},
                           *_section_words(row, heading, text)))
