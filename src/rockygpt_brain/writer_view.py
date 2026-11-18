@@ -151,6 +151,27 @@ def _another_season(entries: list[dict[str, Any]]) -> set[str]:
     return gone
 
 
+def _out_of_season(facts: list[dict[str, Any]], as_of: Any) -> set[str]:
+    """Ids of an office's hours schedules whose season label plainly is not today's season, when
+    another of its schedules remains to be said: asked for a week, not a day, the Summer hours
+    were said in November beside the regular ones (11-18 blind run). A day asked is checked the
+    same way (_another_season)."""
+    try:
+        today = datetime.fromisoformat(str(as_of)).date()
+    except ValueError:
+        return set()
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for fact in facts:
+        if fact.get("predicate") == "hours" and isinstance(fact.get("value"), dict):
+            groups.setdefault(str(fact["subject"].get("id")), []).append(fact)
+    gone: set[str] = set()
+    for group in groups.values():
+        out = [f for f in group if season_fit(f["value"].get("season"), today) == "out"]
+        if out and len(out) < len(group):
+            gone.update(str(f["id"]) for f in out)
+    return gone
+
+
 def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     """The part of a validated packet a writer needs, as plain JSON."""
     cited = {sid for kind in ("facts", "not_published", "derived_facts", "missing")
@@ -220,8 +241,9 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     whole = {fact["id"] for fact in packet["facts"] if (key := menu_key(fact)) in filtered
              and not fact["value"].get("filter")}
     facts = []
+    out_of_season = _out_of_season(packet["facts"], packet["request"].get("asOf"))
     for fact in packet["facts"]:
-        if fact["id"] in replaced or fact["id"] in whole:
+        if fact["id"] in replaced or fact["id"] in whole or fact["id"] in out_of_season:
             continue
         row = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
                "value": _said(fact["value"])}

@@ -1328,3 +1328,53 @@ def test_food_after_a_time_says_what_is_served_from_then_and_not_open_now() -> N
     both = derived(ask("is birch open now, and after 9pm?", lookup("Birch Tree Inn", ["hours"]),
                        finish(), now=evening), "hours_on")
     assert both["open_now"]["state"] == "open" and both["open_at"] == entry["open_at"]  # dinner
+
+
+def _with_notice(text: str) -> MemoryEntityFacts:
+    """The test timetable, with its page's own section saying when service stops."""
+    base = facts()
+    page = {"id": "page-1", "source_key": "office_pages", "source_record_key": "transport-page",
+            "url": "https://example.edu/source", "canonical_url": "https://example.edu/source",
+            "collected_at": COLLECTED, "freshness_sla_hours": 36, "content_hash": "p1",
+            "sections": [{"heading": "Shuttle Schedule", "text": text}]}
+    office = {"id": "transport", "name": "Transportation Services", "kind": "office",
+              "aliases": [], "links": [{"collection": "office_sections",
+                                        "source_key": "office_pages",
+                                        "source_record_keys": ["transport-page"]}]}
+    return MemoryEntityFacts(
+        dataset_version="release-1", identity_hash="identities-1",
+        entities=[*base.entities, office], contacts=[],
+        records={**base.records, "office_sections": [page]}, now=lambda: TUESDAY_10AM)
+
+
+def ask_written(question: str, service: MemoryEntityFacts, *steps: Any) -> ChatResult:
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
+    engine = ChatEngine(ScriptedGateway(*steps), service, output="written", read_first=False)
+    return asyncio.run(engine.answer(intake(request, now=TUESDAY_10AM), request))
+
+
+def test_a_dated_stop_in_service_on_the_timetable_page_goes_with_the_trips() -> None:
+    # 11-18 blind run: a student going home for the holiday got the trips, not "no shuttle".
+    said = ("The shuttle is operating on a regular schedule through Tuesday, October 20. There "
+            "is no shuttle service Wednesday, October 21 through Sunday, October 25. Regular "
+            "service resumes Monday, October 26.")
+    result = ask_written("next shuttle to the train", _with_notice(said),
+                         shuttle("Ramsey Rt 17 Train", "today", "next"), finish())
+    answer = result.body["answer"]
+    assert ("Service notice: There is no shuttle service Wednesday, October 21 through Sunday, "
+            "October 25.") in answer
+    assert "Regular service resumes" not in answer
+    # A notice whose dates are over is not said.
+    over = said.replace("October 21", "October 1").replace("October 25", "October 4")
+    assert "Service notice" not in ask_written(
+        "next shuttle to the train", _with_notice(over),
+        shuttle("Ramsey Rt 17 Train", "today", "next"), finish()).body["answer"]
+
+
+def test_the_trips_to_the_stop_asked_are_not_listed_again_among_all_trips() -> None:
+    both = completion("shuttle_lookup", {"requests": [
+        {"stop": "Ramsey Rt 17 Train", "day": "today", "which": "next", "route": None,
+         "after": None},
+        {"stop": None, "day": "today", "which": "next", "route": None, "after": None}]})
+    result = ask_written("shuttle to the train and how often", facts(), both, finish())
+    assert result.trace is not None and result.trace.get("shuttleRepeatDropped") == 1

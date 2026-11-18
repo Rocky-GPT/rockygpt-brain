@@ -81,7 +81,11 @@ from rockygpt_brain.retrieval import (
     section_search,
 )
 from rockygpt_brain.retrieval.campus_graph import CampusGraph, purpose_words
-from rockygpt_brain.retrieval.entity_facts import MAX_CLUBS_READ, discovery_tokens
+from rockygpt_brain.retrieval.entity_facts import (
+    MAX_CLUBS_READ,
+    discovery_tokens,
+    linked_rows,
+)
 from rockygpt_brain.retrieval.meaning import MeaningIndex
 from rockygpt_brain.router import (
     asks_inside,
@@ -123,6 +127,37 @@ _EARLY_VECTORS: contextvars.ContextVar[
     tuple[tuple[str, ...], asyncio.Task[tuple[int, list[list[float]]] | None]] | None] = \
     contextvars.ContextVar("early_vectors", default=None)
 # How long the early embedding may take; the search embeds again on its own after a failure.
+# A sentence saying a service stops for a while ("There is no shuttle service Wednesday,
+# November 25 through Sunday, November 29."), said beside that service's timetable answers.
+NOTICE_SENTENCE = re.compile(
+    r"\b(?:no (?:\w+ ){0,2}service|will not (?:run|operate|be running|be operating)|"
+    r"(?:is|are) not (?:running|operating)|(?:service|shuttles?) (?:is |are |will be )?"
+    r"(?:suspended|cancel+ed))\b", re.IGNORECASE)
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
+           "september", "october", "november", "december")
+_MONTH_DAY = re.compile(r"\b(" + "|".join(m[:3] for m in _MONTHS)
+                        + r")[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b",
+                        re.IGNORECASE)
+
+
+def _last_date(sentence: str, today: date | None = None) -> date | None:
+    """The last month and day a sentence names, in its year when given, else the year that
+    keeps it nearest to now; None when it names none."""
+    found = list(_MONTH_DAY.finditer(sentence))
+    if not found:
+        return None
+    month_word, day_text, year_text = found[-1].groups()
+    month = [m[:3] for m in _MONTHS].index(month_word[:3].casefold()) + 1
+    now = today or datetime.now(CAMPUS_TZ).date()
+    year = int(year_text) if year_text else now.year
+    if not year_text and month < now.month - 6:
+        year += 1
+    try:
+        return date(year, month, int(day_text))
+    except ValueError:
+        return None
+
+
 EARLY_EMBED_SECONDS = 8.0
 # The general answer's own time (general.py): it runs beside the campus answer.
 GENERAL_SECONDS = 12.0
@@ -1493,6 +1528,8 @@ class ChatEngine:
         self._venues_cache: tuple[tuple[str, str], list[dict[str, Any]] | None] | None = None
         self._stops_cache: tuple[tuple[str, str], list[dict[str, Any]] | None] | None = None
         self._labels_cache: tuple[tuple[str, str], _ServiceLabels] | None = None
+        self._notices_cache: tuple[tuple[str, str],
+                                   dict[str, list[tuple[str, date | None]]]] | None = None
         # One lock per value above, so one caller builds it while the others wait (_per_release).
         self._builders: dict[str, Any] = {}
         self._builders_lock = threading.Lock()
@@ -2467,6 +2504,42 @@ class ChatEngine:
         return [str(o["name"]) for o in self.facts.identities(("office",))
                 if contacts.plain_name(str(o["name"])) == plain
                 and str(o["name"]) != name and str(o["name"]) not in read][:2]
+
+    def _notice_sentences(self) -> dict[str, list[tuple[str, date | None]]]:
+        """Each office page's dated notices of service stopping (no service, will not run), by
+        page address, with the last date each names; read once per release."""
+        found: dict[str, list[tuple[str, date | None]]] = {}
+        with self.facts.snapshot() as snapshot:
+            for entity in snapshot.entities:
+                if not any(link.get("collection") == "office_sections"
+                           for link in entity["links"]):
+                    continue
+                rows = linked_rows(entity, snapshot.record_reader(entity, "office_sections"),
+                                   "office_sections")
+                for row in rows:
+                    url = str(row.get("url") or "")
+                    if not url or url in found:
+                        continue
+                    said: list[tuple[str, date | None]] = []
+                    for section in row.get("sections") or []:
+                        text = str(section.get("text") or "") if isinstance(section, dict) else ""
+                        for sentence in re.split(r"(?<=[.!])\s+", text):
+                            if NOTICE_SENTENCE.search(sentence) and _MONTH_DAY.search(sentence):
+                                said.append((sentence.strip(), _last_date(sentence)))
+                    found[url] = list(dict.fromkeys(said))
+        return found
+
+    def _service_notices(self, pages: set[str], today: date) -> list[tuple[str, str]]:
+        """The dated notices of service stopping on these pages that are not over yet, each once,
+        with the page that says it."""
+        by_page = self._per_release("_notices_cache", self.facts.active_release(),
+                                    self._notice_sentences)
+        notices: dict[str, str] = {}
+        for url in sorted(pages):
+            for sentence, until in by_page.get(url, []) or by_page.get(url.rstrip("/") + "/", []):
+                if until is None or until >= today:
+                    notices.setdefault(sentence, url)
+        return list(notices.items())[:2]
 
     def _cited_offices(self, written: str, offices: Sequence[Mapping[str, Any]],
                        ) -> list[dict[str, Any]]:
@@ -5257,7 +5330,20 @@ class ChatEngine:
         # Every lookup is a requested answer part. A later model decision cannot
         # discard its public facts, missing evidence, conflict, or outage.
         parts: list[dict[str, Any]] = []  # The same reply as typed JSON, for output="json".
-        for result in results.values():
+        # A turn that read the trips to the stop asked and also every trip of the same day says
+        # the stop's trips once: the second listing repeated them among all the others (11-18
+        # blind run: "the next shuttles to Ramsey" then "the next shuttles today", the same runs).
+        shuttle_results = {key: result for key, result in results.items()
+                    if result.part and result.part.get("kind") == "shuttle_facts"}
+        stop_days = {str(r.detail.get("day")) for r in shuttle_results.values() if r.part
+                     and r.part.get("query")}
+        repeated = {key for key, r in shuttle_results.items() if r.part and not r.part.get("query")
+                    and str(r.detail.get("day")) in stop_days}
+        if repeated:
+            trace["shuttleRepeatDropped"] = len(repeated)
+        for key, result in results.items():
+            if key in repeated:
+                continue
             chunks.append(result.rendered.text)
             if result.part is not None:
                 parts.append(result.part)
@@ -5267,6 +5353,24 @@ class ChatEngine:
             citations.update({c["id"]: c for c in result.rendered.citations})
             if result.error_code:
                 errors.append(result.error_code)
+        # A dated notice on the timetable pages (no service over a break) goes with every
+        # shuttle answer: the trips are the timetable's, which the notice overrides (11-18 blind
+        # run: a student going home for Thanksgiving was given the trips, not "no shuttle service
+        # Wednesday, November 25 through Sunday, November 29").
+        if shuttle_results:
+            pages = {u for r in shuttle_results.values() for c in r.rendered.citations
+                     for u in [c.get("url"), *(c.get("urls") or [])] if isinstance(u, str)}
+            try:
+                notices = await asyncio.to_thread(self._service_notices, pages,
+                                                  turn.campus_now.date())
+            except (EvidenceUnavailable, DatasetChanged, UnknownEntity, InvalidFactRequest):
+                notices = []
+            for k, (sentence, url) in enumerate(notices, start=1):
+                chunks.append(f"Service notice: {sentence}")
+                citations[f"notice-{k}"] = {"id": f"notice-{k}", "title": "Shuttle notice",
+                                            "url": url}
+            if notices:
+                trace["serviceNotices"] = len(notices)
         lookup_clarified = clarify
         shown = any(r.rendered.supported for r in results.values())  # Office facts are above.
         # An office's contact details are what a refusal can point at; a shuttle time or a

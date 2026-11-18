@@ -503,3 +503,19 @@ def test_an_office_with_no_how_to_beside_one_that_answers_it_is_no_gap_to_tell()
     packet["facts"] = [f for f in packet["facts"] if f["predicate"] != "procedures"]
     assert writer_view(packet)["missing"] == [
         {"subject": "Dean of Students", "predicate": "procedures"}]
+
+
+def test_a_week_of_another_season_is_left_out_beside_one_that_could_apply() -> None:
+    # 11-18 blind run: "bookstore hours this week" in November said the Summer hours too.
+    from rockygpt_brain.writer_view import _out_of_season
+
+    def hours(fact_id: str, season: str, office: str = "store") -> dict[str, Any]:
+        return {"id": fact_id, "predicate": "hours", "subject": {"id": office},
+                "value": {"schedule": f"{season} hours", "season": season}}
+    november = "2026-11-18T09:00:00-05:00"
+    assert _out_of_season([hours("a", "Normal"), hours("b", "Summer")], november) == {"b"}
+    # Nothing goes when nothing else remains, or when another office's schedule is the other.
+    assert _out_of_season([hours("b", "Summer")], november) == set()
+    assert _out_of_season([hours("a", "Normal", "x"), hours("b", "Summer", "y")],
+                          november) == set()
+    assert _out_of_season([hours("a", "Normal"), hours("b", "Summer")], "not a time") == set()
