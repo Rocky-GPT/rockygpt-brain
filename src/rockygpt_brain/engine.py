@@ -349,7 +349,9 @@ reaction now; feeling sick (a cold, the flu, a fever, strep), or naming an aller
 to ask about food or services, is not safety), danger (a threat from another person: a
 weapon, an attack, a break-in, being followed), fire (fire, smoke or gas), or other (none of
 these fits, several do, or someone took too much of something). Every other part has a null
-situation. Do not use safety only because an earlier message was an emergency: if the student
+situation. A drill, a test, a false alarm, a complaint that an alarm is loud, or a question
+about a safety rule or device is not safety; an alarm with fire, smoke or gas there now is.
+Do not use safety only because an earlier message was an emergency: if the student
 says it is over or asks an ordinary question, answer that question. When safety applies, still
 look up any office contact
 the student asked for; the server shows the safety text first. The server writes all
