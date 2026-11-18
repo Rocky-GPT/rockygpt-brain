@@ -79,7 +79,13 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     # A question's parts are searched apart, and a short follow-up with the question before it.
     assert parts_of("how do I apply for summer housing? and what does it cost") == [
         "how do I apply for summer housing? and what does it cost",
-        "how do I apply for summer housing?", "and what does it cost"]
+        "how do I apply for summer housing?", "apply summer housing: and what does it cost"]
+    # A later part is never searched without what the question is about (11-18 blind run).
+    assert parts_of("where can i get free tutoring for precalc, and do i need an appointment or "
+                    "is it drop in")[2] == (
+        "free tutoring precalc: do i need an appointment or is it drop in")
+    assert parts_of("when is spring break, and when do the dorms close for it")[2] == (
+        "spring break: when do the dorms close for it")
     assert search_text("and for grad students?", "how do i apply for graduation") == (
         "how do i apply for graduation\nand for grad students?")
 

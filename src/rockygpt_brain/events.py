@@ -1416,14 +1416,15 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
         return "\n\n".join(parts) if parts else None
     parts = [f"The calendar lists no {kinds_said} events {phrase} {cal}." if only_kinds
              else f"The calendar lists no event {phrase} that matches what you asked {cal}."]
-    if outside:
-        later = [line for line in outside if _starts(line["_value"]) is not None]
-        if later:
-            # Later dates are always said under their day.
-            parts += ["Later on the calendar:", *said(later, start, start + timedelta(days=1))]
+    later = [line for line in outside or [] if _starts(line["_value"]) is not None]
+    if later:
+        # Later dates are always said under their day.
+        parts += ["Later on the calendar:", *said(later, start, start + timedelta(days=1))]
     # The window's other events only for a time the question named: "is there a quidditch
-    # tournament" is not answered with the next two weeks' 114 events.
-    if lines and label != DEFAULT_LABEL:
+    # tournament" is not answered with the next two weeks' 114 events. And not when a later event
+    # matches: "any comedy shows this wk" is answered by the next one, not padded with the week's
+    # 49 others (11-18 blind misses, root cause 4: never pad a looked-up answer).
+    if lines and label != DEFAULT_LABEL and not later:
         parts += [f"All {in_window} event{'s' if in_window != 1 else ''} {phrase}"
                   + (f", the first {len(lines)} by time:" if len(lines) < in_window else ":"),
                   *said(lines, start, end)]

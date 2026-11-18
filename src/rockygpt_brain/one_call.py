@@ -107,8 +107,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   it is the answer to what it covers, and a page that disagrees with it is out of date. Write only
   what else the question asks. When it already answers everything asked, write an empty text.
 - When contacts_written_by_code is true, code adds the phone numbers, email and room of each
-  office whose sections you cite after your text: name the office and give its steps, but do not
-  list its phone numbers, email or room yourself, except a number a step's own words give.
+  office you name after your text: name the office the student should contact by its name as
+  given, and give its steps, but do not list its phone numbers, email or room yourself, except a
+  number a step's own words give. A person a section names as the one to contact is named with
+  the email or phone that section gives for them, exactly as written.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Numbers are only marks: never write
   "section 4" in the text. Short plain sentences; numbered steps are fine. Under 1,600
@@ -151,7 +153,9 @@ with past_term is for a term or deadline that is over: never give its dates as c
 write only what else is asked, or an empty text when it answers everything. computed facts are \
 true as given: state each that answers the question, with its number.
 - When contacts_written_by_code is true, code adds the phone, email and room of each office you \
-cite: name the office, but do not list those yourself.
+name: name the office the student should contact by its name as given, but do not list those \
+yourself. A person a section names as the one to contact is named with the email or phone that \
+section gives for them, exactly as written.
 - For a part of the question no section answers, say once that you don't have verified \
 information about it, and name the office most likely to help.
 - Never add anything the JSON does not say. today and now are the campus date and time.
@@ -310,10 +314,34 @@ def pieces_of(question: str) -> list[str]:
         r"are|should)\b)", question, flags=re.IGNORECASE) if b.strip()]
 
 
+# Words that say how a piece asks, not what it is about: a piece made only of these and its own
+# few words ("do I need an appointment or is it drop-in?") is about the first piece's subject.
+_ASKING_WORDS = frozenset("""
+a an the is are am was were be been do does did to of for in on at by with and or but so if i me my
+we our you your it its this that these those there here what whats when whens where wheres who
+whos whom whose which how hows why im u ur r n can could should would will may might must any some
+get got have has had need needs
+want wanna gonna go going know tell show give find help please also plus still too just really
+about from into than then them they their he she his her one ones
+""".split())
+
+
+def _subject(piece: str) -> list[str]:
+    """A piece's words that say what it is about, in order, each once."""
+    words = re.findall(r"[a-z0-9][a-z0-9'’-]*", piece.casefold())
+    return list(dict.fromkeys(w for w in words if w not in _ASKING_WORDS and len(w) > 1))
+
+
 def parts_of(question: str) -> list[str]:
     """The texts searched: the whole question, then its pieces (pieces_of) longer than a few
-    words, up to MAX_PARTS of them."""
+    words, up to MAX_PARTS of them. A later piece that shares no word of the first piece's subject
+    is searched with that subject before it, never alone (11-18 blind run: "do I need an
+    appointment or is it drop-in?" searched by itself filled 27 of 30 sections with other offices'
+    appointment rules, and the tutoring schedule asked about was misread)."""
     bits = [b for b in pieces_of(question) if len(b) > 12]
+    if len(bits) > 1 and (subject := _subject(bits[0])):
+        bits = [bits[0], *(b if set(_subject(b)) & set(subject)
+                           else f"{' '.join(subject)}: {b}" for b in bits[1:])]
     return [question, *[b for b in bits if b != question][:MAX_PARTS]]
 
 

@@ -109,9 +109,12 @@ def test_only_offices_the_reply_sends_the_student_to_get_their_contacts() -> Non
                {"office": "Library", "sections": [{"n": 3}]}]
     def ids(written: str) -> list[str]:
         return [o["id"] for o in engine._cited_offices(written, offices)]
-    # The first cited; another only when the reply also names it.
+    # The offices the reply names, in its order; the first cited only when it names none
+    # (11-18 blind run: the contacts followed the page cited, not the office the reply named).
     assert ids("Ask your advisor. [1] See the handbook. [3]") == ["advising"]
-    assert ids("Ask your advisor [1], or the Library [3].") == ["advising", "library"]
+    assert ids("Ask Academic Advising [1], or the Library [3].") == ["advising", "library"]
+    assert ids("Ask your advisor [1], or the Library [3].") == ["library"]
+    assert ids("The handbook says so [1]; the Library can help.") == ["library"]
     assert ids("Tutors help. [2][1]") == ["tutoring"]
 
 

@@ -89,8 +89,11 @@ Fill every field:
   discrimination, sexual misconduct), food_or_housing (not enough to eat or no money for food,
   nowhere to live), disability
   (accommodations). A practical question with no feeling or problem in it has none, and so does a
-  passing word of feeling about a practical problem (that is social upset). A question about a
-  cost, a rule or a deadline is no need either. A need is only a problem the student says they
+  passing word of feeling about a practical problem (that is social upset) or about something
+  coming up ("kinda nervous", "lowkey scared"). A question about a cost, a rule, a deadline or how
+  to do something is no need either: asking about a makeup exam, transferring in, a hold, a
+  form, studying, cooking or making plans shares no problem. A joke or a figure of speech ("i
+  dont wanna poison everyone lol") is no need. A need is only a problem the student says they
   have, never one guessed from what they ask for: wanting something free or cheap, a job or a
   discount is a practical question. So is looking for a kind of food (halal, kosher, vegan) or
   asking what a dish contains because of an allergy or a diet: that is a question about the menu,
@@ -102,8 +105,12 @@ Fill every field:
   campus (a flu shot, an appointment, a test, a prescription), or what there is about a
   medicine, a health program or a health event (free naloxone or condoms, a training, health
   insurance, a wellness workshop).
+- problem_words: when needs is not empty, the student's own words that say they have that
+  problem or feeling, copied exactly from the latest message ("i failed my orgo midterm", "im so
+  homesick"); else empty.
 - limit: what the message asks that RockyGPT cannot do: clock (the current time or date),
-  off_topic (not about Ramapo or college life: sports scores, TV, dating advice, world news),
+  off_topic (not about Ramapo or college life: general knowledge, everyday advice, sports
+  scores, TV, world news),
   my_records (their own grades, GPA, balance, schedule, aid status, who they are), homework (do
   or solve their homework, a quiz or a test), writing (write an essay, statement or letter for
   them), do_it_for_me (send a message, register, drop a class, pay or change something for them),
@@ -126,6 +133,16 @@ Fill every field:
   current time or date, the weather, an opinion with no campus side, a feeling the student only
   shares, and a request for medical advice (which medicine to take, whether a medicine or
   treatment is safe), which is no campus question.
+- general: the part of the message that is not about Ramapo but that general knowledge can
+  answer, in plain English with spelling fixed: a general knowledge or science question, a word or
+  grammar question, a playful "who would win", or everyday advice (cooking, studying, staying
+  motivated, making friends, saving money, finding an internship), as a whole question that makes
+  sense alone and is never the campus question again; else empty. Not general: doing
+  or solving their homework, quiz or test, writing their essay, which medicine or dose to take,
+  live scores and news, a guess about the future, and anything about the student's own records.
+  When that advice is something a college office, club or service helps with (studying,
+  internships, fitness, making friends, stress, money), also write that campus side as the
+  question: "What does Ramapo offer to help students study for finals?".
 - topic: what the question asks for, the one that fits best: office (only how to reach or find
   an office, building or place: its phone, email, room or where it is, or when it is open),
   dining (what a dining place serves, or when it is open), shuttle (shuttle or bus times, stops
@@ -147,13 +164,16 @@ READ_TOOL: dict[str, Any] = {
     "description": "What kind of message the student's latest message is.",
     "parameters": {
         "type": "object", "additionalProperties": False,
-        "required": ["social", "danger", "needs", "limit", "question", "topic"],
+        "required": ["social", "danger", "needs", "problem_words", "limit", "question",
+                     "general", "topic"],
         "properties": {
             "social": {"type": "string", "enum": list(SOCIAL)},
             "danger": {"type": "string", "enum": list(DANGER)},
             "needs": {"type": "array", "items": {"type": "string", "enum": list(NEEDS)}},
+            "problem_words": {"type": "string"},
             "limit": {"type": "string", "enum": list(LIMITS)},
             "question": {"type": "string"},
+            "general": {"type": "string"},
             "topic": {"type": "string", "enum": list(TOPICS)},
         },
     },
@@ -171,11 +191,14 @@ class Reading:
     question: str = ""
     # None when the read gave no topic: the path is then picked as it was before the read had one.
     topic: str | None = None
+    # The part general knowledge answers (general.py), in plain English; empty when none.
+    general: str = ""
 
     def as_trace(self) -> dict[str, Any]:
         return {"social": self.social, "danger": self.danger, "needs": list(self.needs),
                 "limit": self.limit, "question": self.question,
-                **({"topic": self.topic} if self.topic is not None else {})}
+                **({"topic": self.topic} if self.topic is not None else {}),
+                **({"general": self.general} if self.general else {})}
 
 
 # Each message is read this many times at once, and what most reads say is the reading (11-03
@@ -214,10 +237,15 @@ def majority(readings: Sequence[Reading]) -> Reading | None:
                              key=lambda k: (-asked.count(asked[k]), -near(k), len(asked[k]),
                                             asked[k]))]
     topics = [r.topic for r in readings if r.topic is not None]
+    generals = [r.general for r in readings if r.general]
+    # The general part counts when most reads find one; its wording is the shortest of the most
+    # given, the same whichever read came back first.
+    general = (min(generals, key=lambda g: (-generals.count(g), len(g), g))
+               if len(generals) > half else "")
     return Reading(most([r.social for r in readings], SOCIAL),
                    most(dangers, DANGER) if dangers else "none", needs,
                    most([r.limit for r in readings], LIMITS), question,
-                   most(topics, TOPICS) if len(topics) > half else None)
+                   most(topics, TOPICS) if len(topics) > half else None, general)
 
 
 def read_messages(latest: str, previous_user: str | None,
@@ -278,6 +306,18 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     if topic is not None and topic not in TOPICS:
         return None
     kept = tuple(sorted(dict.fromkeys(n for n in needs if n in NEEDS), key=NEED_ORDER.index))
+    # A need counts only where the student says they have it: the read copies those words, and
+    # code finds them in the message (11-18 blind run: 7 of 11 support lines sat on messages that
+    # named no such problem, "lowkey nervous" about an audition and a turkey "i dont wanna poison
+    # everyone" among them). A request for medical advice is health whatever is told.
+    said = arguments.get("problem_words")
+    if kept and "problem_words" in arguments and not (
+            isinstance(said, str) and problem_said(said, latest)):
+        kept = tuple(n for n in kept if n == "health" and MEDICAL_ADVICE.search(latest))
+    general = arguments.get("general")
+    general = " ".join(general.split()) if isinstance(general, str) else ""
+    if len(general) > MAX_QUESTION_CHARS or not re.search(r"[A-Za-z]", general):
+        general = ""
     question = " ".join(question.split())
     if (len(question) > MAX_QUESTION_CHARS or not _digits(question) <= _digits(latest)
             or not re.search(r"[A-Za-z]", question) or (kept and not asks_something(question))):
@@ -285,7 +325,16 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     elif _plain(question) == _plain(latest):
         question = latest.strip()  # Nothing to fix: the student's own words, as they wrote them.
     return Reading(str(social), str(danger), kept, str(limit), question,
-                   None if topic is None else str(topic))
+                   None if topic is None else str(topic), general)
+
+
+def problem_said(words: str, latest: str) -> bool:
+    """Whether the words the read copied as the student's problem are the student's own: the
+    message holds them, word for word, without case or punctuation, and they are more than one
+    word."""
+    copied, message = _plain(words), _plain(latest)
+    return bool(copied) and (len(copied.split()) >= 2 or len(message.split()) <= 3) and (
+        f" {copied} " in f" {message} ")
 
 
 # The read's clean question is asked in place of the student's words only when code finds it keeps
@@ -324,7 +373,25 @@ SPELLED_OUT: dict[str, tuple[tuple[str, ...], ...]] = {
     "youre": (("you", "are"),), "theyre": (("they", "are"),), "hrs": (("hours",),),
     "hr": (("hour",),), "2day": (("today",),), "2nite": (("tonight",),),
     "2morrow": (("tomorrow",),), "b4": (("before",),),
+    # Text-speak the read spells out and the list above missed: on 11-18, 9 of 20 fresh two-part
+    # texting questions lost the read's clean question over one of these ("hw", "sat", "4", "2",
+    # "wk"), and the student's raw words then reached code's word matching.
+    "hw": (("how",),), "2": (("to",), ("too",)), "4": (("for",),), "wk": (("week",),),
+    "wks": (("weeks",),), "yr": (("year",),), "yrs": (("years",),), "sem": (("semester",),),
+    "pls": (("please",),), "plz": (("please",),), "sum1": (("someone",),),
+    "mon": (("monday",),), "tues": (("tuesday",),), "tue": (("tuesday",),),
+    "wed": (("wednesday",),), "thurs": (("thursday",),), "thu": (("thursday",),),
+    "fri": (("friday",),), "sat": (("saturday",),), "sun": (("sunday",),),
 }
+# The text-speak spelled out word for word whatever the read made of the message (spelled_out):
+# each has one meaning that is never a word of its own in a campus question. Contractions ("im",
+# "its") and words that are also real words or names ("id", "ill", "w", "sun", "wed", "2", "4")
+# are left as the student typed them.
+SAFE_SPELLED: dict[str, str] = {
+    word: " ".join(SPELLED_OUT[word][0]) for word in (
+        "u", "ur", "r", "n", "wen", "wat", "wut", "wht", "whr", "abt", "bc", "cuz", "thru",
+        "tmrw", "tmr", "tn", "tonite", "rn", "ppl", "hrs", "hr", "2day", "2nite", "2morrow", "b4",
+        "hw", "wk", "wks", "yr", "yrs", "pls", "plz", "sum1", "tues", "thurs")}
 # Words that ask: a message with more of them, or more questions ending in "?", than the read's
 # question asks more than it does.
 QUESTION_WORDS = frozenset("""
@@ -411,6 +478,19 @@ def keeps_words(latest: str, question: str, droppable: frozenset[str] = frozense
                 or any(_same_word(t, word) for t in typed))
     return (all(kept(w) for w in typed if w not in SMALL_TALK_WORDS and w not in droppable)
             and all(backed(w) for w in written))
+
+
+def spelled_out(text: str) -> str:
+    """The student's words with only the safe text-speak spelled out (SAFE_SPELLED), every other
+    word as they typed it: "next theater show n do students get tix" is "next theater show and do
+    students get tix". What code matches words with reads this when the read's clean question is
+    not used (asked): its event, kind and part matching split a question on "and", and a "n" left
+    in made one topic of two (11-18 blind run: the next play, listed for the next night, was missed
+    and one five months away given)."""
+    def one(found: re.Match[str]) -> str:
+        return SAFE_SPELLED.get(found.group(0).casefold(), found.group(0))
+    # A word on its own: not part of "n/a", "u.s." or "r&b".
+    return re.sub(r"(?<![\w'’./&@-])[A-Za-z0-9]+(?![\w'’/&@-]|\.\w)", one, text)
 
 
 def asks_more(latest: str, question: str) -> bool:
@@ -658,7 +738,13 @@ OWN_WORDS = re.compile(r"\b(?:my|mine|me|i|i'm|im|i've|ive|am i|do i|did i|have 
 # Words a student says they may leave school with. A thinking_of_leaving read with none of them
 # is a misread (fix check 11-04: "im thinking about switching to psych" began "That's a big
 # decision" and listed the counseling center and financial aid). Wide on purpose.
-LEAVING_WORDS = re.compile(r"\b(?:leav\w*|left|drop\w*\s+out|dropout|quit\w*|transfer\w*|"
+# A transfer counts only away from here: "transferring in for spring", "transfer credits" and
+# "transfer students" are coming to Ramapo or a rule (11-18 blind run: "transfering in for spring"
+# began "That's a big decision").
+LEAVING_WORDS = re.compile(r"\b(?:leav\w*|left|drop\w*\s+out|dropout|quit\w*|"
+                           r"tr[ae]nsf\w*(?!\s+(?:in|into|here|to ramapo|from|credits?|students?|"
+                           r"student|courses?|classes|evaluat\w*|counselors?|admissions?|"
+                           r"orientation|applicants?|my credits)\b)|"
                            r"withdraw\w*|absence|time off|semester off|year off|gap|stop\w*\s+out|"
                            r"(?:come|coming|go|going) back|give up|giving up|done with)\b",
                            re.IGNORECASE)
