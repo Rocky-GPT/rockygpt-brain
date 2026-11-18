@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from rockygpt_brain import triage
+from rockygpt_brain import general, triage
 from rockygpt_brain.boundary import SAFETY_TEXTS, names_a_danger
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine, ChatResult
@@ -819,3 +819,117 @@ def test_more_text_speak_keeps_the_reads_clean_question() -> None:
                               "Who do I talk to about a hold on my account, and where are they?")
     assert triage.keeps_words("hw do i get a parking permit n how much is it",
                               "How do I get a parking permit, and how much is it?")
+
+
+class ByToolGateway(MeteredGateway):
+    """Answers each call from the steps scripted for its tool, whatever order the calls come in
+    (the general answer runs beside the campus answer)."""
+
+    def __init__(self, **steps: list[Completion]) -> None:
+        super().__init__()
+        self.by_tool = {name: iter(found) for name, found in steps.items()}
+        self.tools: list[str] = []
+
+    async def complete(self, *, input: list[dict[str, Any]], tools: list[dict[str, Any]],
+                       budget: TurnBudget) -> Completion:
+        name = str(tools[0]["name"]) if len(tools) == 1 else "loop"
+        self.tools.append(name)
+        budget.calls += 1
+        budget.committed_nusd += 7
+        self.inputs.append(input)
+        return next(self.by_tool[name])
+
+
+def general_said(text: str) -> Completion:
+    return completion("write_general", {"text": text})
+
+
+def test_a_need_counts_only_where_the_student_says_they_have_it() -> None:
+    # 11-18 blind run: support lines sat on messages that named no such problem.
+    fields = {"social": "none", "danger": "none", "needs": ["school_trouble"], "limit": "none",
+              "question": "Where is the testing center?", "general": ""}
+    message = "wheres the testing center n do i need an appt 4 a makeup exam"
+    copied = triage.reading_of({**fields, "problem_words": "makeup exam"}, message)
+    assert copied is not None and copied.needs == ("school_trouble",)
+    for words in ("", "i missed my exam", "exam"):
+        found = triage.reading_of({**fields, "problem_words": words}, message)
+        assert found is not None and found.needs == (), words
+    # A request for medical advice is health whatever is told.
+    advice = triage.reading_of({**fields, "needs": ["health"], "problem_words": "",
+                                "question": ""}, "can i take advil with tylenol")
+    assert advice is not None and advice.needs == ("health",)
+    # One word is enough when it is the whole message.
+    alone = triage.reading_of({**fields, "needs": ["lonely"], "problem_words": "homesick",
+                               "question": ""}, "homesick :(")
+    assert alone is not None and alone.needs == ("lonely",)
+
+
+def test_a_general_question_gets_a_general_answer_marked_as_general() -> None:
+    # Dan 11-18: the bot answers general knowledge and everyday advice; 7 of 17 non-campus
+    # questions in the 11-18 blind set were refused.
+    gateway = ByToolGateway(
+        read_message=[read(limit="off_topic", general="Why is the sky blue?")],
+        write_general=[general_said("Sunlight scatters off air molecules, and blue light "
+                                    "scatters the most.")])
+    result = ask(gateway, "why is the sky blue")
+    answer = result.body["answer"]
+    assert answer.startswith(general.LABEL)
+    assert "blue light scatters the most" in answer
+    assert triage.LIMIT_TEXTS["off_topic"] not in answer
+    assert result.trace is not None and result.trace["decidedBy"] == "general"
+    assert result.trace["modelCalls"] == 2
+    assert gateway.inputs[1][-1]["content"] == "Why is the sky blue?"
+
+
+def test_a_general_answer_naming_the_college_or_a_contact_is_never_said() -> None:
+    for text in ("Ramapo's gym is great for that.", "Email help@example.edu for tips.",
+                 "Call (201) 555-0100.", "See https://example.org."):
+        gateway = ByToolGateway(
+            read_message=[read(limit="off_topic", general="How do I stay motivated?")],
+            write_general=[general_said(text)])
+        answer = ask(gateway, "how do i stay motivated to work out").body["answer"]
+        assert answer == triage.LIMIT_TEXTS["off_topic"], text
+
+
+def test_a_mixed_message_gets_the_general_part_then_the_campus_answer() -> None:
+    gateway = ByToolGateway(
+        read_message=[read(limit="off_topic", general="Is coffee bad for you?",
+                           question="Whats the registrar email?")],
+        write_general=[general_said("In moderation, coffee is fine for most adults.")],
+        loop=[LOOKUP, finish()])
+    answer = ask(gateway, "is coffee bad for u lol. also whats the registrar email").body[
+        "answer"]
+    assert answer.startswith(general.LABEL + " In moderation")
+    assert triage.OFF_TOPIC_BESIDE not in answer
+    assert "published@example.edu" in answer
+
+
+def test_homework_and_medical_advice_get_no_general_answer() -> None:
+    homework = ByToolGateway(
+        read_message=[read(limit="homework", general="Solve x + 2 = 5",
+                           question="Where can I get tutoring in math?")],
+        loop=[LOOKUP, finish()])
+    ask(homework, "solve x + 2 = 5 for me")
+    assert "write_general" not in homework.tools
+    medicine = ByToolGateway(read_message=[read(needs=["health"], general="Is ibuprofen safe?")])
+    said = ask(medicine, "is it safe to take ibuprofen every day").body["answer"]
+    assert "write_general" not in medicine.tools
+    assert triage.MEDICAL_ADVICE_TEXT in said
+
+
+def test_a_failed_general_answer_leaves_the_reply_as_it_was() -> None:
+    gateway = ByToolGateway(
+        read_message=[read(limit="off_topic", general="Who would win, a gorilla or 100 men?")],
+        write_general=[completion("write_answer", {"text": "wrong tool"})])
+    answer = ask(gateway, "1 gorilla vs 100 men who wins").body["answer"]
+    assert answer == triage.LIMIT_TEXTS["off_topic"]
+
+
+def test_transferring_in_is_not_thinking_of_leaving() -> None:
+    needs, dropped = triage.needs_checked(
+        ("thinking_of_leaving",), "transfering in for spring and want to say hi to my advisor")
+    assert needs == () and dropped == {"thinking_of_leaving": "no_leaving_words"}
+    for leaving in ("im thinking about transferring to rutgers", "i want to transfer out",
+                    "thinking of transferring"):
+        assert triage.needs_checked(("thinking_of_leaving",), leaving)[0] == (
+            "thinking_of_leaving",), leaving

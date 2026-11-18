@@ -27,6 +27,7 @@ from rockygpt_brain import (
     catalog,
     contacts,
     events,
+    general,
     one_call,
     teams,
     triage,
@@ -123,6 +124,8 @@ _EARLY_VECTORS: contextvars.ContextVar[
     contextvars.ContextVar("early_vectors", default=None)
 # How long the early embedding may take; the search embeds again on its own after a failure.
 EARLY_EMBED_SECONDS = 8.0
+# The general answer's own time (general.py): it runs beside the campus answer.
+GENERAL_SECONDS = 12.0
 # The page writer: it reads whole plain sections of current pages (section_search) and writes the
 # reply alone, in one call under a short fixed prompt, with no second look (audit plan item 6,
 # 11-17). The writers that lost to it (the two-stage "template" and "ai", the parts-first
@@ -4082,10 +4085,10 @@ class ChatEngine:
                                                   read=True)
         else:
             result = await self._answer(turn, request, trace, floor_situation)
-        read = trace.get("read")
-        if isinstance(read, dict):
-            trace["modelCalls"] = trace.get("modelCalls", 0) + read.get("calls", 0)
-            trace["committedNusd"] = trace.get("committedNusd", 0) + read.get("nusd", 0)
+        for side in (trace.get("read"), trace.get("general")):
+            if isinstance(side, dict):
+                trace["modelCalls"] = trace.get("modelCalls", 0) + side.get("calls", 0)
+                trace["committedNusd"] = trace.get("committedNusd", 0) + side.get("nusd", 0)
         # A failure, or a reply cut short by one, was decided by the error, not the model.
         code = result.body.get("reason") or result.body.get("limitation", {}).get("code")
         if code:
@@ -4185,8 +4188,31 @@ class ChatEngine:
         question = own if question is None else question
         if reading.danger != "none":
             return await self._read_emergency(turn, request, reading, trace, question, started)
-        if (done := await self._read_reply(turn, context, reading, trace)) is not None:
-            return done
+        # What is not about Ramapo is answered from general knowledge beside the campus answer
+        # (general.py, Dan 11-18), and marked as general.
+        general_task = (asyncio.create_task(self._general(turn, reading, trace))
+                        if self._answers_general(reading, context) else None)
+        try:
+            general_text = None
+            if not reading.question and general_task is not None:
+                general_text = await general_task
+            if general_text is not None:
+                return await self._general_reply(turn, context, reading, trace, general_text)
+            if (done := await self._read_reply(turn, context, reading, trace)) is not None:
+                return done
+            return await self._read_campus_answer(turn, request, context, reading, trace,
+                                                  question, started, general_task)
+        finally:
+            if general_task is not None and not general_task.done():
+                general_task.cancel()
+
+    async def _read_campus_answer(self, turn: Turn, request: ChatRequest, context: Context,
+                                  reading: triage.Reading, trace: dict[str, Any],
+                                  question: str | None, started: float,
+                                  general_task: "asyncio.Task[str | None] | None",
+                                  ) -> ChatResult:
+        """The campus question answered after code's lead and the general answer, if any, and
+        before the offices for a problem the student shared."""
         # Code's lead says the hello or thanks, so the answer after it does not say it again
         # (11-03 practice: "Hi!" then the whole greeting after the answer).
         result = await self._campus_answer(turn, request, trace, question=question,
@@ -4196,12 +4222,63 @@ class ChatEngine:
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result
-        lead = self._read_lead(turn, reading, context.latest_message)
+        general_text = await general_task if general_task is not None else None
+        lead = self._read_lead(turn, reading, context.latest_message,
+                               general_text=general_text)
         if lead:
             result = replace(result, body={**result.body, "answer": f"{lead}\n\n{answer}"})
         if reading.needs or reading.limit in triage.LIMIT_OFFICES:
             result = await self._with_support(result, reading.needs, reading.limit)
         return result
+
+    def _answers_general(self, reading: triage.Reading, context: Context) -> bool:
+        """Whether the read's general part is answered from general knowledge: not beside an
+        emergency, never for homework or writing done for the student, and never a request for
+        medical advice, which keeps its own line."""
+        return bool(reading.general and reading.danger == "none"
+                    and reading.limit not in ("homework", "writing")
+                    and not triage.MEDICAL_ADVICE.search(context.latest_message))
+
+    async def _general(self, turn: Turn, reading: triage.Reading,
+                       trace: dict[str, Any]) -> str | None:
+        """The general answer to the read's general part (general.py), checked to hold no campus
+        fact; None when the call fails, runs late or its words cannot be used."""
+        budget = TurnBudget(turn.request_id, time.monotonic() + GENERAL_SECONDS, max_calls=1,
+                            max_cost_nusd=self.max_turn_nusd // 5)
+        given: dict[str, Any] = {"asked": reading.general}
+        trace["general"] = given
+        try:
+            async with asyncio.timeout(GENERAL_SECONDS):
+                with measure("Write the general answer"):
+                    completion = await self.gateway.complete(
+                        input=general.messages(reading.general), tools=[general.GENERAL_TOOL],
+                        budget=budget)
+        except Exception as error:  # noqa: BLE001 - the reply goes on without it
+            given["failed"] = str(getattr(error, "code", type(error).__name__))
+            return None
+        finally:
+            given.update(calls=budget.calls, nusd=budget.committed_nusd)
+        calls = completion.tool_calls
+        text = (general.checked(calls[0].arguments.get("text"))
+                if len(calls) == 1 and calls[0].name == "write_general" else None)
+        if text is None:
+            given["failed"] = "not_usable"
+            return None
+        given["text"] = text
+        return text
+
+    async def _general_reply(self, turn: Turn, context: Context, reading: triage.Reading,
+                             trace: dict[str, Any], text: str) -> ChatResult:
+        """The whole reply to a message with no campus question but a general one: code's short
+        word back and a kind sentence for a problem shared, the general answer marked as general,
+        then the offices for that problem. Never a support line in its place."""
+        lead = self._read_lead(turn, reading, context.latest_message, general_text=text)
+        trace["decidedBy"] = "general"
+        reply = self._json(answered(turn, lead, "answered"),
+                           [{"kind": "general", "approved_text": lead}], turn)
+        if reading.needs:
+            reply = await self._with_support(reply, reading.needs)
+        return reply
 
     async def _asked(self, context: Context, reading: triage.Reading,
                      beside_emergency: bool) -> str | None:
@@ -4487,19 +4564,24 @@ class ChatEngine:
         trace["decidedBy"] = "read"
         return self._json(answered(turn, text, status), [{**part, "approved_text": text}], turn)
 
-    def _read_lead(self, turn: Turn, reading: triage.Reading, message: str = "") -> str:
+    def _read_lead(self, turn: Turn, reading: triage.Reading, message: str = "", *,
+                   general_text: str | None = None) -> str:
         """Code's few words before a campus answer: a hello back, what RockyGPT can't do of what
-        was asked, and one kind sentence for a problem the student shared (in `message`)."""
+        was asked, and one kind sentence for a problem the student shared (in `message`); then
+        the general answer, marked as general, on its own line."""
         said = [triage.social_lead(reading.social, reading.needs) or ""]
         if reading.limit == "clock":
             said.append(CLOCK_TEXT.format(when=turn.campus_now.strftime(CLOCK_FORMAT)))
         elif reading.limit == "off_topic":
-            said.append(triage.OFF_TOPIC_BESIDE)
-        else:
+            said.append("" if general_text else triage.OFF_TOPIC_BESIDE)
+        elif not general_text or reading.limit not in ("opinion", "prediction"):
             said.append(triage.LIMIT_TEXTS.get(reading.limit, ""))
         if reading.needs:
             said.append(triage.support_text(reading.needs[0], message, reading.question))
-        return " ".join(s for s in said if s)
+        lead = " ".join(s for s in said if s)
+        if general_text:
+            lead = "\n\n".join(x for x in (lead, general.said(general_text)) if x)
+        return lead
 
     async def _with_support(self, result: ChatResult, needs: Sequence[str],
                             limit: str = "none") -> ChatResult:
