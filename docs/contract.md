@@ -244,6 +244,12 @@ in campus time. It is not a promised recovery time: unresolved reservations and 
 paused account can still block requests then. Unexpected model identity or usage
 pauses the provider account and returns a non-retryable error.
 
+The student site sends two opaque keys with each question: `x-rockygpt-client-key` (the tab's)
+and `x-rockygpt-network-key` (the network address's), both hex HMAC digests made with its own
+secret. Past 12 questions a minute for one tab, or 120 for one address, the Brain answers 429
+`rate_limited`, retryable, with `Retry-After` in seconds (api/client_limit.py). The emergency
+text is never held back. Requests without the keys (the `rocky` CLI, the evals) are not counted.
+
 Chat answers and failures include `X-Request-Id` matching the body request ID. Invalid
 requests retain only the `type`, `loc`, and `msg` validation fields.
 Chat responses and standard failure envelopes use `Cache-Control: no-store`.
