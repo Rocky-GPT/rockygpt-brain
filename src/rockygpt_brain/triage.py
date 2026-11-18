@@ -132,7 +132,8 @@ Fill every field:
   empty when the message asks nothing about Ramapo: small talk, nonsense, off_topic, the
   current time or date, the weather, an opinion with no campus side, a feeling the student only
   shares, and a request for medical advice (which medicine to take, whether a medicine or
-  treatment is safe), which is no campus question.
+  treatment is safe), which is no campus question. A step at a campus health service (a TB test
+  read, a vaccine record, a form, an appointment) is a campus question, not medical advice.
 - general: the part of the message that is not about Ramapo but that general knowledge can
   answer, in plain English with spelling fixed: a general knowledge or science question, a word or
   grammar question, a playful "who would win", or everyday advice (cooking, studying, staying
@@ -140,9 +141,10 @@ Fill every field:
   sense alone and is never the campus question again; else empty. Not general: doing
   or solving their homework, quiz or test, writing their essay, which medicine or dose to take,
   live scores and news, a guess about the future, and anything about the student's own records.
-  When that advice is something a college office, club or service helps with (studying,
-  internships, fitness, making friends, stress, money), also write that campus side as the
-  question: "What does Ramapo offer to help students study for finals?".
+  When the college may have its own say on it, also write that campus side as the question:
+  its own guidance (which computer to buy for classes: "What does Ramapo recommend for student
+  laptops?"), or an office, club or service that helps (studying, internships, fitness, making
+  friends, stress, money: "What does Ramapo offer to help students study for finals?").
 - topic: what the question asks for, the one that fits best: office (only how to reach or find
   an office, building or place: its phone, email, room or where it is, or when it is open),
   dining (what a dining place serves, or when it is open), shuttle (shuttle or bus times, stops
