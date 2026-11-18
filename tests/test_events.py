@@ -482,6 +482,21 @@ def test_a_question_the_read_says_is_about_a_club_is_not_answered_by_the_events_
     assert "The College Programming Board (CPB) hosts it. [2]" in result.body["answer"]
 
 
+def test_a_question_the_read_says_asks_only_whats_on_lists_the_window() -> None:
+    # 11-18 measure: "freshman here stuck in the dorms all weekend, anything happening on campus
+    # sat night??" opened "no event matches what you asked" for its leftover words.
+    from test_triage import read
+    message = "freshman here stuck in the dorms all weekend, anything happening this weekend"
+    gateway = ScriptedGateway(  # Only the read is scripted: any other model call would fail.
+        read(question=message, topic="event", time=asdict(picks(when="this_weekend", about=""))))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert result.body["answer"].startswith(
+        "The calendar lists 1 event this weekend, Friday, October 23 to Sunday, October 25 [1]:")
+
+
 def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
     directory = [{"name": "Chess Club"}, {"name": "Math Club"}]
     for asked in ("When does the Chess Club meet?",
