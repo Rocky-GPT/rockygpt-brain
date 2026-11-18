@@ -439,6 +439,9 @@ def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
             **({"description_credits": credits[:6]} if credits else {}),
             "requirements": render_requirements(groups) if groups else None,
             **({"graduation_plan": render_plan(plan), "plan_url": plan.get("url"),
+                **({"plan_credit_totals": totals}
+                   if (totals := [" ".join(str(t).split()) for t in plan.get("totals") or []
+                                  if _STATED_TOTAL.search(str(t))]) else {}),
                 **({"other_plans_same_year": others_plans}
                    if (others_plans := other_plans(plans, plan)) else {})}
                if plan else {}),
@@ -446,6 +449,8 @@ def program_evidence(facts: dict[str, Any], n: int, others: Sequence[str],
 
 
 _STATED_CREDITS = re.compile(r"\b\d{2,3}[- ]credits?\b", re.I)
+# A plan's own total ("Total Credits Required: 128 credits"), not a semester's hours.
+_STATED_TOTAL = re.compile(r"\bcredits?\b.*\b\d{2,3}\b|\b\d{2,3}\b.*\bcredits?\b", re.I)
 
 
 def _how_many(rule: dict[str, Any]) -> str:
@@ -904,22 +909,122 @@ def names_subject(programs: Sequence[dict[str, Any]], words: Sequence[str]) -> b
     return all(any(_abbreviates(w, c) for c in vocabulary) for w in words)
 
 
+# A requirement group naming a path inside a program: "Game Design and Immersive Media
+# Concentration", "Pre-Physical Therapy Track", "Option A".
+_INSIDE = re.compile(r"\b(?:concentrations?|tracks?|options?|speciali[sz]ations?|emphas[ie]s)\b",
+                     re.I)
+_INSIDE_ASK = re.compile(r"\b(?:concentrat\w*|tracks?|speciali[sz]\w*|emphas[ie]s)\b")
+MAX_INSIDE = 6
+
+
+def inside_paths(label: str) -> bool:
+    """Whether a requirement group's label names a concentration, track or option, not a choice
+    among courses ("Organic Chemistry Requirement - Select 1 Option")."""
+    own = [w for w in re.findall(r"[a-z0-9]+", label.casefold())
+           if w not in _TITLE_FILLER and not _INSIDE.fullmatch(w)]
+    return bool(_INSIDE.search(label) and own) and not re.search(r"\bselect\b", label, re.I)
+
+
+def inside_names(group: dict[str, Any]) -> list[str]:
+    """The concentrations, tracks and options a requirement group names: its label, and the
+    names of its rules and their sub-rules ("Marketing Track" under "Tracks - Select 1 and
+    Complete 3 Courses" in International Business)."""
+    names: list[str] = []
+
+    def walk(rule: Any) -> None:
+        if not isinstance(rule, dict):
+            return
+        name = " ".join(str(rule.get("name") or "").split())
+        if inside_paths(name) and name not in names:
+            names.append(name)
+        for sub in rule.get("sub_rules") or []:
+            walk(sub)
+    label = " ".join(str(group.get("label") or "").split())
+    if inside_paths(label):
+        names.append(label)
+    walk(group.get("rule"))
+    return names
+
+
+def asks_inside(message: str) -> bool:
+    """Whether a message asks about a concentration, track, specialization or emphasis."""
+    return bool(_INSIDE_ASK.search(message.casefold()))
+
+
+def named_inside(inside: Sequence[tuple[str, str]], words: Sequence[str]) -> list[str]:
+    """The concentrations, tracks and options inside programs whose names hold every word asked
+    (or a short form of it), each with its program."""
+    found: list[str] = []
+    for label, program in inside:
+        core = [w for w in re.findall(r"[a-z0-9]+", label.casefold())
+                if w not in _TITLE_FILLER and not _INSIDE.fullmatch(w)]
+        # A word may name the program instead ("marketing" track in the "business" major), but
+        # one word at least names the path itself.
+        of_program = _core_words(program)
+        named = [w for w in words if any(_abbreviates(w, c) for c in core)]
+        if named and all(w in named or any(_abbreviates(w, c) for c in of_program)
+                         for w in words):
+            line = f"{label} in the {program}"
+            if line not in found:
+                found.append(line)
+    return found[:MAX_INSIDE]
+
+
+def concentration_facts(message: str, inside: Sequence[tuple[str, str]],
+                        n: int | None) -> list[dict[str, Any]]:
+    """For a question about a concentration or track ("is there a cyber track", "concentrations
+    in psych"), the ones inside programs named for its words, or that none is."""
+    text = message.casefold()
+    if not inside or not _INSIDE_ASK.search(text):
+        return []
+    tokens = re.findall(r"[a-z0-9+]+", text)
+    at = next(k for k, t in enumerate(tokens) if _INSIDE_ASK.fullmatch(t))
+    near = tokens[max(0, at - 4):at] + tokens[at + 1:at + 6]
+    words = [w for w in near if len(w) >= 3 and w not in _NOT_SUBJECT and w not in _ASKING
+             and w not in _LEVEL_TOKENS and not _INSIDE_ASK.fullmatch(w)]
+    if not words:
+        return []
+    held = named_inside(inside, words)
+    if held:
+        return [{"fact": f"The catalog names {'these' if len(held) > 1 else 'this'} inside "
+                         f"programs for '{' '.join(words)}': {'; '.join(held)}.", "n": n}]
+    # No "none" is said: a path may be named only in a program's description or notes.
+    # Words that are a program's name ("concentrations in psychology"): that program's own list.
+    of_program = sorted({f"{label} in the {program}" for label, program in inside
+                         if all(any(_abbreviates(w, c) for c in _core_words(program))
+                                for w in words)})
+    if of_program:
+        return [{"fact": f"The catalog's concentrations, tracks and options in programs named "
+                         f"for '{' '.join(words)}': {'; '.join(of_program[:12])}.", "n": n}]
+    return []
+
+
 def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict[str, Any]],
                      message: str, catalog_n: int | None,
-                     gen_ed_lines: Sequence[str] = ()) -> list[dict[str, Any]]:
+                     gen_ed_lines: Sequence[str] = (),
+                     inside: Sequence[tuple[str, str]] = ()) -> list[dict[str, Any]]:
     """What code works out from the catalog for the reply to state as it is, the way the
     shuttle's next departure is: whether each subject asked about is published at the level
     asked (and at which others), each course's credits and a lecture and its lab together, its
     prerequisites (or that it has none), its description when asked what it covers, its Gen Ed
-    attributes, and the credit totals a program's requirement groups state."""
+    attributes, and the credit totals a program's requirement groups state. `inside` holds each
+    concentration, track or option the catalog names inside a program, with the program."""
     facts: list[dict[str, Any]] = [
         {"fact": f"In the catalog, {line}", "n": catalog_n} for line in gen_ed_lines]
+    facts += concentration_facts(message, inside, catalog_n)
     for level, asked in asked_subjects(message):
         words = subject_words(programs, asked, message, level)
+        label = _LEVEL_NAMES[level]
         if not words:
+            # Words no program's name holds may still name a path inside one ("a game design
+            # major": a concentration of Visual Communication Design), never "not offered".
+            held = named_inside(inside, asked)
+            if held:
+                facts.append({"fact": f"The catalog lists no {label} named '{' '.join(asked)}', "
+                                      f"but it is offered inside a program: {'; '.join(held)}.",
+                              "n": catalog_n})
             continue
         found = published_in(programs, level, words)
-        label = _LEVEL_NAMES[level]
         if found:
             facts.append({"fact": f"The catalog lists {'these' if len(found) > 1 else 'this'} "
                                   f"{label}{'s' if len(found) > 1 else ''} for "
@@ -932,10 +1037,13 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
             # Data Analyst certificate), so "none" is never said of a near one.
             partly = sorted({n for w in words for n in published_in(programs, level, [w])}
                             ) if len(words) > 1 else []
+            held = named_inside(inside, words)
             facts.append({"fact": f"The catalog lists no {label} for '{' '.join(words)}'."
                                   + (f" Its {label}s named for part of it: "
                                      f"{'; '.join(partly)}." if 0 < len(partly) <= 6 else "")
-                                  + (f" It does list: {'; '.join(others)}." if others else ""),
+                                  + (f" It does list: {'; '.join(others)}." if others else "")
+                                  + (f" It is offered inside a program: "
+                                     f"{'; '.join(held)}." if held else ""),
                           "n": catalog_n})
     courses = [e for e in evidence if e.get("course")]
     by_code = {str(e["course"]).split(" ")[0] + " " + str(e["course"]).split(" ")[1]: e
@@ -977,10 +1085,21 @@ def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict
             facts += [{"fact": f"The catalog's description of the {item['program']} says: "
                                f'"{sentence}"', "n": item["n"]}
                       for sentence in item.get("description_credits") or []]
-        if asks_credits(message) and not stated and not item.get("description_credits"):
+        if asks_credits(message) and item.get("plan_credit_totals"):
+            # The recommended plan's own total ("Total Credits Required: 128 credits"): what a
+            # student finishing the program has, as the catalog states it.
+            facts.append({"fact": f"The catalog's recommended graduation plan for the "
+                                  f"{item['program']} states: "
+                                  f"{'; '.join(item['plan_credit_totals'])}.",
+                          "n": item["n"]})
+        elif asks_credits(message) and not stated and not item.get("description_credits"):
             # Only totals the catalog publishes are stated; code never adds up course credits.
-            facts.append({"fact": f"The catalog publishes no total credit count for the "
-                                  f"{item['program']}; its requirements list the courses only.",
+            # This says nothing of the college-wide credits to graduate: on 11-18 "no total
+            # credit count" overrode the Registrar's 128-credit graduation rule a page gave.
+            facts.append({"fact": f"The {item['program']}'s requirement list in the catalog "
+                                  f"names courses, not a total credit count for the program "
+                                  f"(never add them up). This is not the college-wide number of "
+                                  f"credits needed to graduate, which the pages may state.",
                           "n": item["n"]})
         for track, credits in re.findall(r"(?m)^(.{3,80}?)\s*[-–]\s*(\d{2,3})\s*credits?\b",
                                          str(item.get("requirements") or "")):
