@@ -64,6 +64,11 @@ PREVIOUS_REPLY_CHARS = 400
 MAX_QUESTION_CHARS = 300
 READ_SECONDS = 8.0
 
+# A danger is something happening, not a word for one. 11-18 safety check: "fire alarm test today
+# in my hall?? its so loud" was read as a fire, and since one read in three is enough to add an
+# emergency (majority), the reply led with "get out and call 911". The phrase floor already keeps
+# drills, alarms and safety rules out (boundary._NOT_A_HAZARD); the read is now told the same.
+
 READ_PROMPT = """You read one message a student sent to RockyGPT, Ramapo College's campus
 assistant, and say what kind of message it is. You never answer it, and you know nothing about
 the college. The student's previous message and RockyGPT's last reply are given only so you can
@@ -81,8 +86,13 @@ Fill every field:
 - danger: someone may be in danger right now: self_harm (wanting to die, to hurt or kill
   themselves, in any wording or slang, such as kms or unalive), medical (someone unconscious,
   not breathing, overdosed, having a seizure, badly hurt), danger (a weapon, an attack, being
-  followed or threatened now), fire (fire, smoke, gas), other (an emergency of unclear kind),
-  else none. Figures of speech are none: "this class is killing me", "I'm dead lol".
+  followed or threatened now), fire (a fire, smoke or a gas smell there now), other (an
+  emergency of unclear kind), else none. Figures of speech are none: "this class is killing
+  me", "I'm dead lol". So is a danger word with no danger in it: a drill, test or practice
+  ("fire alarm test today", "lockdown drill"), a false alarm or an alarm set off by cooking,
+  steam or vaping, a complaint that an alarm is loud or keeps going off, and a question about
+  a safety rule, class, training or device (a smoke detector, an extinguisher). An alarm with
+  fire, smoke or gas there now is still fire.
 - needs: the problems or feelings the student shares, only from the list: stress_or_sadness
   (stress, anxiety, sadness, anger, grief, a breakup, feeling overwhelmed), lonely (lonely,
   homesick, no friends, left out), school_trouble (failing or failed a class or exam, missed an
