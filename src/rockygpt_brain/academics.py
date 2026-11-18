@@ -918,8 +918,9 @@ MAX_INSIDE = 6
 
 
 def inside_paths(label: str) -> bool:
-    """Whether a requirement group's label names a concentration, track or option."""
-    return bool(_INSIDE.search(label))
+    """Whether a requirement group's label names a concentration, track or option, not a choice
+    among courses ("Organic Chemistry Requirement - Select 1 Option")."""
+    return bool(_INSIDE.search(label)) and not re.search(r"\bselect\b", label, re.I)
 
 
 def asks_inside(message: str) -> bool:

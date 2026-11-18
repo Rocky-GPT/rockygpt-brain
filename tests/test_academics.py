@@ -784,6 +784,7 @@ def test_concentrations_inside_programs_are_found_by_their_words() -> None:
               ("Clinical Track", "Psychology BA"), ("Research Track", "Psychology BA")]
     assert inside_paths("Pre-Physical Therapy Track") and inside_paths("Option A")
     assert not inside_paths("Major Requirements")
+    assert not inside_paths("Organic Chemistry Requirement - Select 1 Option")
     assert asks_inside("is there a game design concentration")
     assert not asks_inside("how do i focus on finals")
     said = [f["fact"] for f in concentration_facts(
