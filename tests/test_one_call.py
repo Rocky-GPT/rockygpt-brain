@@ -79,7 +79,13 @@ def test_a_how_to_is_routed_here_and_menus_shuttles_and_plain_contacts_are_not()
     # A question's parts are searched apart, and a short follow-up with the question before it.
     assert parts_of("how do I apply for summer housing? and what does it cost") == [
         "how do I apply for summer housing? and what does it cost",
-        "how do I apply for summer housing?", "and what does it cost"]
+        "how do I apply for summer housing?", "apply summer housing: and what does it cost"]
+    # A later part is never searched without what the question is about (11-18 blind run).
+    assert parts_of("where can i get free tutoring for precalc, and do i need an appointment or "
+                    "is it drop in")[2] == (
+        "free tutoring precalc: do i need an appointment or is it drop in")
+    assert parts_of("when is spring break, and when do the dorms close for it")[2] == (
+        "spring break: when do the dorms close for it")
     assert search_text("and for grad students?", "how do i apply for graduation") == (
         "how do i apply for graduation\nand for grad students?")
 
@@ -719,3 +725,27 @@ def test_a_section_of_a_policy_brings_the_whole_policy_in_its_order() -> None:
     _, read = with_policies(index, (chosen, [("long", "5")]), leading=1)
     assert len(read) == 1 + MAX_POLICY_UNITS
     assert read == [("long", str(k)) for k in range(5, 14)]
+
+
+def test_a_name_that_is_no_offices_is_skipped_not_the_whole_page_answer() -> None:
+    # 11-18 study: "wen does hillel meet" named a club, whose id was read as an office's, and the
+    # UnknownEntity it raised sent the whole question to the lookup loop.
+    import array
+
+    from rockygpt_brain.retrieval.entity_facts import UnknownEntity
+    from rockygpt_brain.retrieval.meaning import MeaningIndex
+
+    class Facts:
+        def get_office_facts(self, entity_id: str, *args: object,
+                             **kwargs: object) -> dict[str, object]:
+            if entity_id == "club":
+                raise UnknownEntity("No office has that canonical identity.")
+            return {"entity": {"name": "Student Involvement"}, "properties": [], "sources": []}
+    meta = {"dataset_version": "v", "identity_hash": "h", "model": "m", "dimensions": 2,
+            "units": [["r", "0", ["office"]]], "owner": [0],
+            "labels": [["ramapo.edu/r", "Heading"]], "pages": {}}
+    index = MeaningIndex(meta, array.array("f", [1.0, 0.0]))
+    from rockygpt_brain.one_call import gather
+    offices, _ = gather(Facts(), index, [[1.0, 0.0]], "when does hillel meet", "v", "h",
+                       named_offices=["club"])
+    assert [o["office"] for o in offices] == ["Student Involvement"]

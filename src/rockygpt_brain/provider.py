@@ -311,7 +311,7 @@ class Gateway:
         if settings.decide_effort and names in (["write_answer"], ["pick_sections"]):
             request["reasoning"] = {"effort": settings.decide_effort}
         # Numbers from a list of headings, and what kind of message one is, need little thought.
-        if names in (["pick_units"], ["read_message"]):
+        if names in (["pick_units"], ["read_message"], ["write_general"]):
             request["reasoning"] = {"effort": "low"}
         if tools:
             request.update(tool_choice="required", parallel_tool_calls=False)

@@ -18,7 +18,10 @@ packet. It adds, computes and infers nothing, and it never drops a value a stude
                another schedule for that office and day remains. It is the one case where a
                listed value is not handed over, because it cannot be the answer and a writer
                given it hedges the answer that can be. The packet keeps it. Nothing is ever left
-               out when no other schedule remains
+               out when no other schedule remains. The same holds for a week or no day asked: a
+               schedule whose own season cannot cover the packet's date (Summer hours in
+               November) is left out when another schedule of that subject remains (11-18 blind
+               misses, root cause 4)
   omitted when they hold the usual value: `status` "known", `current` true, `freshness`
                "fresh", `validity` "unspecified" and its stock limitation, `truncated` false, a
                reason that is the only one there is, and a list of rows with no rows (`facts`,
@@ -51,7 +54,7 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from rockygpt_brain.season import season_fit
+from rockygpt_brain.season import named, season_fit
 
 CAMPUS_TZ = ZoneInfo("America/New_York")
 
@@ -151,8 +154,34 @@ def _another_season(entries: list[dict[str, Any]]) -> set[str]:
     return gone
 
 
-def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
-    """The part of a validated packet a writer needs, as plain JSON."""
+def _out_of_season(facts: list[dict[str, Any]], as_of: Any,
+                   asked: frozenset[str] = frozenset()) -> set[str]:
+    """Ids of an office's hours schedules whose season label plainly is not today's season, when
+    another of its schedules remains to be said: asked for a week, not a day, the Summer hours
+    were said in November beside the regular ones (11-18 blind run). A day asked is checked the
+    same way (_another_season). A schedule of a season the student named (`asked`: "summer
+    hours") is never left out."""
+    try:
+        today = datetime.fromisoformat(str(as_of)).date()
+    except ValueError:
+        return set()
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for fact in facts:
+        if fact.get("predicate") == "hours" and isinstance(fact.get("value"), dict):
+            groups.setdefault(str(fact["subject"].get("id")), []).append(fact)
+    gone: set[str] = set()
+    for group in groups.values():
+        out = [f for f in group if season_fit(f["value"].get("season"), today) == "out"
+               and not named(str(f["value"].get("season") or "")) & asked]
+        if out and len(out) < len(group):
+            gone.update(str(f["id"]) for f in out)
+    return gone
+
+
+def writer_view(packet: dict[str, Any],
+                seasons_asked: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """The part of a validated packet a writer needs, as plain JSON. `seasons_asked` are the
+    seasons the student named, whose schedules are kept whatever today's season is."""
     cited = {sid for kind in ("facts", "not_published", "derived_facts", "missing")
              for entry in packet[kind]
              for sid in entry.get("source_ids", [])}
@@ -220,8 +249,10 @@ def writer_view(packet: dict[str, Any]) -> dict[str, Any]:
     whole = {fact["id"] for fact in packet["facts"] if (key := menu_key(fact)) in filtered
              and not fact["value"].get("filter")}
     facts = []
+    out_of_season = _out_of_season(packet["facts"], packet["request"].get("asOf"),
+                                   seasons_asked)
     for fact in packet["facts"]:
-        if fact["id"] in replaced or fact["id"] in whole:
+        if fact["id"] in replaced or fact["id"] in whole or fact["id"] in out_of_season:
             continue
         row = {"subject": fact["subject"]["name"], "predicate": fact["predicate"],
                "value": _said(fact["value"])}

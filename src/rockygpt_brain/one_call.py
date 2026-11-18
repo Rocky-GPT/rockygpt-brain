@@ -26,6 +26,7 @@ from rockygpt_brain.events import (
     plain_window,
 )
 from rockygpt_brain.people import about_named, asks_leadership, asks_people, only_who
+from rockygpt_brain.retrieval.entity_facts import UnknownEntity
 from rockygpt_brain.retrieval.meaning import MeaningIndex, MeaningScores
 from rockygpt_brain.writer import cited
 
@@ -56,11 +57,17 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   pick one silently. Different values for different groups, places or terms are not a
   disagreement: say which applies to whom. page_updated is the day a section's page was last
   changed.
+- A program's requirements (its courses, credits, concentrations and how many to take) are the
+  catalog's: programs, computed and catalog.ramapo.edu sections win over a school or program
+  site's page, whatever its date. Only when that page names a different course, credit count or
+  concentration, add one short sentence that the program's page says otherwise.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
   given, including its section_words. For a part no section answers, say once that you don't have
   verified information about it, and point to the office most likely to help with its contacts.
+  When it is about a club, team or group, give the group's own email or page first when the
+  evidence has one; never fill the gap with another office's hours.
 - computed are facts code worked out from the catalog, the directory, the calendar and the
   dates the sections state: state every one that answers the question, exactly as given (names,
   titles, counts, dates, numbers), with its number when it has one, and do what one says (ask
@@ -76,7 +83,8 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   recommended sequence for the admission year it names: say which year it is for, and give its
   semesters and totals as written; other_plans_same_year names that year's other tracks.
   catalog_programs lists every published program by level: a major, minor or program it does
-  not list is not offered in the catalog; say so plainly.
+  not list is not offered in the catalog; say so plainly, unless computed names it as offered
+  inside a program (a concentration, track or option): then say that.
 - calendar.events are the college calendar's events in the window code chose (calendar.window):
   give each one's title, day and time, place and host as written, with its number. When
   calendar.said_by_code is true, already_written already gives these events and says whether any
@@ -107,8 +115,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   it is the answer to what it covers, and a page that disagrees with it is out of date. Write only
   what else the question asks. When it already answers everything asked, write an empty text.
 - When contacts_written_by_code is true, code adds the phone numbers, email and room of each
-  office whose sections you cite after your text: name the office and give its steps, but do not
-  list its phone numbers, email or room yourself, except a number a step's own words give.
+  office you name after your text: name the office the student should contact by its name as
+  given, and give its steps, but do not list its phone numbers, email or room yourself, except a
+  number a step's own words give. A person a section names as the one to contact is named with
+  the email or phone that section gives for them, exactly as written.
 - Write a phone number as (XXX) XXX-XXXX with its own digits.
 - Cite each statement with its section number like [3]. Numbers are only marks: never write
   "section 4" in the text. Short plain sentences; numbered steps are fine. Under 1,600
@@ -145,15 +155,20 @@ sections (n), and anything code wrote.
 - Give what the sections say for what was asked, exactly as written: every step, link, form, \
 date, deadline, amount, condition, room, phone number and email.
 - Put the number of the section a statement comes from after it, like [3]. Numbers are only marks.
-- When two sections disagree, give the value of the one whose page_updated is later. A section \
+- When two sections disagree, give the value of the one whose page_updated is later, except a \
+program's requirements (courses, credits, concentrations), where the catalog (programs, computed, \
+catalog.ramapo.edu sections) wins over a school or program site's page. A section \
 with past_term is for a term or deadline that is over: never give its dates as coming up.
 - already_written is the start of the reply, written by code: never repeat or contradict it; \
 write only what else is asked, or an empty text when it answers everything. computed facts are \
 true as given: state each that answers the question, with its number.
 - When contacts_written_by_code is true, code adds the phone, email and room of each office you \
-cite: name the office, but do not list those yourself.
+name: name the office the student should contact by its name as given, but do not list those \
+yourself. A person a section names as the one to contact is named with the email or phone that \
+section gives for them, exactly as written.
 - For a part of the question no section answers, say once that you don't have verified \
-information about it, and name the office most likely to help.
+information about it, and name the office most likely to help (for a club, team or group, its \
+own email or page first when the JSON has one).
 - Never add anything the JSON does not say. today and now are the campus date and time.
 - Short plain sentences; numbered steps are fine. Under 1,600 characters. No greeting. Answer \
 only with the write_answer tool."""
@@ -310,10 +325,34 @@ def pieces_of(question: str) -> list[str]:
         r"are|should)\b)", question, flags=re.IGNORECASE) if b.strip()]
 
 
+# Words that say how a piece asks, not what it is about: a piece made only of these and its own
+# few words ("do I need an appointment or is it drop-in?") is about the first piece's subject.
+_ASKING_WORDS = frozenset("""
+a an the is are am was were be been do does did to of for in on at by with and or but so if i me my
+we our you your it its this that these those there here what whats when whens where wheres who
+whos whom whose which how hows why im u ur r n can could should would will may might must any some
+get got have has had need needs
+want wanna gonna go going know tell show give find help please also plus still too just really
+about from into than then them they their he she his her one ones
+""".split())
+
+
+def _subject(piece: str) -> list[str]:
+    """A piece's words that say what it is about, in order, each once."""
+    words = re.findall(r"[a-z0-9][a-z0-9'’-]*", piece.casefold())
+    return list(dict.fromkeys(w for w in words if w not in _ASKING_WORDS and len(w) > 1))
+
+
 def parts_of(question: str) -> list[str]:
     """The texts searched: the whole question, then its pieces (pieces_of) longer than a few
-    words, up to MAX_PARTS of them."""
+    words, up to MAX_PARTS of them. A later piece that shares no word of the first piece's subject
+    is searched with that subject before it, never alone (11-18 blind run: "do I need an
+    appointment or is it drop-in?" searched by itself filled 27 of 30 sections with other offices'
+    appointment rules, and the tutoring schedule asked about was misread)."""
     bits = [b for b in pieces_of(question) if len(b) > 12]
+    if len(bits) > 1 and (subject := _subject(bits[0])):
+        bits = [bits[0], *(b if set(_subject(b)) & set(subject)
+                           else f"{' '.join(subject)}: {b}" for b in bits[1:])]
     return [question, *[b for b in bits if b != question][:MAX_PARTS]]
 
 
@@ -547,9 +586,15 @@ def gather(facts: Any, index: MeaningIndex, vectors: Sequence[Sequence[float]], 
         only = MeaningScores({k: scores[k] for k in keys})
         only.at = {k: scores.at[k] for k in keys if k in scores.at}
         fields = ["email", "phones", "offices", *(["procedures"] if keys else [])]
-        found = facts.get_office_facts(entity_id, fields, dataset_version,
-                                       identity_hash=identity_hash, about=question,
-                                       meaning=only if keys else None)
+        try:
+            found = facts.get_office_facts(entity_id, fields, dataset_version,
+                                           identity_hash=identity_hash, about=question,
+                                           meaning=only if keys else None)
+        except UnknownEntity:
+            # A name the student typed that is no office's (a club: "wen does hillel meet") has
+            # no office facts; the club directory answers for it. It no longer sends the whole
+            # question to the lookup loop (11-18 study: 3 of 8 club questions did).
+            continue
         props = {p["key"]: p for p in found["properties"]}
 
         def values(key: str, props: dict[str, Any] = props) -> list[Any]:

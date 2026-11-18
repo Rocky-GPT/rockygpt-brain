@@ -43,6 +43,11 @@ _WORD = {
 _YEAR = re.compile(r"\b(20\d{2})\b")
 
 
+def named(text: str) -> frozenset[str]:
+    """The seasons a text names ("summer hours" names summer)."""
+    return frozenset(season for season, word in _WORD.items() if word.search(text or ""))
+
+
 def season_fit(label: str | None, day: date) -> Fit:
     """`out` only when every season the label names is plainly not the one `day` is in."""
     if not isinstance(label, str) or not label.strip():
