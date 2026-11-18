@@ -57,6 +57,10 @@ given as JSON. You know nothing beyond the JSON and cannot look anything up.
   pick one silently. Different values for different groups, places or terms are not a
   disagreement: say which applies to whom. page_updated is the day a section's page was last
   changed.
+- A program's requirements (its courses, credits, concentrations and how many to take) are the
+  catalog's: programs, computed and catalog.ramapo.edu sections win over a school or program
+  site's page that differs, whatever its date. Give the catalog's, then say in one short sentence
+  that the program's page says otherwise.
 - Name the office before its steps and contacts. Give contacts only of offices whose sections you
   used, or the right office when no section answers.
 - Answer every part of the question. Before saying a part is not covered, check every section
@@ -151,7 +155,9 @@ sections (n), and anything code wrote.
 - Give what the sections say for what was asked, exactly as written: every step, link, form, \
 date, deadline, amount, condition, room, phone number and email.
 - Put the number of the section a statement comes from after it, like [3]. Numbers are only marks.
-- When two sections disagree, give the value of the one whose page_updated is later. A section \
+- When two sections disagree, give the value of the one whose page_updated is later, except a \
+program's requirements (courses, credits, concentrations), where the catalog (programs, computed, \
+catalog.ramapo.edu sections) wins over a school or program site's page. A section \
 with past_term is for a term or deadline that is over: never give its dates as coming up.
 - already_written is the start of the reply, written by code: never repeat or contradict it; \
 write only what else is asked, or an empty text when it answers everything. computed facts are \
