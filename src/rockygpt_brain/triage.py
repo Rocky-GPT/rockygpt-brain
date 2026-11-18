@@ -211,7 +211,7 @@ class Reading:
     # The part general knowledge answers (general.py), in plain English; empty when none.
     general: str = ""
     # When the question asks about and what kind of date (asked_time.py); None when the read
-    # gave no time picks, and the word rules read the time as before.
+    # gave no time picks, and the question gets the usual two weeks and no calendar date.
     time: AskedTime | None = None
 
     def as_trace(self) -> dict[str, Any]:

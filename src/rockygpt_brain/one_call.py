@@ -261,11 +261,8 @@ _COURSE_WANTS = ((re.compile(r"\bcredits?\b"), " credit"),
 
 def code_kind(question: str, named_people: Sequence[Any],
               programs: tuple[Sequence[Any], Sequence[Any], Sequence[Any]] | None,
-              breaks: Sequence[tuple[str, date, date]] = (),
-              today: date | None = None) -> str | None:
-    """Which code-answered question this is, or None when the model should write it. `breaks`
-    are the academic calendar's (name, first day, last day), so a break named ("over
-    thanksgiving break") is a window code lists."""
+              ) -> str | None:
+    """Which code-answered question this is, or None when the model should write it."""
     text = question.casefold()
     # Who leads a school, and how to reach them: the dean's directory contacts are code's too.
     if ((reach := _REACH.search(text)) and _WHO.search(text)
@@ -273,8 +270,7 @@ def code_kind(question: str, named_people: Sequence[Any],
             and not _MORE.search(text[:reach.start()])):
         return "leaders"
     # Only what is on in a window ("what can I do this weekend"): its every word is a plain one.
-    if not named_people and not (programs and any(programs)) and plain_window(
-            question, breaks, today):
+    if not named_people and not (programs and any(programs)) and plain_window(question):
         return "events"
     if _MORE.search(text):
         return None

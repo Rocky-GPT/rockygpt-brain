@@ -131,12 +131,11 @@ def test_the_read_carries_its_picks_and_a_bad_time_drops_only_the_time() -> None
     assert triage.majority([reading, broken, broken]).time is None  # type: ignore[union-attr]
 
 
-def test_events_follow_the_picks_and_the_words_only_without_a_read() -> None:
-    # The words say tonight; the read's picks (from the clean question) say Friday.
-    picked = events.window("anything tonight", WEDNESDAY, BREAKS,
-                           AskedTime(when="weekday", weekday="friday"))
+def test_events_follow_the_picks_and_without_a_read_the_usual_two_weeks() -> None:
+    picked = events.window(WEDNESDAY, BREAKS, AskedTime(when="weekday", weekday="friday"))
     assert picked[2] == "Friday, November 20"
-    assert events.window("anything tonight", WEDNESDAY, BREAKS)[2] == "tonight"
+    # No read: no time is guessed from the words.
+    assert events.window(WEDNESDAY, BREAKS)[2] == DEFAULT_LABEL
 
 
 def test_the_calendar_takes_the_picked_kind_and_term() -> None:
@@ -173,3 +172,12 @@ def test_home_or_away_keeps_only_those_games() -> None:
     assert away is not None and "Misericordia" in away[0] and "Stockton" not in away[0]
     none_home = answer("next mens soccer home game", TEAMS, today, "home")
     assert none_home is not None and "has no more home games" in none_home[0]
+
+
+def test_the_words_naming_the_picked_time_say_when_not_what() -> None:
+    assert asked_time.said_words(None) == frozenset()
+    assert asked_time.said_words(AskedTime()) == frozenset()
+    assert {"december", "dec"} <= asked_time.said_words(AskedTime(when="month", month=12))
+    over = asked_time.said_words(AskedTime(when="break", break_name="thanksgiving"))
+    assert {"thanksgiving", "break", "recess"} <= over and "none" not in over
+    assert "finals" in asked_time.said_words(AskedTime(when="rest_of_term"))

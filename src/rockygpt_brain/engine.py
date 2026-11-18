@@ -2452,8 +2452,8 @@ class ChatEngine:
         if events.asks_events(message):
             sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
                             "title": "Campus events calendar"})
-            start, end, label = events.window(message, now, self._breaks(now.date()),
-                                            asked_time.ASKED.get())
+            start, end, label = events.window(now, self._breaks(now.date()),
+                                              asked_time.ASKED.get())
             dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
@@ -2753,9 +2753,8 @@ class ChatEngine:
         except (EvidenceUnavailable, DatasetChanged):
             return None, [], {}
         n = numbered_from + 1
-        picked = asked_time.ASKED.get()
         found = academic_calendar.dates_said(message, kind, calendar, today, n,
-                                             picked.term if picked is not None else None)
+                                             asked_time.ASKED.get())
         if found is None:
             return None, [], {}
         said, url, facts = found
@@ -2791,8 +2790,8 @@ class ChatEngine:
         own words (events.listing_text): the text, its sources (the calendar page is 1), the
         release, and the facts the reply's check holds it to."""
         version, identity_hash = self.facts.active_release()
-        start, end, label = events.window(message, now, self._breaks(now.date()),
-                                            asked_time.ASKED.get())
+        start, end, label = events.window(now, self._breaks(now.date()),
+                                              asked_time.ASKED.get())
         dated = events.events_in(list(self.facts.identities(("event",))), start, end)
         timed = events.in_window(self._event_values(dated, version, identity_hash, now),
                                  start, end)
@@ -3214,10 +3213,7 @@ class ChatEngine:
         # when the meaning index is published; the code-named programs are its hints.
         # A question code answers alone (one_call.code_kind): its facts are read by code and said
         # as code wrote them, with no pick and no writer.
-        breaks = (await asyncio.to_thread(self._breaks, turn.campus_now.date())
-                  if events.asks_events(latest) else [])
-        kind = one_call.code_kind(latest, named_people, programs, breaks,
-                                  turn.campus_now.date())
+        kind = one_call.code_kind(latest, named_people, programs)
         pick_catalog = bool(searchable and index is not None and index.academic and (
             (programs and (programs[0] or programs[2])) or academics.asks_academics(latest))
             and kind != "course")
@@ -3788,9 +3784,8 @@ class ChatEngine:
             calendar = self.facts.academic_calendar(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
             return None
-        picked = asked_time.ASKED.get()
         found = academic_calendar.dates_said(message, kind, calendar, turn.campus_now.date(),
-                                             term_pick=picked.term if picked is not None else None)
+                                             asked=asked_time.ASKED.get())
         if found is None:
             return None
         said, url, facts = found
@@ -4466,16 +4461,15 @@ class ChatEngine:
                 or shuttle_route(question) is not None)
 
     async def _code_understands(self, context: Context) -> bool:
-        """Whether code already understands the whole message, so it is not read first: one kind
-        of academic calendar date asked plainly ("when are finals?"), a varsity team's coaches,
-        games or results ("how did men's soccer do this season", which the read once called
-        sports scores, 11-04 live check), or a plain lookup of one listed office, venue or the
-        shuttle ("Registrar phone number"). Plain questions don't wait for the read."""
+        """Whether code already understands the whole message, so it is not read first: a varsity
+        team's coaches, games or results ("how did men's soccer do this season", which the read
+        once called sports scores, 11-04 live check), or a plain lookup of one listed office,
+        venue or the shuttle ("Registrar phone number"). Plain questions don't wait for the read.
+        A calendar date question ("when are finals?") is read: the read picks its kind of date
+        and term (asked_time.py), which no word rule guesses any more."""
         latest = context.latest_message
         if context.recent_messages or names_a_danger(latest):
             return False
-        if academic_calendar.kind_asked(latest) is not None:
-            return True
         if teams.asked(latest):
             names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
             if names_a_team:
@@ -4511,7 +4505,7 @@ class ChatEngine:
             why = "clock_only"
         elif (reading.limit == "live_status" and reading.question
               and not triage.LIVE_WORDS.search(reading.question)
-              and await self._published(reading.question)):
+              and await self._published(reading.question, reading.time)):
             # "wats for lunch at the atrium today": today's menu, hours, events and shuttle
             # times are published, so nothing live is asked (11-03 practice).
             corrected = replace(reading, limit="none")
@@ -4564,10 +4558,12 @@ class ChatEngine:
                 read["needsDropped"] = dropped
         return checked
 
-    async def _published(self, question: str) -> bool:
+    async def _published(self, question: str, asked: asked_time.AskedTime | None) -> bool:
         """Whether a question asks what the college publishes for a day, which code looks up: a
-        place's hours or menu, the shuttle times, the calendar's events or dates."""
-        if events.asks_events(question) or academic_calendar.kind_asked(question) is not None:
+        place's hours or menu, the shuttle times, the calendar's events or dates (by the read's
+        kind of date, `asked`)."""
+        if events.asks_events(question) or academic_calendar.kind_asked(
+                question, asked.date_kind if asked is not None else None) is not None:
             return True
         return await self._code_lookup(question)
 

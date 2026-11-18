@@ -195,7 +195,8 @@ def test_a_feeling_gets_a_kind_sentence_and_the_offices_for_it_read_from_the_gra
 
 
 def test_slang_reaches_codes_calendar_answer_in_the_clean_questions_words() -> None:
-    gateway = MeteredGateway(read(question="When are finals?"))
+    from test_academic_calendar import read_dates
+    gateway = MeteredGateway(read_dates("When are finals?", date_kind="finals"))
     result = ask(gateway, "wen r finals", service=calendar(), now=MONDAY)
     assert result.body["answer"] == (
         "The Fall 2026 academic calendar lists [1]:\n"
@@ -208,9 +209,15 @@ def test_slang_reaches_codes_calendar_answer_in_the_clean_questions_words() -> N
 
 def test_a_message_code_already_understands_is_not_read() -> None:
     gateway = ScriptedGateway()  # Any model call fails: none is scripted.
+    result = ask(gateway, "Registrar phone number")
+    assert "(201) 555-0100" in result.body["answer"]
+    assert gateway.inputs == [] and result.trace is not None and "read" not in result.trace
+    # A calendar date question is read: the read picks its kind of date and term.
+    from test_academic_calendar import read_dates
+    gateway = ScriptedGateway(read_dates("When are finals?", date_kind="finals"))
     result = ask(gateway, "When are finals?", service=calendar(), now=MONDAY)
     assert result.body["answer"].startswith("The Fall 2026 academic calendar lists")
-    assert gateway.inputs == [] and result.trace is not None and "read" not in result.trace
+    assert len(gateway.inputs) == 1 and result.trace is not None and "read" in result.trace
 
 
 class Failing(ScriptedGateway):

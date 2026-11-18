@@ -26,6 +26,7 @@ from rockygpt_brain.events import (
 from rockygpt_brain.provider import Completion, ToolCall, Usage
 from rockygpt_brain.turn import intake
 from test_engine import ScriptedGateway
+from test_events import read_time
 from test_kinds import EASTERN, club_calendar
 
 NOW = datetime(2026, 10, 21, 18, 0, tzinfo=EASTERN)
@@ -153,14 +154,15 @@ def test_a_kind_asked_with_more_starts_the_reply_with_codes_list() -> None:
 def test_a_kinds_events_are_the_models_to_say_from_its_clubs() -> None:
     reply = {"parts": [{"asked": "honor society events", "not_on_pages": True, "sections": []}],
              "text": "The calendar lists no honor society events this week."}
-    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
-        {"type": "function_call", "call_id": "w", "name": "write_answer",
-         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
-    request = ChatRequest.model_validate({"messages": [
-        {"role": "user", "content": "any honor society events this week"}]})
-    engine = ChatEngine(gateway, club_calendar(HONOR), output="written")
+    message = "any honor society events this week"
+    gateway = ScriptedGateway(read_time(message, when="this_week"), Completion(
+        "", (ToolCall("w", "write_answer", reply),), [
+            {"type": "function_call", "call_id": "w", "name": "write_answer",
+             "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, club_calendar(HONOR), output="written", read_first=True, reads=1)
     asyncio.run(engine.answer(intake(request, now=NOW), request))
-    given = json.loads(gateway.inputs[0][1]["content"])
+    given = json.loads(gateway.inputs[1][1]["content"])
     assert "clubs under Honor Society" not in given.get("already_written", "")
     assert [c["name"] for c in given["clubs"]] == [
         "Alpha Kappa Delta", "Psi Chi Honors Society", "Sigma Tau Delta"]
@@ -168,7 +170,7 @@ def test_a_kinds_events_are_the_models_to_say_from_its_clubs() -> None:
     # said the calendar's answer twice, the second time in the model's words).
     assert given["already_written"].startswith("The calendar lists no event this week")
     assert given["calendar"]["said_by_code"] is True
-    assert "calendar.said_by_code is true" in gateway.inputs[0][0]["content"]
+    assert "calendar.said_by_code is true" in gateway.inputs[1][0]["content"]
 
 
 def test_clubs_found_by_meaning_keep_the_kind_most_of_them_share() -> None:

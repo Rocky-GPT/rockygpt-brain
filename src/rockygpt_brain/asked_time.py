@@ -7,7 +7,9 @@ The read that already runs on every message now also picks, from fixed lists, wh
 means, which kind of calendar date they want, which term, and home or away games. It never
 writes a date: code here turns the picks into real days, so all date math stays in code.
 
-A read that failed, or picked no time, leaves the usual window: the next DEFAULT_DAYS days.
+A read that failed, or picked no time, leaves the usual window: the next DEFAULT_DAYS days. No
+word rules stand in for a missing read (old vs new on the steady ruler's open half, 11-18: 18 of
+60 right with the picks, 16 with the word rules; 45 wrong answers against 47).
 """
 
 from collections import Counter
@@ -248,10 +250,13 @@ def _days(asked: AskedTime, now: datetime,
 _PART_HOURS = {"morning": (0, 12), "afternoon": (12, 17), "evening": (17, 24)}
 
 
-def window(asked: AskedTime, now: datetime,
+def window(asked: AskedTime | None, now: datetime,
            breaks: Sequence[tuple[str, date, date]] = ()) -> tuple[datetime, datetime, str]:
     """The span of campus time the picks ask about, and its name; the next DEFAULT_DAYS days
-    when they name no time. A part of the day ("friday night") narrows a one-day window."""
+    when they name no time, or there was no read. A part of the day ("friday night") narrows a
+    one-day window. `breaks` are the academic calendar's (name, first day, last day)."""
+    if asked is None:
+        return default_window(now)
     start, end, label = _days(asked, now, breaks)
     if (asked.part_of_day != "none" and label != "tonight"
             and start.date() == end.date()):
@@ -264,7 +269,29 @@ def window(asked: AskedTime, now: datetime,
     return start, end, label
 
 
+_MONTH_WORDS = ("january jan", "february feb", "march mar", "april apr", "may", "june jun",
+                "july jul", "august aug", "september sept sep", "october oct",
+                "november nov", "december dec")
+_BREAK_WORDS = "break breaks recess vacation holiday holidays"
+_TERM_WORDS = "finals final exams exam end semester term"
+
+
+def said_words(asked: AskedTime | None) -> frozenset[str]:
+    """The words that name the picked time ("december", "thanksgiving break", "finals"): they say
+    when, not what an event is about (events.asked_topic). None when there was no read."""
+    if asked is None:
+        return frozenset()
+    words = []
+    if asked.when in ("month", "date") and 1 <= asked.month <= 12:
+        words.append(_MONTH_WORDS[asked.month - 1])
+    if asked.when == "break" or asked.date_kind == "break":
+        words += [asked.break_name, _BREAK_WORDS]
+    if asked.when == "rest_of_term" or asked.date_kind == "finals":
+        words.append(_TERM_WORDS)
+    return frozenset(" ".join(words).split()) - {"none"}
+
+
 # The current turn's picks, set once the read is in (engine._read_then_answer) and read where a
 # time is turned into days, so each answer path need not pass them along. None: no read, and the
-# time is read from the words as before.
+# question gets the usual window.
 ASKED: ContextVar[AskedTime | None] = ContextVar("asked_time", default=None)

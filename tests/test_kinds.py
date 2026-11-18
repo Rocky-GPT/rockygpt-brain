@@ -403,8 +403,10 @@ def test_with_nothing_matching_and_no_time_named_no_unrelated_event_is_given() -
     calendar, *_ = engine._read_calendar("any karaoke nights", now, 0)
     assert calendar is not None and calendar["topic_matched"] is False
     assert calendar["events"] == []
-    # A time named asks what is on then: its events are given.
-    calendar, *_ = engine._read_calendar("any karaoke this weekend", now, 0)
+    # A time named (the read's pick) asks what is on then: its events are given.
+    from test_events import picked
+    with picked(when="this_weekend"):
+        calendar, *_ = engine._read_calendar("any karaoke this weekend", now, 0)
     assert calendar is not None and [e["event"] for e in calendar["events"]] == ["Trivia Night"]
 
 
