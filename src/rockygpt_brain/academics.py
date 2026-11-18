@@ -920,7 +920,30 @@ MAX_INSIDE = 6
 def inside_paths(label: str) -> bool:
     """Whether a requirement group's label names a concentration, track or option, not a choice
     among courses ("Organic Chemistry Requirement - Select 1 Option")."""
-    return bool(_INSIDE.search(label)) and not re.search(r"\bselect\b", label, re.I)
+    own = [w for w in re.findall(r"[a-z0-9]+", label.casefold())
+           if w not in _TITLE_FILLER and not _INSIDE.fullmatch(w)]
+    return bool(_INSIDE.search(label) and own) and not re.search(r"\bselect\b", label, re.I)
+
+
+def inside_names(group: dict[str, Any]) -> list[str]:
+    """The concentrations, tracks and options a requirement group names: its label, and the
+    names of its rules and their sub-rules ("Marketing Track" under "Tracks - Select 1 and
+    Complete 3 Courses" in International Business)."""
+    names: list[str] = []
+
+    def walk(rule: Any) -> None:
+        if not isinstance(rule, dict):
+            return
+        name = " ".join(str(rule.get("name") or "").split())
+        if inside_paths(name) and name not in names:
+            names.append(name)
+        for sub in rule.get("sub_rules") or []:
+            walk(sub)
+    label = " ".join(str(group.get("label") or "").split())
+    if inside_paths(label):
+        names.append(label)
+    walk(group.get("rule"))
+    return names
 
 
 def asks_inside(message: str) -> bool:
@@ -935,7 +958,12 @@ def named_inside(inside: Sequence[tuple[str, str]], words: Sequence[str]) -> lis
     for label, program in inside:
         core = [w for w in re.findall(r"[a-z0-9]+", label.casefold())
                 if w not in _TITLE_FILLER and not _INSIDE.fullmatch(w)]
-        if words and all(any(_abbreviates(w, c) for c in core) for w in words):
+        # A word may name the program instead ("marketing" track in the "business" major), but
+        # one word at least names the path itself.
+        of_program = _core_words(program)
+        named = [w for w in words if any(_abbreviates(w, c) for c in core)]
+        if named and all(w in named or any(_abbreviates(w, c) for c in of_program)
+                         for w in words):
             line = f"{label} in the {program}"
             if line not in found:
                 found.append(line)
@@ -960,6 +988,7 @@ def concentration_facts(message: str, inside: Sequence[tuple[str, str]],
     if held:
         return [{"fact": f"The catalog names {'these' if len(held) > 1 else 'this'} inside "
                          f"programs for '{' '.join(words)}': {'; '.join(held)}.", "n": n}]
+    # No "none" is said: a path may be named only in a program's description or notes.
     # Words that are a program's name ("concentrations in psychology"): that program's own list.
     of_program = sorted({f"{label} in the {program}" for label, program in inside
                          if all(any(_abbreviates(w, c) for c in _core_words(program))
@@ -967,8 +996,7 @@ def concentration_facts(message: str, inside: Sequence[tuple[str, str]],
     if of_program:
         return [{"fact": f"The catalog's concentrations, tracks and options in programs named "
                          f"for '{' '.join(words)}': {'; '.join(of_program[:12])}.", "n": n}]
-    return [{"fact": f"The catalog names no concentration, track or option for "
-                     f"'{' '.join(words)}' inside any program.", "n": n}]
+    return []
 
 
 def computed_answers(evidence: Sequence[dict[str, Any]], programs: Sequence[dict[str, Any]],

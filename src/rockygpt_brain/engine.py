@@ -2277,10 +2277,9 @@ class ChatEngine:
                     if prop["key"] != "requirements":
                         continue
                     for value in prop["values"]:
-                        label = " ".join(str(value["value"].get("label") or "").split())
-                        if academics.inside_paths(label) and (label, str(program["name"])) \
-                                not in found:
-                            found.append((label, str(program["name"])))
+                        for name in academics.inside_names(value["value"]):
+                            if (name, str(program["name"])) not in found:
+                                found.append((name, str(program["name"])))
             return found
 
         return self._per_release("_inside", version, read)

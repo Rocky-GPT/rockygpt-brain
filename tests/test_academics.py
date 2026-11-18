@@ -778,13 +778,17 @@ def test_concentrations_inside_programs_are_found_by_their_words() -> None:
         asks_inside,
         computed_answers,
         concentration_facts,
+        inside_names,
         inside_paths,
     )
     inside = [("Game Design and Immersive Media Concentration", "Visual Communication Design BA"),
               ("Clinical Track", "Psychology BA"), ("Research Track", "Psychology BA")]
-    assert inside_paths("Pre-Physical Therapy Track") and inside_paths("Option A")
+    assert inside_paths("Pre-Physical Therapy Track")
+    assert inside_paths("Art Therapy Joint Degree Option")
+    assert not inside_paths("Option A")
     assert not inside_paths("Major Requirements")
     assert not inside_paths("Organic Chemistry Requirement - Select 1 Option")
+    assert not inside_paths("Tracks")
     assert asks_inside("is there a game design concentration")
     assert not asks_inside("how do i focus on finals")
     said = [f["fact"] for f in concentration_facts(
@@ -795,9 +799,21 @@ def test_concentrations_inside_programs_are_found_by_their_words() -> None:
     assert said == ["The catalog's concentrations, tracks and options in programs named for "
                     "'psych': Clinical Track in the Psychology BA; Research Track in the "
                     "Psychology BA."]
-    said = [f["fact"] for f in concentration_facts("any cyber concentration", inside, 3)]
-    assert said == ["The catalog names no concentration, track or option for 'cyber' inside "
-                    "any program."]
+    # No "none": a path may be named only in a description (11-18 study: "none" for marketing).
+    assert concentration_facts("any cyber concentration", inside, 3) == []
+    # A track named one level down, asked with its program's word.
+    group = {"label": "Tracks - Select 1 and Complete 3 Courses", "rule": {
+        "name": "Tracks", "sub_rules": [{"name": "Marketing Track"}, {"name": "Finance Track"}]}}
+    assert inside_names(group) == ["Marketing Track", "Finance Track"]
+    tracks = [("Marketing Track", "International Business BA")]
+    said = [f["fact"] for f in concentration_facts(
+        "any marketing concentration in the business major", tracks, 3)]
+    assert said == ["The catalog names this inside programs for 'marketing business': Marketing "
+                    "Track in the International Business BA."]
+    # The program's word alone gives that program's paths.
+    said = [f["fact"] for f in concentration_facts("any business concentration", tracks, 3)]
+    assert said == ["The catalog's concentrations, tracks and options in programs named for "
+                    "'business': Marketing Track in the International Business BA."]
     # A major the catalog does not list, held inside another program, is not said to be missing.
     programs = [{"name": "Visual Communication Design BA"}, {"name": "History BA"}]
     said = [f["fact"] for f in computed_answers([], programs, "do u have a game design major", 4,
