@@ -736,7 +736,8 @@ def test_a_name_that_is_no_offices_is_skipped_not_the_whole_page_answer() -> Non
     from rockygpt_brain.retrieval.meaning import MeaningIndex
 
     class Facts:
-        def get_office_facts(self, entity_id: str, *args: object, **kwargs: object) -> dict[str, object]:
+        def get_office_facts(self, entity_id: str, *args: object,
+                             **kwargs: object) -> dict[str, object]:
             if entity_id == "club":
                 raise UnknownEntity("No office has that canonical identity.")
             return {"entity": {"name": "Student Involvement"}, "properties": [], "sources": []}
