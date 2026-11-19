@@ -477,9 +477,10 @@ def test_a_question_the_read_says_is_about_a_club_is_not_answered_by_the_events_
     engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
     result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
-    # The events code chose still start the reply, and the model says the club.
-    assert result.body["answer"].startswith("The calendar lists 1 event this weekend")
-    assert "The College Programming Board (CPB) hosts it. [2]" in result.body["answer"]
+    # The listing supplies the host, and the answer leads with the organization asked for.
+    assert result.body["answer"].startswith("The College Programming Board (CPB) hosts it. [2]")
+    assert "The calendar lists" not in result.body["answer"]
+    assert result.body["citations"][0]["url"] == "https://archway.ramapo.edu/rsvp_boot?id=1"
 
 
 def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:

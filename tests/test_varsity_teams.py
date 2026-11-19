@@ -1,16 +1,21 @@
 """Varsity teams' coaches, next games and results, said by code (teams.py)."""
 
 import asyncio
+from dataclasses import asdict
 from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pytest
+
+from rockygpt_brain.asked_time import AskedTime
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from rockygpt_brain.teams import answer, asked, teams_named
 from rockygpt_brain.turn import intake
-from test_engine import ScriptedGateway
+from test_engine import ScriptedGateway, completion, finish
+from test_triage import ask, office, read
 
 EASTERN = ZoneInfo("America/New_York")
 TUESDAY = datetime(2026, 11, 3, 16, 0, tzinfo=EASTERN)
@@ -141,9 +146,9 @@ def test_a_coach_question_is_answered_by_code_with_no_model_call() -> None:
     assert result.trace["decidedBy"] == "code"
 
 
-def test_a_team_question_is_not_read_first_so_it_is_never_called_off_topic() -> None:
+def test_a_plain_team_record_question_does_not_need_a_read() -> None:
     # 11-04 live check: the read called "how did men's soccer do this season" sports scores and
-    # said it only knows about Ramapo. A question naming one of the release's teams is code's.
+    # said it only knows about Ramapo. The whole question asks for the named team's record.
     gateway = ScriptedGateway()  # The read is a model call: none is scripted.
     request = ChatRequest.model_validate({"messages": [
         {"role": "user", "content": "how did men's soccer do this season"}]})
@@ -152,3 +157,59 @@ def test_a_team_question_is_not_read_first_so_it_is_never_called_off_topic() -> 
     assert gateway.inputs == [] and result.trace is not None
     assert result.trace["decidedBy"] == "code"
     assert "8-7-3" in result.body["answer"]
+
+
+def test_a_plain_unqualified_game_lookup_still_needs_no_model_call() -> None:
+    gateway = ScriptedGateway()
+    result = ask(gateway, "When is the next women's basketball game?", service=facts(), now=TUESDAY)
+    assert "The City College of New York" in result.body["answer"]
+    assert gateway.inputs == []
+
+
+@pytest.mark.parametrize(("venue", "expected"), [
+    ("home", "The City College of New York"),
+    ("away", "no more away games"),
+])
+def test_a_game_question_uses_the_readers_venue(venue: str, expected: str) -> None:
+    message = f"When is the next {venue} women's basketball game?"
+    gateway = ScriptedGateway(read(question=message, topic="team",
+                                   time=asdict(AskedTime(home_away=venue))))
+    result = ask(gateway, message, service=facts(), now=TUESDAY)
+    assert result.body["status"] == "answered" and expected in result.body["answer"]
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert len(gateway.inputs) == 1 and result.trace["read"]["time"]["home_away"] == venue
+    if venue == "away":
+        assert "Bradley Center" not in result.body["answer"]
+
+
+def test_a_parking_question_naming_a_game_reaches_the_parking_office() -> None:
+    service = facts()
+    entity, contact = office("parking", "Parking Office", "parking@example.edu", "+12015550177")
+    service.entities.append(entity)
+    service.contacts.append({**contact, "collected_at": TUESDAY})
+    message = "Who do I contact about parking when there's a women's basketball game?"
+    gateway = ScriptedGateway(read(question=message, topic="how_to"), completion(
+        "graph_lookup", {"requests": [{"query": "Parking Office", "fields": ["email"]}]}),
+        finish())
+    result = ask(gateway, message, service=service, now=TUESDAY)
+    assert result.trace is not None and result.trace["path"]["topic"] == "how_to"
+    assert "parking@example.edu" in result.body["answer"]
+    assert "Bradley Center" not in result.body["answer"]
+    assert [source["url"] for source in result.body["citations"]] == ["https://example.edu/parking"]
+
+
+@pytest.mark.parametrize(("message", "time"), [
+    ("When is the next away women's basketball game?", None),
+    ("Is there a women's basketball game tomorrow?", AskedTime(when="tomorrow")),
+])
+def test_a_team_lookup_cannot_discard_a_time_constraint(
+        message: str, time: AskedTime | None) -> None:
+    from test_one_call import one_reply
+
+    gateway = ScriptedGateway(read(question=message, topic="team",
+                                   time=asdict(time) if time else None),
+                              one_reply("The calendar has no listing for that game.", [], True))
+    result = ask(gateway, message, service=facts(), now=TUESDAY)
+    assert "Bradley Center" not in result.body["answer"]
+    assert all(source["url"] != WBB["source_url"] for source in result.body["citations"])
+    assert result.trace is not None and result.trace.get("decidedBy") != "code"

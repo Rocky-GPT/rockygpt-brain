@@ -39,6 +39,11 @@ _NOT_VARSITY = re.compile(r"\b(?:club|clubs|intramural|intramurals|join|try ?out
                           r"walk ?on|recreational|pickup|pick up)\b")
 _RESULTS = re.compile(r"\b(?:score|scores|result|results|won|win|wins|winning|lose|lost|loss|"
                       r"losses|beat|record|doing|did|last|standings?)\b")
+# @ stands for one published name. Only these complete, unqualified requests skip the read.
+_PLAIN_LOOKUP = re.compile(
+    r"who coaches (?:the )?@|who is (?:the )?@ coach|"
+    r"(?:what(?:s| is) (?:the )?)?@ (?:coach|record)|how did (?:the )?@ do this season|"
+    r"when is the next @ (?:game|match|meet)|when does @ play next")
 # The most games said of one kind (next or last) for one team.
 MAX_GAMES = 3
 # A record older than this is said with its date: results change as games are played.
@@ -74,6 +79,19 @@ def teams_named(message: str, teams: Sequence[Mapping[str, Any]]) -> list[Mappin
     found = [t for t in teams if _sport(str(t.get("name") or "")) in sports]
     gendered = [t for t in found if _gender(str(t.get("name") or "")) in (gender, None)]
     return gendered if gender and gendered else found
+
+
+def plain_lookup(message: str, teams: Sequence[Mapping[str, Any]]) -> bool:
+    """A complete, unqualified lookup by published team name can skip the reader.
+
+    Extra words may add a date or venue filter, or change the subject altogether.
+    """
+    words = _words(message)
+    for team in teams:
+        name = _words(str(team.get("name") or ""))
+        if name and name in words and _PLAIN_LOOKUP.fullmatch(words.replace(name, "@", 1)):
+            return True
+    return False
 
 
 def asked(message: str) -> list[str]:
