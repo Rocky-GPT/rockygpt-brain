@@ -64,10 +64,12 @@ PROMPT = """- time: when the question asks about, and what kind of date, picked 
   day: "in december"), date (a month and day: "dec 3rd", "12/3"), break (during, before or
   after a break: "over thanksgiving", "after winter break"), rest_of_term (later this
   semester: "before finals", "the rest of the semester", "end of the semester"), coming_days
-  ("the next 3 days", "in the next 72 hrs"), else none. Most questions name no time: none. A
-  clock time with no day named ("anything after 5") is today. weekday: the day named, else
-  none. month and day: the month (1 to 12) and day of the month named, else 0. days_ahead: the
-  number of days with coming_days ("the next 3 days": 3), else 0. through: the last day when
+  ("the next 3 days", "in the next 72 hrs"), else none. Most questions name no time: none;
+  "next" alone ("the next game", "when do they play next") names no days: none. A clock time
+  with no day named ("anything after 5") is today. weekday: the day named, else none. month and
+  day: the month (1 to 12) and day of the month named, for a range its first day, else 0.
+  days_ahead: the number of days with coming_days ("the next 3 days": 3), else 0. through: the
+  last day when
   the student gives a range that starts on the day picked ("wed thru sun": weekday sunday; "dec
   1-4": month 12, day 4), else weekday none, month 0, day 0. also: up to 2 more days or weeks
   named beside the first, each with its own when, weekday, month and day ("mon and tues":

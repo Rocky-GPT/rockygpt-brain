@@ -2488,8 +2488,11 @@ class ChatEngine:
                 # gave Ceramics and Tea and missed Clay it Cool, three weeks out). Beside the
                 # window's matches, the later ones are the most on-topic (rank_events by_share),
                 # and those only near it in meaning are said to be.
+                # Only those after the first day asked: they are said as "Later on the calendar"
+                # (11-19 study: "dec 2 to 5" listed Nov 18's events under that heading).
                 window_ids = {v.get("_id") for v in values}
-                later = [v for v in all_upcoming() if v.get("_id") not in window_ids]
+                later = [v for v in all_upcoming() if v.get("_id") not in window_ids
+                         and (begins := events._starts(v)) is not None and begins >= start]
                 found, again = events.rank_events(later, message, now, now + timedelta(days=366),
                                                   scores, all_upcoming(), by_share=True,
                                                   kinds=kinds)

@@ -583,3 +583,17 @@ def test_an_event_question_with_no_event_word_reads_the_calendar() -> None:
         "The calendar lists 1 event on Friday, October 23, after 7 PM [1]:")
     assert "Trivia Night" in result.body["answer"]
     assert result.trace["conditions"]["used"] == ["days", "clock"]
+
+
+def test_events_before_the_days_asked_are_never_said_to_be_later() -> None:
+    # 11-19 study: "cultural events dec 2 to 5" listed Nov 18's events under "Later on the
+    # calendar". Trivia Night is Oct 23; asked on Oct 21 about Oct 30, it is not later.
+    from rockygpt_brain.engine import ChatEngine
+    from test_events import WEDNESDAY, calendar
+    engine = ChatEngine(None, calendar(), output="written")  # type: ignore[arg-type]
+    with asked(when="date", month=10, day=30, about="trivia"):
+        *_, said, _ = engine._read_calendar("any trivia on oct 30", WEDNESDAY, 0)
+    assert said is not None and "Trivia Night" not in said
+    with asked(when="date", month=10, day=22, about="trivia"):
+        *_, said, _ = engine._read_calendar("any trivia on oct 22", WEDNESDAY, 0)
+    assert said is not None and "Later on the calendar:" in said and "Trivia Night" in said
