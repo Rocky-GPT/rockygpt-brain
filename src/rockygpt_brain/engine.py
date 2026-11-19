@@ -59,6 +59,7 @@ from rockygpt_brain.boundary import (
     safety_text,
     situation_of,
 )
+from rockygpt_brain.conditions import Receipt
 from rockygpt_brain.context import MAX_HISTORY_BYTES, Context, build_context
 from rockygpt_brain.contract import (
     MAX_CONVERSATION_CHARS,
@@ -2421,19 +2422,22 @@ class ChatEngine:
                        kinds: Mapping[str, Sequence[str]] | None = None,
                        named_clubs: bool = True,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
-                                  list[dict[str, Any]], list[dict[str, Any]], str | None]:
+                                  list[dict[str, Any]], list[dict[str, Any]], str | None,
+                                  Receipt | None]:
         """The calendar events in the question's window and the clubs it names, read through the
         shared reader (events.py), numbered after the evidence before them, what code works
         out from them (counts, food, the topic's other dates, a club's events), and the events
         in code's own words (events.topic_text); scores are the event cards' meaning and kinds
         their kinds (kinds.py), when the index has them. With `named_clubs` False (a kind's
-        clubs are listed already: _kind_list), no club is read."""
+        clubs are listed already: _kind_list), no club is read. Last, the receipt of the
+        student's conditions (conditions.py), None when the calendar was not read."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
         computed: list[dict[str, Any]] = []
         calendar: dict[str, Any] | None = None
         said: str | None = None
+        receipt: Receipt | None = None
 
         def read(dated: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             return self._event_values(dated, version, identity_hash, now)
@@ -2452,12 +2456,14 @@ class ChatEngine:
         if events.asks_events(message):
             sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
                             "title": "Campus events calendar"})
-            start, end, label = events.window(now, self._breaks(now.date()),
-                                              asked_time.ASKED.get())
-            dated = events.events_in([e for e in named if e["kind"] == "event"], start, end)
+            picked = asked_time.ASKED.get()
+            asked = events.asked_window(now, self._breaks(now.date()), picked)
+            start, end, label = asked.start, asked.end, asked.label
+            dated = events.events_in([e for e in named if e["kind"] == "event"], start, end,
+                                     asked)
             values = read(dated)
             ranked, matched = events.rank_events(values, message, start, end, scores,
-                                                 all_upcoming(), kinds=kinds)
+                                                 all_upcoming(), kinds=kinds, window=asked)
             if matched is False and label == events.DEFAULT_LABEL:
                 # Nothing matches and no time was named: the next two weeks' other events say
                 # nothing about what was asked (11-03 practice: "any karaoke nights" was answered
@@ -2491,23 +2497,32 @@ class ChatEngine:
             asked_kinds, rest = (events.asked_kinds(message, words) if kinds and words
                                  else (frozenset(), []))
             kinds_said = kinds_module.names(asked_kinds)
-            in_window = len(events.in_window(values, start, end))
+            in_window = len(events.in_window(values, start, end, asked))
             valued = [{**line, "_value": value}
                       for line, value in zip(chosen, ranked, strict=True)]
+            receipt = events.receipt(picked, asked)
             computed = events.computed_answers(
                 label, start, end, in_window, valued, matched, words, events.asks_food(message),
                 outside, numbered_from + 1, asked=message, kinds_said=kinds_said,
-                only_kinds=bool(asked_kinds) and not rest, totals=totals)
+                only_kinds=bool(asked_kinds) and not rest, totals=totals,
+                days_said=asked.days_said)
             said = events.topic_text(
                 label, start, end, in_window, valued, matched,
                 [{**line, "_value": value}
                  for line, value in zip(outside, outside_values, strict=True)],
                 numbered_from + 1, kinds_said=kinds_said,
-                only_kinds=bool(asked_kinds) and not rest, totals=totals)
+                only_kinds=bool(asked_kinds) and not rest, totals=totals,
+                days_said=asked.days_said)
+            if receipt.said:
+                # What the calendar could not check is said in code's words, and the writer is
+                # told (11-19 plan: the writer path gets the conditions too).
+                computed.append({"fact": f"Not checked: {receipt.said}", "n": numbered_from + 1})
+                said = f"{said}\n\n{receipt.said}" if said else said
             calendar = {"window": label, "events_on_the_calendar_in_it": len(dated),
                         **({"topic_matched": matched, "topic_words": sorted(words)}
                            if matched is not None else {}),
                         **({"kinds_asked": kinds_said} if kinds_said else {}),
+                        **({"conditions": receipt.as_trace()} if receipt.asked else {}),
                         "events": [*chosen, *outside], "calendar_url": events.CALENDAR_URL}
         clubs: list[dict[str, Any]] = []
         found = events.find_clubs([e for e in named if e["kind"] in ("club", "organization")],
@@ -2528,7 +2543,7 @@ class ChatEngine:
                                     "title": value["name"]})
             computed = [*computed, *events.club_answers(
                 clubs, message, True, len([e for e in named if e["kind"] != "event"]))]
-        return calendar, clubs, sources, computed, said
+        return calendar, clubs, sources, computed, said, receipt
 
     def _sibling_lines(self, result: OfficeResult, request: OfficeRequest,
                        results: Mapping[str, OfficeResult]) -> list[str]:
@@ -2790,11 +2805,12 @@ class ChatEngine:
         own words (events.listing_text): the text, its sources (the calendar page is 1), the
         release, and the facts the reply's check holds it to."""
         version, identity_hash = self.facts.active_release()
-        start, end, label = events.window(now, self._breaks(now.date()),
-                                              asked_time.ASKED.get())
-        dated = events.events_in(list(self.facts.identities(("event",))), start, end)
+        picked = asked_time.ASKED.get()
+        asked = events.asked_window(now, self._breaks(now.date()), picked)
+        start, end, label = asked.start, asked.end, asked.label
+        dated = events.events_in(list(self.facts.identities(("event",))), start, end, asked)
         timed = events.in_window(self._event_values(dated, version, identity_hash, now),
-                                 start, end)
+                                 start, end, asked)
         shown = timed[:events.MAX_EVENTS]
         lines = [{"n": n, **events.event_line(value)} for n, value in enumerate(shown, start=2)]
         sources = [{"n": 1, "url": events.CALENDAR_URL, "title": "Campus events calendar"},
@@ -2803,9 +2819,14 @@ class ChatEngine:
         computed = events.computed_answers(
             label, start, end, len(timed), [{**line, "_value": value}
                                             for line, value in zip(lines, shown, strict=True)],
-            None, set(), False, (), 1)
-        return (events.listing_text(label, start, end, shown, len(timed)), sources, version,
-                {"calendar": {"window": label, "events": lines}, "computed": computed})
+            None, set(), False, (), 1, days_said=asked.days_said)
+        receipt = events.receipt(picked, asked)
+        said = events.listing_text(label, start, end, shown, len(timed), asked.days_said)
+        if said and receipt.said:
+            said = f"{said}\n\n{receipt.said}"
+        return (said, sources, version,
+                {"calendar": {"window": label, "events": lines}, "computed": computed,
+                 "conditions": receipt})
 
     def _club_listing(self, message: str, now: datetime,
                       ) -> tuple[str, list[dict[str, Any]], str, dict[str, Any]] | None:
@@ -3360,7 +3381,8 @@ class ChatEngine:
                     event_scores = (dict(index.academic_scores(vectors[0], "event"))
                                     if vectors and index is not None else None)
                     with measure("Read the calendar and clubs"):
-                        calendar, named_clubs, found_sources, calendar_facts, events_said = \
+                        (calendar, named_clubs, found_sources, calendar_facts, events_said,
+                         receipt) = \
                             await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
                                                     len(sources), event_scores,
                                                     index.kinds if index is not None else None,
@@ -3384,9 +3406,11 @@ class ChatEngine:
                             and not one_call.asks_more(latest) \
                             and not events.asks_sessions(latest):
                         if done := self._code_answer(turn, trace, events_said, sources,
-                                                     dataset_version, calendar=calendar,
-                                                     computed=computed):
+                                                     dataset_version, conditions=receipt,
+                                                     calendar=calendar, computed=computed):
                             return done
+                    if receipt is not None and receipt.asked:
+                        trace["conditions"] = {**receipt.as_trace(), "by": "writer"}
                     if events_said:
                         code_parts.append(events_said)
                         # The model is told the events are said, so the calendar's own rules
@@ -3818,25 +3842,36 @@ class ChatEngine:
         except (EvidenceUnavailable, DatasetChanged):
             return None
         picked = asked_time.ASKED.get()
-        said = (teams.answer(message, found, turn.campus_now.date(),
-                             picked.home_away if picked is not None else "any")
+        said = (teams.answer(message, found, turn.campus_now.date(), picked=picked,
+                             now=turn.campus_now, breaks=self._breaks(turn.campus_now.date()))
                 if found else None)
         if said is None:
             return None
-        text, sources, records = said
-        return self._code_answer(turn, trace, text, sources, version, teams=records)
+        text, sources, records, receipt = said
+        return self._code_answer(turn, trace, text, sources, version, conditions=receipt,
+                                 teams=records)
 
     def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
-                     sources: list[dict[str, Any]], dataset_version: str, **facts: Any,
+                     sources: list[dict[str, Any]], dataset_version: str,
+                     conditions: Receipt | None = None, **facts: Any,
                      ) -> ChatResult | None:
         """What code worked out (a dean, a person's details, a course's credits and
         prerequisites, a window's events), said as code wrote it with its sources, with no model
         call; None when it cannot be said that way or the check finds something the facts
-        (programs, people, calendar, computed) do not hold."""
+        (programs, people, calendar, computed) do not hold. A lookup's receipt of the student's
+        conditions (`conditions`, conditions.py) is the one honesty rule: a condition it did not
+        use, or that the reads were unsure of, must be named in the text, or the answer is not
+        code's alone. The receipt goes in the trace either way."""
         if said is None:
             return None
+        if conditions is not None and conditions.asked:
+            trace["conditions"] = {**conditions.as_trace(), "by": "code"}
+            if not conditions.kept and conditions.said not in said:
+                trace["conditions"]["refused"] = True
+                return None
         text, citations = one_call.reply({"text": said}, sources)
         view = {"today": turn.campus_now.date().isoformat(), **facts,
+                **({"conditions": conditions.as_trace()} if conditions is not None else {}),
                 "sources": [{"n": s["n"], "urls": [s["url"]]} for s in sources if s.get("url")]}
         if not citations or unsupported_by(text, view):
             return None
@@ -4476,7 +4511,7 @@ class ChatEngine:
         latest = context.latest_message
         if context.recent_messages or names_a_danger(latest):
             return False
-        if teams.asked(latest):
+        if teams.asked(latest) and teams.plain_ask(latest):
             names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
             if names_a_team:
                 return True
@@ -4516,6 +4551,17 @@ class ChatEngine:
             # times are published, so nothing live is asked (11-03 practice).
             corrected = replace(reading, limit="none")
             why = "published_lookup"
+        elif (reading.limit in ("off_topic", "prediction", "live_status")
+              and reading.danger == "none"
+              and teams.asked(context.latest_message, reading.time)
+              and await asyncio.to_thread(self._names_a_team, context.latest_message)):
+            # A varsity team code knows is named: its games, coaches and results are the
+            # athletics site's, which code reads (11-04 live check: "how did men's soccer do this
+            # season" was read as sports scores). Team questions that name a condition are read
+            # now (teams.plain_ask), so the limit must not keep them from the team's record.
+            corrected = replace(reading, limit="none", question=context.latest_message.strip(),
+                                topic="team")
+            why = "team_named"
         elif (reading.limit in ("off_topic", "prediction") and reading.danger == "none"
               and not triage.RESULT_WORDS.search(context.latest_message)
               and events.asks_events(context.latest_message)
@@ -4938,7 +4984,7 @@ class ChatEngine:
         # A varsity team's coaches, next games or results ("who coaches men's soccer"): code's
         # answer from the team's record, read from the athletics site (teams.py).
         if (self.output == "written" and floor_situation is None and not context.recent_messages
-                and teams.asked(context.latest_message)):
+                and teams.asked(context.latest_message, picked)):
             with measure("Read the varsity teams"):
                 done = await asyncio.to_thread(self._team_answer, turn, trace,
                                                context.latest_message)

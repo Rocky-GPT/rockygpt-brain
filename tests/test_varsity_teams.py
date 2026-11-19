@@ -75,7 +75,7 @@ def test_what_is_asked_and_what_is_left_to_the_model() -> None:
 def test_coaches_are_said_with_how_to_reach_them() -> None:
     found = answer("Who coaches men's soccer?", TEAMS, TUESDAY.date())
     assert found is not None
-    text, sources, records = found
+    text, sources, records, _ = found
     assert text == ("Men's Soccer coaches: DJ Pinton, Head Coach (dpinton@ramapo.edu, "
                     "201-684-7198); Peter Bonilla, Assistant Coach [2].")
     assert [s["url"] for s in sources] == [f"{SITE}/mens-soccer/schedule",

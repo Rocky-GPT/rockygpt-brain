@@ -344,7 +344,7 @@ THANKSGIVING = [("Thanksgiving Break (No Classes)", date(2026, 11, 25), date(202
 def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
     for plain in ("What events are happening this weekend?", "anything to do tonight?",
                   "What's going on Friday night?", "What can I do this weekend?",
-                  "Any events on Nov 12?", "events on 11/12", "what events are coming up",
+                  "what events are coming up",
                   "events in December", "what's happening on campus in december",
                   "anything going on over thanksgiving break?"):
         assert plain_window(plain), plain
@@ -352,7 +352,11 @@ def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
                  "What's happening today and tomorrow?", "anything fun this weekend? also is "
                  "there a chess club", "Who is hosting events tonight?",
                  "What's for dinner at the Birch tonight?", "events in December or January",
-                 "What time is the event tonight?", "any parties over thanksgiving break?"):
+                 "What time is the event tonight?", "any parties over thanksgiving break?",
+                 # A number may be a clock limit or a range ("today before 2", "dec 1-4"): the
+                 # model is given the events that fit (11-19 plan).
+                 "Any events on Nov 12?", "events on 11/12", "anything happening today before 2",
+                 "events dec 1-4"):
         assert not plain_window(more), more  # A topic, two windows, or not the calendar.
 
 
@@ -480,6 +484,21 @@ def test_a_question_the_read_says_is_about_a_club_is_not_answered_by_the_events_
     # The events code chose still start the reply, and the model says the club.
     assert result.body["answer"].startswith("The calendar lists 1 event this weekend")
     assert "The College Programming Board (CPB) hosts it. [2]" in result.body["answer"]
+
+
+def test_a_question_the_read_says_asks_only_whats_on_lists_the_window() -> None:
+    # 11-18 measure: "freshman here stuck in the dorms all weekend, anything happening on campus
+    # sat night??" opened "no event matches what you asked" for its leftover words.
+    from test_triage import read
+    message = "freshman here stuck in the dorms all weekend, anything happening this weekend"
+    gateway = ScriptedGateway(  # Only the read is scripted: any other model call would fail.
+        read(question=message, topic="event", time=asdict(picks(when="this_weekend", about=""))))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert result.body["answer"].startswith(
+        "The calendar lists 1 event this weekend, Friday, October 23 to Sunday, October 25 [1]:")
 
 
 def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
