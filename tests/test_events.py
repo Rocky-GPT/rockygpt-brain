@@ -3,10 +3,15 @@ names (events.py), read through the shared reader."""
 
 import asyncio
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from rockygpt_brain import asked_time
+from rockygpt_brain.asked_time import AskedTime
 from rockygpt_brain.contract import ChatRequest
 from rockygpt_brain.engine import ChatEngine
 from rockygpt_brain.events import (
@@ -39,24 +44,45 @@ EASTERN = ZoneInfo("America/New_York")
 WEDNESDAY = datetime(2026, 10, 21, 18, 0, tzinfo=EASTERN)
 
 
-def span(message: str) -> tuple[str, str, str]:
-    start, end, label = window(message, WEDNESDAY)
+def picks(**time: Any) -> AskedTime:
+    return AskedTime(**time)
+
+
+def span(**time: Any) -> tuple[str, str, str]:
+    start, end, label = window(WEDNESDAY, asked=picks(**time))
     return start.strftime("%a %m-%d %H:%M"), end.strftime("%a %m-%d %H:%M"), label
 
 
-def test_the_time_words_of_a_question_are_a_window_on_the_campus_clock() -> None:
-    assert span("anything going on tonight") == ("Wed 10-21 18:00", "Wed 10-21 23:59", "tonight")
-    assert span("events tomorrow")[:2] == ("Thu 10-22 00:00", "Thu 10-22 23:59")
-    assert span("what's happening this weekend") == (
-        "Fri 10-23 17:00", "Sun 10-25 23:59", "this weekend")
-    assert span("next weekend")[:2] == ("Fri 10-30 17:00", "Sun 11-01 23:59")
-    assert span("games next week")[:2] == ("Mon 10-26 00:00", "Sun 11-01 23:59")
-    assert span("any shows friday")[:2] == ("Fri 10-23 00:00", "Fri 10-23 23:59")
-    assert span("what's on oct 30")[:2] == ("Fri 10-30 00:00", "Fri 10-30 23:59")
-    assert span("events on 11/2")[:2] == ("Mon 11-02 00:00", "Mon 11-02 23:59")
-    assert span("upcoming events")[2] == "the next 14 days"
-    assert span("what's happening friday night") == (
+@contextmanager
+def picked(**time: Any) -> Iterator[None]:
+    """The turn's time picks, as the read sets them (engine._read_then_answer)."""
+    token = asked_time.ASKED.set(picks(**time))
+    try:
+        yield
+    finally:
+        asked_time.ASKED.reset(token)
+
+
+def read_time(message: str, **time: Any) -> Completion:
+    """The read of an event question, with its time picks (asked_time.py)."""
+    from test_triage import read
+    return read(question=message, topic="event", time=asdict(picks(**time)))
+
+
+def test_the_reads_time_picks_are_a_window_on_the_campus_clock() -> None:
+    assert span(when="tonight") == ("Wed 10-21 18:00", "Wed 10-21 23:59", "tonight")
+    assert span(when="tomorrow")[:2] == ("Thu 10-22 00:00", "Thu 10-22 23:59")
+    assert span(when="this_weekend") == ("Fri 10-23 17:00", "Sun 10-25 23:59", "this weekend")
+    assert span(when="next_weekend")[:2] == ("Fri 10-30 17:00", "Sun 11-01 23:59")
+    assert span(when="next_week")[:2] == ("Mon 10-26 00:00", "Sun 11-01 23:59")
+    assert span(when="weekday", weekday="friday")[:2] == ("Fri 10-23 00:00", "Fri 10-23 23:59")
+    assert span(when="date", month=10, day=30)[:2] == ("Fri 10-30 00:00", "Fri 10-30 23:59")
+    assert span(when="date", month=11, day=2)[:2] == ("Mon 11-02 00:00", "Mon 11-02 23:59")
+    assert span()[2] == "the next 14 days"
+    assert span(when="weekday", weekday="friday", part_of_day="evening") == (
         "Fri 10-23 17:00", "Fri 10-23 23:59", "Friday, October 23, evening")
+    # No read (it failed): the usual two weeks, never a guess from the words.
+    assert window(WEDNESDAY)[2] == "the next 14 days"
     assert asks_events("is there a basketball game this weekend")
     assert asks_clubs("is there a chess club") and not asks_events("how do i get a permit")
     assert asks_events("anything tonight?") and asks_events("free food tonight")
@@ -76,13 +102,13 @@ def test_events_in_the_window_come_by_date_and_by_the_questions_topic() -> None:
     identities = [{"id": "a", "name": "Volleyball vs. Lehman (2026-10-24)"},
                   {"id": "b", "name": "Trivia Night (2026-10-23)"},
                   {"id": "c", "name": "Career Fair (2026-11-05)"}]
-    start, end, _ = window("this weekend", WEDNESDAY)
+    start, end, _ = window(WEDNESDAY, asked=picks(when="this_weekend"))
     # By date: Friday's events are this weekend's (their start time is checked when ranked).
     assert [e["id"] for e in events_in(identities, start, end)] == ["a", "b"]
     values = [event("Women's Volleyball vs. Lehman", "24", 19, ["Athletics"]),
               event("Movie Night", "24", 20, ["Social"]),
               event("Old Game", "21", 9, ["Athletics"])]
-    start, end, _ = window("upcoming", WEDNESDAY)
+    start, end, _ = window(WEDNESDAY)
     # The question's topic word picks the volleyball game; an event long over is not offered.
     ranked, matched = rank_events(values, "any volleyball games coming up", start, end)
     assert [v["title"] for v in ranked] == ["Women's Volleyball vs. Lehman"] and matched is True
@@ -162,15 +188,15 @@ def test_events_and_clubs_are_read_as_published_with_their_listing() -> None:
 def test_a_question_about_this_weekend_is_answered_from_the_calendar() -> None:
     reply = {"parts": [{"asked": "this weekend", "not_on_pages": False, "sections": [1]}],
              "text": "Trivia Night is Fri, Oct 23, 2026 at 8 PM in the Student Center. [2]"}
-    gateway = ScriptedGateway(Completion("", (ToolCall("w", "write_answer", reply),), [
-        {"type": "function_call", "call_id": "w", "name": "write_answer",
-         "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
-    request = ChatRequest.model_validate({"messages": [
-        {"role": "user", "content": "anything fun happening this weekend? also is there a "
-                                    "chess club"}]})
-    engine = ChatEngine(gateway, calendar(), output="written")
+    message = "anything fun happening this weekend? also is there a chess club"
+    gateway = ScriptedGateway(read_time(message, when="this_weekend"), Completion(
+        "", (ToolCall("w", "write_answer", reply),), [
+            {"type": "function_call", "call_id": "w", "name": "write_answer",
+             "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
     result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
-    given = json.loads(gateway.inputs[0][1]["content"])
+    given = json.loads(gateway.inputs[1][1]["content"])
     assert given["calendar"]["window"] == "this weekend"
     (line,) = given["calendar"]["events"]
     # The calendar page is 1; the window's count is computed by code and cites it.
@@ -265,11 +291,8 @@ def test_alternatives_match_alone_and_page_groups_are_checked_against_the_direct
         "Commuter Affairs"]
 
 
-def test_a_named_weekday_wins_over_weekend_and_a_versus_listing_is_a_game() -> None:
-    from rockygpt_brain.events import _about, _stem, window
-    sunday = datetime(2026, 10, 25, 10, 0, tzinfo=WEDNESDAY.tzinfo)
-    assert window("family weekend, what's open to parents this saturday", sunday)[2] == \
-        "Saturday, October 31"
+def test_a_versus_listing_is_a_game() -> None:
+    from rockygpt_brain.events import _about, _stem
     assert _stem("games") in _about({"title": "Women's Soccer vs. New Paltz", "tags": []})
 
 
@@ -283,21 +306,22 @@ def test_a_clubs_own_listing_text_is_read_with_its_heading_dropped() -> None:
 
 
 def test_a_later_part_of_the_term_reads_the_rest_of_the_semester() -> None:
-    from rockygpt_brain.events import window
     monday = datetime(2026, 10, 26, 13, 0, tzinfo=WEDNESDAY.tzinfo)
-    assert window("any thanksgiving events before break", monday)[2] == "the rest of the semester"
-    assert window("anything for finals week", monday)[1].date().isoformat() == "2026-12-31"
-    assert window("anything fun", monday)[2] == "the next 14 days"
+    later = window(monday, asked=picks(when="rest_of_term"))
+    assert later[2] == "the rest of the semester" and later[1].date().isoformat() == "2026-12-31"
+    assert window(monday, asked=picks())[2] == "the next 14 days"
 
 
 def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
     from rockygpt_brain.events import computed_answers
     # "is any of it free" asks about the whole weekend; "it" was once read as its topic.
     assert asked_topic("what's happening this weekend and is any of it free") == set()
-    # "finals week" and "before thanksgiving" say when (the later-term window), not what.
-    assert asked_topic("finals week destress events like therapy dogs") == _stems(
-        "destress therapy dog")
-    assert "thanksgiving" not in asked_topic("anything the week before thanksgiving")
+    # "finals week" and "before thanksgiving" say when (the read's picks), not what.
+    with picked(when="rest_of_term", date_kind="finals"):
+        assert asked_topic("finals week destress events like therapy dogs") == _stems(
+            "destress therapy dog")
+    with picked(when="break", break_name="thanksgiving", side="before"):
+        assert "thanksgiving" not in asked_topic("anything the week before thanksgiving")
     # How good it is says nothing of what it is about: "cool" once matched "Clay it Cool".
     assert asked_topic("any cool events happening on campus this week?") == set()
     assert asked_topic("what are the best events this weekend") == set()
@@ -307,7 +331,8 @@ def test_function_words_and_term_words_are_not_what_an_event_is_about() -> None:
                                                  False, (), 1)]
     assert "mentions food" not in facts[1]
     from rockygpt_brain.events import alternatives
-    words = asked_topic("finals week destress events like therapy dogs or pancakes")
+    with picked(when="rest_of_term"):
+        words = asked_topic("finals week destress events like therapy dogs or pancakes")
     assert _stems("therapy dog") in alternatives("finals week destress events like therapy dogs or "
                                                  "pancakes", words)
 
@@ -320,45 +345,46 @@ def test_a_question_asking_only_what_is_on_in_one_window_is_plain() -> None:
     for plain in ("What events are happening this weekend?", "anything to do tonight?",
                   "What's going on Friday night?", "What can I do this weekend?",
                   "Any events on Nov 12?", "events on 11/12", "what events are coming up",
-                  "events in December", "what's happening on campus in december"):
+                  "events in December", "what's happening on campus in december",
+                  "anything going on over thanksgiving break?"):
         assert plain_window(plain), plain
     for more in ("Are there any parties this weekend?", "free events this weekend",
                  "What's happening today and tomorrow?", "anything fun this weekend? also is "
                  "there a chess club", "Who is hosting events tonight?",
                  "What's for dinner at the Birch tonight?", "events in December or January",
-                 "What time is the event tonight?"):
+                 "What time is the event tonight?", "any parties over thanksgiving break?"):
         assert not plain_window(more), more  # A topic, two windows, or not the calendar.
-    # A break is a window when the academic calendar dates it.
-    today = date(2026, 11, 4)
-    assert plain_window("anything going on over thanksgiving break?", THANKSGIVING, today)
-    assert not plain_window("anything going on over thanksgiving break?")
-    assert not plain_window("any parties over thanksgiving break?", THANKSGIVING, today)
 
 
 def test_a_month_or_a_break_named_is_its_own_window() -> None:
     now = datetime(2026, 11, 4, 15, 0, tzinfo=WEDNESDAY.tzinfo)
-    start, end, label = window("what's happening on campus in december", now)
+
+    def at(**time: Any) -> tuple[datetime, datetime, str]:
+        return window(now, THANKSGIVING, picks(**time))
+    start, end, label = at(when="month", month=12)
     assert (start.date(), end.date(), label) == (date(2026, 12, 1), date(2026, 12, 31),
                                                  "in December")
-    start, end, label = window("anything in november?", now)
+    start, end, label = at(when="month", month=11)
     assert (start, end.date(), label) == (now, date(2026, 11, 30), "in November")
-    assert window("any events in march", now)[0].date() == date(2027, 3, 1)  # Next March.
-    # "May" and "March" name a month only after a word saying when.
-    assert window("what events may be fun", now)[2] == DEFAULT_LABEL
-    start, end, label = window("anything going on over thanksgiving break?", now, THANKSGIVING)
+    assert at(when="month", month=3)[0].date() == date(2027, 3, 1)  # Next March.
+    assert at()[2] == DEFAULT_LABEL
+    start, end, label = at(when="break", break_name="thanksgiving")
     assert (start.date(), end.date(), label) == (date(2026, 11, 25), date(2026, 11, 29),
                                                  "over Thanksgiving Break")
-    start, end, label = window("any events before thanksgiving", now, THANKSGIVING)
+    start, end, label = at(when="break", break_name="thanksgiving", side="before")
     assert (start, end.date(), label) == (now, date(2026, 11, 24), "before Thanksgiving Break")
-    assert window("anything thanksgiving weekend", now, THANKSGIVING)[2] == (
-        "over Thanksgiving Break")
-    assert window("events over winter break", now, THANKSGIVING)[2] == "over Winter Break"
-    # A Thanksgiving event is no break ("a thanksgiving dinner" is held before it).
-    assert "Thanksgiving" not in window("is there a thanksgiving dinner", now, THANKSGIVING)[2]
-    # The words that set the window are not what is asked about.
-    assert asked_topic("anything going on over thanksgiving break?") == set()
-    assert asked_topic("any events over spring break") == set()
-    assert asked_topic("art events in december") == _stems("art")
+    assert at(when="break", break_name="winter")[2] == "over Winter Break"
+    # The words that name the picked time are not what is asked about; with no read, nothing
+    # is taken out.
+    with picked(when="break", break_name="thanksgiving"):
+        assert asked_topic("anything going on over thanksgiving break?") == set()
+    with picked(when="break", break_name="spring"):
+        assert asked_topic("any events over spring break") == set()
+    with picked(when="month", month=12):
+        assert asked_topic("what's happening on campus in december") == set()
+    assert asked_topic("is there a thanksgiving dinner") == _stems("thanksgiving dinner")
+    with picked(when="month", month=12):
+        assert asked_topic("art events in december") == _stems("art")
     assert asked_topic("is there a march on campus") == _stems("march")
 
 
@@ -384,7 +410,7 @@ def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() ->
            location: str) -> dict[str, Any]:
         return {"title": title, "starts_at": at, "start_time": start_time, "end_time": end_time,
                 "location": location}
-    start, end, label = window("what's happening this weekend", WEDNESDAY)
+    start, end, label = window(WEDNESDAY, asked=picks(when="this_weekend"))
     shown = [on("Trivia #2", "2026-10-24T00:00:00+00:00", "8 PM", "10 PM", "Student Center (SC)"),
              on("Cocoa and Crafts", "2026-10-24T11:00:00-04:00", "11 AM", None, "-"),
              on("Avoiding Plagiarism", "2026-10-25T13:00:00-04:00", "1 PM", "2 PM",
@@ -396,10 +422,11 @@ def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() ->
         "Friday, October 23:\n- 8 PM to 10 PM: Trivia \\#2, at Student Center (SC) [2]\n\n"
         "Saturday, October 24:\n- 11 AM: Cocoa and Crafts [3]\n\n"
         "Sunday, October 25:\n- 1 PM to 2 PM: Avoiding Plagiarism, Online Event [4]")
-    start, end, label = window("anything going on tonight", WEDNESDAY)
+    start, end, label = window(WEDNESDAY, asked=picks(when="tonight"))
     assert listing_text(label, start, end, [], 0) == (
         "The calendar lists no events tonight, Wednesday, October 21 [1].")
-    start, end, label = window("what's on friday night", WEDNESDAY)
+    start, end, label = window(WEDNESDAY, asked=picks(when="weekday", weekday="friday",
+                                                      part_of_day="evening"))
     one = [{**on("Moonlight Masquerade", "2026-10-23T19:00:00-04:00", "7 PM", "9 PM", "-"),
             "organizer": "The Overlook"}]
     assert listing_text(label, start, end, one, 1) == (
@@ -409,7 +436,7 @@ def test_code_lists_a_windows_events_by_day_with_their_time_title_and_place() ->
 
 
 def test_an_event_still_on_when_the_window_opens_ends_on_the_campus_clock() -> None:
-    start, end, _ = window("what's happening this weekend", WEDNESDAY)  # Friday 5 PM on.
+    start, end, _ = window(WEDNESDAY, asked=picks(when="this_weekend"))  # Friday 5 PM on.
     # Published in UTC: 12:15-3:45 PM and 4-5:30 PM on campus, Friday October 23.
     ended = {"title": "Service", "starts_at": "2026-10-23T16:15:00+00:00", "end_time": "3:45 PM"}
     still_on = {"title": "Reading", "starts_at": "2026-10-23T20:00:00+00:00",
@@ -418,10 +445,11 @@ def test_an_event_still_on_when_the_window_opens_ends_on_the_campus_clock() -> N
 
 
 def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
-    gateway = ScriptedGateway()  # Any model call would fail: none is scripted.
-    request = ChatRequest.model_validate({"messages": [
-        {"role": "user", "content": "What events are happening this weekend?"}]})
-    engine = ChatEngine(gateway, calendar(), output="written")
+    message = "What events are happening this weekend?"
+    # Only the read is scripted: any other model call would fail.
+    gateway = ScriptedGateway(read_time(message, when="this_weekend"))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
     result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
     assert result.body["answer"] == (
         "The calendar lists 1 event this weekend, Friday, October 23 to Sunday, October 25 "
@@ -429,8 +457,29 @@ def test_a_window_question_is_answered_by_code_with_no_model_call() -> None:
         "[2]"
         "\n\nSources: [1](https://archway.ramapo.edu/home/events/) "
         "[2](https://archway.ramapo.edu/rsvp_boot?id=1)")
-    assert gateway.inputs == []
+    assert len(gateway.inputs) == 1  # The read alone.
     assert result.trace is not None and result.trace["decidedBy"] == "code"
+
+
+def test_a_question_the_read_says_is_about_a_club_is_not_answered_by_the_events_alone() -> None:
+    # 11-18 measure: "who plans the big events like comedy nights n concerts? i wanna join
+    # whatever board does that" was read as about a club and got only an events list.
+    from test_triage import read
+    message = "trivia night this weekend, who runs it i wanna join"
+    reply = {"parts": [{"asked": "who runs it", "not_on_pages": True, "sections": []}],
+             "text": "The College Programming Board (CPB) hosts it. [2]"}
+    gateway = ScriptedGateway(
+        read(question=message, topic="club", time=asdict(picks(when="this_weekend"))),
+        Completion("", (ToolCall("w", "write_answer", reply),), [
+            {"type": "function_call", "call_id": "w", "name": "write_answer",
+             "arguments": json.dumps(reply)}], Usage(10, 10, 0)))
+    request = ChatRequest.model_validate({"messages": [{"role": "user", "content": message}]})
+    engine = ChatEngine(gateway, calendar(), output="written", read_first=True, reads=1)
+    result = asyncio.run(engine.answer(intake(request, now=WEDNESDAY), request))
+    assert result.trace is not None and result.trace["decidedBy"] == "one_call"
+    # The events code chose still start the reply, and the model says the club.
+    assert result.body["answer"].startswith("The calendar lists 1 event this weekend")
+    assert "The College Programming Board (CPB) hosts it. [2]" in result.body["answer"]
 
 
 def test_a_question_only_about_what_a_named_club_hosts_next_is_the_clubs() -> None:
@@ -515,7 +564,7 @@ def test_a_hosts_name_matches_only_when_the_question_names_the_host() -> None:
     values = [hosted("Tuesday Night Live", "College Programming Board", "live music"),
               hosted("Snack and Solve", "Data Science Club", "puzzles"),
               hosted("Card Night", "Bischoff Hall", "cards and board games")]
-    start, end, _ = window("upcoming", WEDNESDAY)
+    start, end, _ = window(WEDNESDAY)
     # On the calendar, games are common and "board" rare, so a host's "board" weighs the most.
     games = [event(f"Game {n}", "30", 19, ["Athletics"]) for n in range(10)]
 
@@ -581,7 +630,7 @@ def test_an_entry_named_for_its_kind_stands_for_every_club_of_it() -> None:
 
 
 def test_a_listing_holding_part_of_the_topic_needs_its_meaning_to_agree() -> None:
-    start, end, _ = window("upcoming", WEDNESDAY)
+    start, end, _ = window(WEDNESDAY)
     fed = [{**event("Women's Basketball vs. Baruch", "24", 18, ["Sports/Recreation"]),
             "_id": "g"},
            {**event("Birdwatching", "24", 19, ["Sports/Recreation"]), "_id": "w"},
@@ -607,7 +656,7 @@ def test_a_listing_holding_part_of_the_topic_needs_its_meaning_to_agree() -> Non
 
 
 def test_events_near_in_meaning_are_about_as_near_as_the_one_the_words_found() -> None:
-    start, end, _ = window("upcoming", WEDNESDAY)
+    start, end, _ = window(WEDNESDAY)
     fed = [{**event("HIV Awareness", "24", 18, ["Health"]), "_id": "h",
             "description": "Sexual health trivia and free condoms."},
            {**event("Spa Night", "24", 19, ["Wellness"]), "_id": "s"},
@@ -777,4 +826,4 @@ def test_more_event_questions_reach_the_calendar() -> None:
 
 
 def test_next_month_is_the_whole_next_month() -> None:
-    assert span("any events next month") == ("Sun 11-01 00:00", "Mon 11-30 23:59", "in November")
+    assert span(when="next_month") == ("Sun 11-01 00:00", "Mon 11-30 23:59", "in November")

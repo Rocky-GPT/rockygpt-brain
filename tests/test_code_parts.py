@@ -21,7 +21,7 @@ from rockygpt_brain.people import (
 )
 from rockygpt_brain.retrieval.entity_facts import MemoryEntityFacts
 from rockygpt_brain.turn import CAMPUS_TZ, intake
-from test_academic_calendar import TERMS, URL, entry
+from test_academic_calendar import TERMS, URL, entry, read_dates
 from test_engine import NOW, ScriptedGateway, completion
 from test_meaning import meaning_service
 from test_one_call import PartsGateway, one_reply
@@ -74,9 +74,11 @@ def biology() -> MemoryEntityFacts:
                              records={"faculty": [p[2] for p in people]}, now=lambda: NOW)
 
 
-def ask(service: Any, gateway: Any, question: str, now: datetime = NOW) -> Any:
+def ask(service: Any, gateway: Any, question: str, now: datetime = NOW,
+        read_first: bool = False) -> Any:
     request = ChatRequest.model_validate({"messages": [{"role": "user", "content": question}]})
-    engine = ChatEngine(gateway, service, output="written", howto_one_call=True)
+    engine = ChatEngine(gateway, service, output="written", howto_one_call=True,
+                        read_first=read_first, reads=1)
     return asyncio.run(engine.answer(intake(request, now=now), request))
 
 
@@ -242,15 +244,16 @@ def with_withdrawal_dates() -> Any:
 
 
 def test_a_deadline_named_beside_another_ask_is_said_by_code_first() -> None:
+    # The read picks the kind of date; code checks a deadline or "when" is asked of it.
+    withdraw = "withdrawal_deadline"
     assert kind_named("what's the deadline to withdraw from a course and what shows up on my "
-                      "transcript if i do") == "withdrawal_deadline"
-    assert kind_named("how do I withdraw from a course") is None  # Not when.
-    # Two kinds.
-    assert kind_named("when are finals and when does the spring semester start") is None
-    gateway = PartsGateway(one_reply(
+                      "transcript if i do", withdraw) == withdraw
+    assert kind_named("how do I withdraw from a course", withdraw) is None  # Not when.
+    assert kind_named("when are finals and when does the spring semester start", "none") is None
+    message = "what's the deadline to withdraw from a course and how do i become a peer tutor"
+    gateway = PartsGateway(read_dates(message, date_kind=withdraw), one_reply(
         "Center for Reading and Writing: Apply with the online form by March 1. [1]", [1]))
-    result = ask(with_withdrawal_dates(), gateway,
-                 "what's the deadline to withdraw from a course and how do i become a peer tutor")
+    result = ask(with_withdrawal_dates(), gateway, message, read_first=True)
     answer = result.body["answer"]
     assert result.trace is not None and result.trace["decidedBy"] == "one_call"
     # The calendar's dates before the model's words, and the cited office's contacts after.
@@ -265,7 +268,7 @@ def test_a_deadline_named_beside_another_ask_is_said_by_code_first() -> None:
         "March 1. [1]")
     assert f"[{n}]({URL})" in answer
     # The model is told what code wrote, and writes only the rest.
-    given = json.loads(gateway.inputs[0][1]["content"])
+    given = json.loads(gateway.inputs[1][1]["content"])
     assert given["already_written"].startswith("The Fall 2026 academic calendar lists")
 
 
