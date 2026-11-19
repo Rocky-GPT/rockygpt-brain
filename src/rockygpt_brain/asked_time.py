@@ -35,7 +35,7 @@ DEFAULT_LABEL = f"the next {DEFAULT_DAYS} days"
 # The read's lists. The first of each is what a tie or a pick off the list falls back to.
 WHEN = ("none", "today", "tonight", "tomorrow", "weekday", "next_weekday", "this_week",
         "next_week", "this_weekend", "next_weekend", "this_month", "next_month", "month",
-        "date", "break", "rest_of_term", "coming_days")
+        "date", "break", "rest_of_term", "coming_days", "now")
 WEEKDAYS = ("none", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
             "sunday")
 BREAKS = ("none", "thanksgiving", "winter", "spring", "summer", "fall")
@@ -64,7 +64,8 @@ PROMPT = """- time: when the question asks about, and what kind of date, picked 
   day: "in december"), date (a month and day: "dec 3rd", "12/3"), break (during, before or
   after a break: "over thanksgiving", "after winter break"), rest_of_term (later this
   semester: "before finals", "the rest of the semester", "end of the semester"), coming_days
-  ("the next 3 days", "in the next 72 hrs"), else none. Most questions name no time: none;
+  ("the next 3 days", "in the next 72 hrs"), now (what is on at this moment: "rn", "right
+  now", "at the moment", "going on now"), else none. Most questions name no time: none;
   "next" alone ("the next game", "when do they play next") names no days: none. A clock time
   with no day named ("anything after 5") is today. weekday: the day named, else none. month and
   day: the month (1 to 12) and day of the month named, for a range its first day, else 0.
@@ -451,6 +452,11 @@ def _days(asked: AskedTime, now: datetime,
             _end(today, now), "tonight"
     if when == "today":
         return _start(today, now), _end(today, now), "today"
+    if when == "now":
+        # What is on now or starts within the hour: an event still on when the window opens is
+        # kept (events.in_window). "rn" had no pick and fell to the next 14 days (11-19 ruler:
+        # "is the line for the free food thing ... rn" listed two weeks of events).
+        return now, min(now + timedelta(hours=1), _end(today, now)), "right now"
     if when == "tomorrow":
         day = today + timedelta(days=1)
         return _start(day, now), _end(day, now), "tomorrow"

@@ -597,3 +597,27 @@ def test_events_before_the_days_asked_are_never_said_to_be_later() -> None:
     with asked(when="date", month=10, day=22, about="trivia"):
         *_, said, _ = engine._read_calendar("any trivia on oct 22", WEDNESDAY, 0)
     assert said is not None and "Later on the calendar:" in said and "Trivia Night" in said
+
+
+def test_right_now_is_what_is_on_now_or_starts_within_the_hour() -> None:
+    # "is the line for the free food thing at the student center super long rn" had no pick for
+    # "rn" and listed the next 14 days of events (11-19 steady ruler, open half).
+    window = asked_window(AskedTime(when="now"), NOW)
+    assert (window.start, window.end, window.label) == (
+        NOW, NOW + timedelta(hours=1), "right now")
+    assert asked_time.phrase(window.label, window.start, window.end) == (
+        "right now, Wednesday, November 18")
+    on_now = event("Wed Open Hours", 18, 14, 0, 2)
+    found = [v["title"] for v in events.in_window([*CALENDAR, on_now], window.start, window.end,
+                                                  window)]
+    assert found == ["Wed Open Hours", "Wed Study Hall"]
+    # Change one: today is the whole day.
+    assert {"Wed Movie", "Wed Late Show"} <= set(titles(when="today"))
+
+
+def test_a_game_right_now_is_told_as_todays_games() -> None:
+    # The schedules list no end times, so a game on "rn" is today's game.
+    text = said("is there a womens bball game rn", WBB, when="now")
+    assert listed(text, WBB) == ["Away U"], text
+    assert said("is there a womens bball game rn", WBB, when="now") == said(
+        "is there a womens bball game today", WBB, when="today")

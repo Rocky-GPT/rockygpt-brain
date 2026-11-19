@@ -8,6 +8,7 @@ code from that record, with no model call (Dan 11-03: code writes as much of eac
 can). Anything else about a team is left to the model.
 """
 
+import dataclasses
 import re
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta
@@ -288,6 +289,9 @@ def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date, site: 
     asked, a record with none of it)."""
     named = teams_named(message, teams)
     asks = asked(message, picked)
+    if picked is not None and picked.when == "now":
+        # The schedules list no end times, so a game on "right now" is told as today's games.
+        picked = dataclasses.replace(picked, when="today")
     if picked is not None and picked.home_away != "any":
         site = picked.home_away
     timed = {"days", "part_of_day", "clock"} & set(conditions.asked_of(picked))
