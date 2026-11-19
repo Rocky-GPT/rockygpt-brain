@@ -21,7 +21,7 @@ exactly as it was before this step existed.
 import json
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from rockygpt_brain import asked_time
@@ -332,6 +332,12 @@ def reading_of(arguments: Any, latest: str) -> Reading | None:
     # Time picks of the wrong shape are dropped, not the whole read: the time is then read from
     # the words as before.
     picked = asked_time.of(arguments["time"]) if "time" in arguments else None
+    if picked is not None and picked.other:
+        # Another condition counts only in the student's own words: code finds each phrase in
+        # the message, as it finds the words of a problem (problem_said).
+        message = f" {_plain(latest)} "
+        picked = replace(picked, other=tuple(
+            p for p in picked.other if (plain := _plain(p)) and f" {plain} " in message))
     kept = tuple(sorted(dict.fromkeys(n for n in needs if n in NEEDS), key=NEED_ORDER.index))
     # A need counts only where the student says they have it: the read copies those words, and
     # code finds them in the message (11-18 blind run: 7 of 11 support lines sat on messages that

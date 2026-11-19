@@ -389,7 +389,7 @@ def test_an_umbrella_entrys_clubs_are_read_however_many_there_are() -> None:
              *((f"Honor Society {n}", "Honor Society") for n in range(15))]
     engine = ChatEngine(ScriptedGateway(), club_calendar(names), output="written")
     now = datetime(2026, 10, 21, 18, 0, tzinfo=EASTERN)
-    _, clubs, sources, computed, _ = engine._read_calendar("are there any honor societies", now, 0)
+    _, clubs, sources, computed, *_ = engine._read_calendar("are there any honor societies", now, 0)
     assert len(clubs) == 16 and [s["n"] for s in sources] == list(range(1, 17))
     assert any("16 clubs are given" in f["fact"] for f in computed)
 

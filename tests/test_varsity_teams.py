@@ -80,7 +80,7 @@ def test_what_is_asked_and_what_is_left_to_the_model() -> None:
 def test_coaches_are_said_with_how_to_reach_them() -> None:
     found = answer("Who coaches men's soccer?", TEAMS, TUESDAY.date())
     assert found is not None
-    text, sources, records = found
+    text, sources, records, _ = found
     assert text == ("Men's Soccer coaches: DJ Pinton, Head Coach (dpinton@ramapo.edu, "
                     "201-684-7198); Peter Bonilla, Assistant Coach [2].")
     assert [s["url"] for s in sources] == [f"{SITE}/mens-soccer/schedule",
@@ -198,18 +198,27 @@ def test_a_parking_question_naming_a_game_reaches_the_parking_office() -> None:
     assert [source["url"] for source in result.body["citations"]] == ["https://example.edu/parking"]
 
 
-@pytest.mark.parametrize(("message", "time"), [
-    ("When is the next away women's basketball game?", None),
-    ("Is there a women's basketball game tomorrow?", AskedTime(when="tomorrow")),
-])
-def test_a_team_lookup_cannot_discard_a_time_constraint(
-        message: str, time: AskedTime | None) -> None:
+def test_a_team_lookup_cannot_discard_a_venue_it_never_read() -> None:
     from test_one_call import one_reply
 
-    gateway = ScriptedGateway(read(question=message, topic="team",
-                                   time=asdict(time) if time else None),
+    message = "When is the next away women's basketball game?"
+    gateway = ScriptedGateway(read(question=message, topic="team", time=None),
                               one_reply("The calendar has no listing for that game.", [], True))
     result = ask(gateway, message, service=facts(), now=TUESDAY)
     assert "Bradley Center" not in result.body["answer"]
     assert all(source["url"] != WBB["source_url"] for source in result.body["citations"])
     assert result.trace is not None and result.trace.get("decidedBy") != "code"
+
+
+def test_a_team_lookup_keeps_a_time_constraint_and_says_none_fits() -> None:
+    # Plan 11-19 (Dan chose "Build Steps 0 to 2 on dev"): the team lookup filters by the days
+    # read; with no game then it says so, then the next game, labelled with its own day.
+    message = "Is there a women's basketball game tomorrow?"
+    gateway = ScriptedGateway(read(question=message, topic="team",
+                                   time=asdict(AskedTime(when="tomorrow"))))
+    result = ask(gateway, message, service=facts(), now=TUESDAY)
+    answer = result.body["answer"]
+    assert answer.startswith("Women's Basketball has no game listed tomorrow, Wednesday, "
+                             "November 4 [1]. Its next game: Nov 7 (Sat), 1:00 PM")
+    assert result.trace is not None and result.trace["decidedBy"] == "code"
+    assert result.trace["conditions"]["used"] == ["days"]

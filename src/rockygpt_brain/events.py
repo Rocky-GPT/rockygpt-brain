@@ -17,10 +17,11 @@ from collections.abc import Set as AbstractSet
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from rockygpt_brain import asked_time
+from rockygpt_brain import asked_time, conditions
 from rockygpt_brain.asked_time import DEFAULT_DAYS as DEFAULT_DAYS
 from rockygpt_brain.asked_time import DEFAULT_LABEL as DEFAULT_LABEL
-from rockygpt_brain.asked_time import AskedTime
+from rockygpt_brain.asked_time import AskedTime, Window
+from rockygpt_brain.conditions import Receipt
 from rockygpt_brain.kinds import KINDS, with_included
 from rockygpt_brain.plain_writer import literal
 from rockygpt_brain.retrieval.entity_facts import discovery_tokens
@@ -197,14 +198,20 @@ after until till
 
 def plain_window(message: str) -> bool:
     """Whether a question asks only what the calendar lists in one time window: every word is a
-    plain one, a month, a break, or a date's numbers. Which window it is the read picks
-    (asked_time.py); "today and tomorrow" is two, and its "and" sends it to the model."""
+    plain one, a month or a break. Which window it is the read picks (asked_time.py); "today and
+    tomorrow" is two, and its "and" sends it to the model. A number is not plain: "today before
+    2" holds a clock limit and "dec 1-4" a range, which the model is given with the events that
+    fit them (11-19 plan: on dev "anything happening today before 2" was answered by code with
+    the whole day). Nor is a question whose read gave a condition no window holds (home or away,
+    the student's own words) or was unsure of one (conditions.py)."""
     text = message.casefold().replace("’", "'").replace("'", "")
     words = re.findall(r"[a-z0-9]+", text)
     if not words or not asks_events(message):
         return False
-    return all(w in _WINDOW_ONLY or w in _MONTH_WORDS or w in _BREAK_WORDS or w.isdigit()
-               or re.fullmatch(r"\d{1,2}(?:st|nd|rd|th)", w) for w in words)
+    picked = asked_time.ASKED.get()
+    if picked is not None and (picked.other or picked.unsure or picked.home_away != "any"):
+        return False
+    return all(w in _WINDOW_ONLY or w in _MONTH_WORDS or w in _BREAK_WORDS for w in words)
 
 
 def window(now: datetime, breaks: Sequence[tuple[str, date, date]] = (),
@@ -215,13 +222,34 @@ def window(now: datetime, breaks: Sequence[tuple[str, date, date]] = (),
     return asked_time.window(asked, now, breaks)
 
 
+def asked_window(now: datetime, breaks: Sequence[tuple[str, date, date]] = (),
+                 asked: AskedTime | None = None) -> Window:
+    """The campus time a question asks about with its every day and limit on the time of day
+    (asked_time.asked_window): what the events listed must fit."""
+    return asked_time.asked_window(asked, now, breaks)
+
+
+def receipt(picked: AskedTime | None, asked: Window) -> Receipt:
+    """What a calendar lookup did with the student's conditions (conditions.py): the days and
+    times of day are the window's (in_window), and what the events are about is what they are
+    matched on (asked_topic). The listings mark no game home or away, and no list holds the
+    student's own conditions ("for commuters"): those are named as not checked."""
+    return conditions.receipt(picked, ("days", "part_of_day", "clock", "about"), asked,
+                              "the calendar listings")
+
+
 def events_in(events: Sequence[dict[str, Any]], start: datetime,
-              end: datetime) -> list[dict[str, Any]]:
-    """The calendar event identities dated within the window (their names end in the date)."""
+              end: datetime, asked: Window | None = None) -> list[dict[str, Any]]:
+    """The calendar event identities dated within the window (their names end in the date), on
+    one of its days when it has more than one stretch (`asked`)."""
     found = []
     for event in events:
         dated = _EVENT_DATE.search(str(event["name"]))
-        if dated and start.date() <= date(*map(int, dated.groups())) <= end.date():
+        if not dated:
+            continue
+        on = date(*map(int, dated.groups()))
+        if start.date() <= on <= end.date() and (
+                asked is None or any(a.date() <= on <= b.date() for a, b in asked.pieces)):
             found.append(event)
     return found
 
@@ -289,7 +317,13 @@ def asked_topic(message: str) -> set[str]:
     ("finals week", "before thanksgiving"; asked_time.said_words) say when, not what. A word
     saying an event's form or how it is liked (_FORM: "sessions", "meeting", "cool") counts only
     when nothing else is asked: "any club meetings" asks for meetings, "any book clubs meeting"
-    for book clubs."""
+    for book clubs. When the read said what the events are about (asked_time.AskedTime.about),
+    that is the topic, and "" is none: "freshman here stuck in the dorms all weekend, anything
+    happening sat night" asks only what is on (11-18 measure: the leftover words were matched
+    and the reply opened "the calendar lists no event that matches what you asked")."""
+    picked = asked_time.ASKED.get()
+    if picked is not None and picked.about is not None:
+        message = picked.about
     text = message.casefold()
     food = _FOOD_ASK.findall(text)
     words = (topic_words(message) - (_stems(" ".join(food)) if food else set())
@@ -596,19 +630,35 @@ def _ends(value: dict[str, Any], clock: Any = None) -> datetime | None:
         return None
     if clock is not None:
         began = began.astimezone(clock)
-    found = re.match(r"\s*(\d{1,2})(?::(\d{2}))?\s*([AP]M)", str(value.get("end_time") or ""), re.I)
-    if not found:
+    minutes = asked_time.minutes_of(value.get("end_time"))
+    if minutes is None:
         return began + timedelta(hours=3)
-    hour = int(found.group(1)) % 12 + (12 if found.group(3).upper() == "PM" else 0)
-    ended = began.replace(hour=hour, minute=int(found.group(2) or 0))
+    ended = began.replace(hour=minutes // 60, minute=minutes % 60)
     return ended if ended > began else ended + timedelta(days=1)
 
 
-def in_window(values: Sequence[dict[str, Any]], start: datetime,
-              end: datetime) -> list[dict[str, Any]]:
-    """The events that start in the window or are still on when it opens, in time order."""
-    timed = [v for v in values if (at := _starts(v)) is not None and at <= end
-             and (at >= start or ((ends := _ends(v, start.tzinfo)) is not None and ends > start))]
+def in_window(values: Sequence[dict[str, Any]], start: datetime, end: datetime,
+              asked: Window | None = None) -> list[dict[str, Any]]:
+    """The events that start in the window or are still on when it opens, in time order. With
+    `asked` (asked_time.asked_window), only those on its days and within its limits on the time
+    of day; an event with no time listed cannot be checked against those limits, so it is kept
+    when it is on a day asked, marked "_no_time" for the reply to say so."""
+    timed = []
+    for value in values:
+        at = _starts(value)
+        if at is None or at > end:
+            continue
+        ends = _ends(value, start.tzinfo)
+        if not (at >= start or (ends is not None and ends > start)):
+            continue
+        if asked is not None:
+            if asked.hours and not re.search(r"\d", str(value.get("start_time") or "")):
+                if not asked.on_dates(at):
+                    continue
+                value = {**value, "_no_time": True}
+            elif not asked.holds(at, ends):
+                continue
+        timed.append(value)
     return sorted(timed, key=lambda v: _starts(v) or start)
 
 
@@ -616,6 +666,7 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
                 end: datetime, scores: Mapping[str, float] | None = None,
                 corpus: Sequence[dict[str, Any]] | None = None, by_share: bool = False,
                 kinds: Mapping[str, Sequence[str]] | None = None,
+                window: Window | None = None,
                 ) -> tuple[list[dict[str, Any]], bool | None]:
     """Every event in the window that has not ended, in time order: those of the kind asked
     (asked_kinds; `kinds` is every labelled card's kinds by its "_id", when the index has them),
@@ -624,8 +675,9 @@ def rank_events(values: Sequence[dict[str, Any]], message: str, start: datetime,
     every event card's by its "_id") stands out for the question (near_in_meaning), when any
     are. Also whether the topic matched: None with no topic words, False when none matched (the
     whole window is then given, and the reply says the calendar lists nothing for the topic).
-    All of them, so a reply can say how many there are: shown_events picks the ones it gives."""
-    timed = in_window(values, start, end)
+    All of them, so a reply can say how many there are: shown_events picks the ones it gives.
+    With `window`, only events on its days and within its limits on the time of day count."""
+    timed = in_window(values, start, end, window)
     food = asks_food(message)
     words = asked_topic(message)
     if words or food:
@@ -922,7 +974,7 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
                      food: bool, outside: Sequence[dict[str, Any]] = (),
                      calendar_n: int | None = None, asked: str = "", kinds_said: str = "",
                      only_kinds: bool = False, totals: Mapping[str, int] | None = None,
-                     ) -> list[dict[str, Any]]:
+                     days_said: str | None = None) -> list[dict[str, Any]]:
     """What code works out from the calendar for the reply to state as it is: the window's
     dates; how many events it holds, how many are about the topic asked or that none is (and
     the topic's events outside the window); for a food question, which listings mention food
@@ -931,10 +983,11 @@ def computed_answers(label: str, start: datetime, end: datetime, in_window: int,
     calendar page's number, for the facts about the whole window; `asked` the question, whose
     own words the facts say; `kinds_said` the kinds asked (kinds.names), `only_kinds` when the
     question asked nothing else; `totals` how many matched each way before the lines were cut
-    (match_totals), when more matched than are given."""
-    span = (_day(start) if start.date() == end.date()
-            else f"{_day(start)} to {_day(end)}")
-    where = f"on {span}" if start.date() == end.date() else f"from {span}"
+    (match_totals), when more matched than are given; `days_said` each stretch's dates, when the
+    window has more than one (asked_time.Window)."""
+    span = days_said or (_day(start) if start.date() == end.date()
+                         else f"{_day(start)} to {_day(end)}")
+    where = f"on {span}" if days_said or start.date() == end.date() else f"from {span}"
     topic = (said_words(asked, words) if asked
              else ", ".join(sorted(w for w in words if len(w) > 2)))
     facts: list[dict[str, Any]] = [{"fact": f"The window asked ({label}) is {span}.",
@@ -1023,27 +1076,18 @@ def _given(shown: int, of: int) -> str:
             else f"; not given here (the calendar has {'it' if of == 1 else 'them'}).")
 
 
-def _phrase(label: str, start: datetime, end: datetime) -> str:
-    """The window as the reply says it: "this weekend, Friday, November 6 to Sunday, November 8",
-    "tonight, Monday, November 2", "on Friday, November 6, in the evening"."""
-    span = _day(start) if start.date() == end.date() else f"{_day(start)} to {_day(end)}"
-    base, part = label, ""
-    for name in asked_time.PARTS[1:]:
-        if label.endswith(f", {name}"):
-            base, part = label[: -len(name) - 2], f", in the {name}"
-    if base.split(",")[0].casefold() in _DAYS:
-        return f"on {span}{part}"
-    lead = {"the next": "in ", "the rest": "for "}.get(" ".join(base.split()[:2]), "")
-    return f"{lead}{base}, {span}{part}"
+def _phrase(label: str, start: datetime, end: datetime, days_said: str | None = None) -> str:
+    """The window as the reply says it (asked_time.phrase)."""
+    return asked_time.phrase(label, start, end, days_said)
 
 
 def listing_text(label: str, start: datetime, end: datetime, shown: Sequence[dict[str, Any]],
-                 listed: int) -> str | None:
+                 listed: int, days_said: str | None = None) -> str | None:
     """A window question's answer in code's own words (Dan 11-02: code works out the answer):
     how many events the calendar lists in the window [1], then those shown in time order, under
     their day when the window spans several, each with its time, title, host and place as
     published [its own number, from 2]. None when an event has no title to say."""
-    phrase = _phrase(label, start, end)
+    phrase = _phrase(label, start, end, days_said)
     if not listed:
         return f"The calendar lists no events {phrase} [1]."
     if any(not value.get("title") for value in shown):
@@ -1071,7 +1115,9 @@ def _event_lines(numbered: Sequence[tuple[int, dict[str, Any]]], start: datetime
         host = " ".join(str(value.get("organizer") or "").split())
         days.setdefault(heading, []).append(
             "- " + (f"{when}: " if when else "") + literal(value["title"])
-            + (f" ({literal(host)})" if host else "") + at + f" [{n}]")
+            + (f" ({literal(host)})" if host else "") + at
+            + (" (no time listed, so it may not fit the time asked)"
+               if value.get("_no_time") else "") + f" [{n}]")
     return ["\n".join([heading, *lines]) if heading else "\n".join(lines)
             for heading, lines in days.items()]
 
@@ -1160,7 +1206,8 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
                lines: Sequence[dict[str, Any]], matched: bool | None,
                outside: Sequence[dict[str, Any]] = (), calendar_n: int = 1,
                kinds_said: str = "", only_kinds: bool = False,
-               totals: Mapping[str, int] | None = None) -> str | None:
+               totals: Mapping[str, int] | None = None,
+               days_said: str | None = None) -> str | None:
     """A calendar question's events in code's own words, every one code chose (11-03: the reply
     picked 2 of the 3 wellness events and said "three"): with no topic, the window's listing;
     with a topic, the events of the kind asked (`kinds_said`, kinds.names), then those whose
@@ -1173,7 +1220,7 @@ def topic_text(label: str, start: datetime, end: datetime, in_window: int,
     title."""
     if any(not (line.get("_value") or {}).get("title") for line in [*lines, *outside]):
         return None
-    phrase = _phrase(label, start, end)
+    phrase = _phrase(label, start, end, days_said)
     cal = f"[{calendar_n}]"
 
     def said(chosen: Sequence[dict[str, Any]], first: datetime, last: datetime) -> list[str]:

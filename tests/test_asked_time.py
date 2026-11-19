@@ -86,12 +86,14 @@ def test_a_break_its_days_before_it_after_it_and_one_that_has_ended() -> None:
     assert days(AskedTime(when="next_weekday"))[2] == DEFAULT_LABEL
 
 
-def test_a_part_of_the_day_narrows_one_day_only() -> None:
+def test_a_part_of_the_day_narrows_one_day_and_limits_every_day() -> None:
     assert days(AskedTime(when="weekday", weekday="saturday", part_of_day="evening")) == (
         "11-21 17:00", "11-21 23:59", "Saturday, November 21, evening")
     assert days(AskedTime(when="tomorrow", part_of_day="morning")) == (
         "11-19 00:00", "11-19 12:00", "tomorrow, morning")
-    assert days(AskedTime(when="this_week", part_of_day="evening"))[2] == "this week"
+    # Over more than one day the part of the day holds on each (11-19 plan: "this week" alone was
+    # said, and every hour of the week listed).
+    assert days(AskedTime(when="this_week", part_of_day="evening"))[2] == "this week, evening"
     assert days(AskedTime(when="tonight", part_of_day="evening"))[2] == "tonight"
 
 
@@ -111,8 +113,10 @@ def test_most_reads_win_and_a_split_names_no_time() -> None:
     friday_night = AskedTime(when="weekday", weekday="friday", part_of_day="evening")
     home = AskedTime(home_away="home")
     assert vote([friday, friday, friday_night]) == friday
-    # The window is voted whole, so no read's day mixes with another's part of the day.
-    assert vote([friday, friday_night, AskedTime(when="tonight")]) == AskedTime()
+    # The window is voted whole, so no read's day mixes with another's part of the day; with no
+    # majority the days are said to be unsure, never dropped in silence (11-19 plan).
+    assert vote([friday, friday_night, AskedTime(when="tonight")]) == AskedTime(
+        unsure=("days",))
     assert vote([home, home, AskedTime()]).home_away == "home"  # type: ignore[union-attr]
     assert vote([]) is None
 
@@ -186,3 +190,33 @@ def test_the_words_naming_the_picked_time_say_when_not_what() -> None:
     over = asked_time.said_words(AskedTime(when="break", break_name="thanksgiving"))
     assert {"thanksgiving", "break", "recess"} <= over and "none" not in over
     assert "finals" in asked_time.said_words(AskedTime(when="rest_of_term"))
+    # A break named beside another time ("next mon and tues before thanksgiving break") still says
+    # when, not what.
+    assert "thanksgiving" in asked_time.said_words(
+        AskedTime(when="next_weekday", break_name="thanksgiving", side="before"))
+
+
+def test_what_the_events_are_about_is_the_reads_and_none_asked_is_none() -> None:
+    picks = {"when": "weekday", "weekday": "saturday", "month": 0, "day": 0,
+             "break_name": "none", "side": "during", "part_of_day": "evening",
+             "date_kind": "none", "term": "none", "home_away": "any"}
+    assert "about" in asked_time.SCHEMA["required"] and "about:" in asked_time.PROMPT
+    assert of({**picks, "about": "  comedy   shows "}) == AskedTime(
+        when="weekday", weekday="saturday", part_of_day="evening", about="comedy shows")
+    assert of({**picks, "about": "x" * 200}).about is None  # type: ignore[union-attr]
+    assert of(picks).about is None  # type: ignore[union-attr]
+    comedy, nothing = AskedTime(about="comedy"), AskedTime(about="")
+    assert vote([comedy, comedy, nothing]).about == "comedy"  # type: ignore[union-attr]
+    assert vote([nothing, nothing, comedy]).about == ""  # type: ignore[union-attr]
+    assert vote([comedy, nothing, AskedTime()]).about is None  # type: ignore[union-attr]
+    # 11-18 measure: the leftover words were the topic, and no event matched them.
+    lonely = ("freshman here stuck in the dorms all weekend, anything happening on campus sat "
+              "night??")
+    assert events.asked_topic(lonely)
+    token = asked_time.ASKED.set(AskedTime(when="weekday", weekday="saturday", about=""))
+    try:
+        assert events.asked_topic(lonely) == set()
+        asked_time.ASKED.set(AskedTime(about="comedy shows"))
+        assert events.asked_topic("any comdy stuff this wk") == events.asked_topic("comedy shows")
+    finally:
+        asked_time.ASKED.reset(token)
