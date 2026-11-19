@@ -19,6 +19,12 @@ class Turn:
     conversation_id: str
     request_id: str
     campus_now: datetime
+    # Set by the question reader. Every campus lookup on this turn sees the same topic.
+    campus_topic: str | None = None
+
+    def can_answer_as(self, topic: str) -> bool:
+        """Whether a lookup for this topic may supply the answer in its own words."""
+        return self.campus_topic is None or self.campus_topic == topic
 
 
 def new_id() -> str:

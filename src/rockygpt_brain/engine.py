@@ -95,6 +95,7 @@ from rockygpt_brain.retrieval.meaning import MeaningIndex
 from rockygpt_brain.router import (
     asks_inside,
     code_route,
+    keeps_lookup_scope,
     places_named,
     rooms_said,
     shuttle_route,
@@ -3191,14 +3192,11 @@ class ChatEngine:
                                         list[dict[str, Any]]] | None = None,
                         calendar_asked: bool = False,
                         named_people: Sequence[dict[str, Any]] = (),
-                        people_asked: bool = False,
-                        topic: str | None = None,
-                        ) -> ChatResult | None:
+                        people_asked: bool = False) -> ChatResult | None:
         """One model call from code-found evidence (one_call.py); None leaves the question to
         the four-call loop: no meaning index and no program named, a failed call, or a reply
         the evidence does not hold. A named program's requirements are read first; the pages
-        are searched beside them when a meaning index is published. `topic` is the read's
-        (triage.Reading.topic), None when there was no read."""
+        are searched beside them when a meaning index is published."""
         embed_many = getattr(self.gateway, "embed_many", None)
         index = await asyncio.to_thread(self.facts.meaning_index)
         searchable = embed_many is not None and index is not None
@@ -3248,7 +3246,7 @@ class ChatEngine:
                     with measure("Read the calendar"):
                         said, found_sources, version, checked = await asyncio.to_thread(
                             self._window_listing, latest, turn.campus_now)
-                    if done := self._code_answer(turn, trace, said, found_sources, version,
+                    if done := self._code_answer(turn, trace, "event", said, found_sources, version,
                                                  **checked):
                         return done
                 # What a club named in full hosts next, when the calendar lists it.
@@ -3256,8 +3254,8 @@ class ChatEngine:
                     with measure("Read the club directory"):
                         listed = await asyncio.to_thread(self._club_listing, latest,
                                                          turn.campus_now)
-                    if listed is not None and (done := self._code_answer(turn, trace, *listed[:3],
-                                                                         **listed[3])):
+                    if listed is not None and (done := self._code_answer(
+                            turn, trace, "club", *listed[:3], **listed[3])):
                         return done
                 # How to reach offices the question names, and nothing more: each office's
                 # phones, email and room as the directory publishes them, said by code.
@@ -3270,7 +3268,7 @@ class ChatEngine:
                     with measure("Read the offices' contacts"):
                         said, found_sources, reached_facts = await asyncio.to_thread(
                             self._office_contacts, reached, 0)
-                    if done := self._code_answer(turn, trace, said, found_sources,
+                    if done := self._code_answer(turn, trace, "office", said, found_sources,
                                                  self.facts.active_release()[0],
                                                  offices=reached_facts):
                         return done
@@ -3283,7 +3281,7 @@ class ChatEngine:
                 if (course_answer is not None and earlier is None
                         and not one_call.asks_more(people_module.without_field_asks(latest))):
                     said, found_sources, taught_facts = course_answer
-                    if done := self._code_answer(turn, trace, said, found_sources,
+                    if done := self._code_answer(turn, trace, "person", said, found_sources,
                                                  self.facts.active_release()[0], **taught_facts):
                         return done
                 # A program's faculty asked as a list, or who leads it, and nothing more: every
@@ -3297,7 +3295,7 @@ class ChatEngine:
                         said, found_sources, listed_people = await asyncio.to_thread(
                             self._faculty_part, programs[0], 0,
                             not people_module.asks_faculty_list(latest), latest)
-                    if done := self._code_answer(turn, trace, said, found_sources,
+                    if done := self._code_answer(turn, trace, "person", said, found_sources,
                                                  self.facts.active_release()[0],
                                                  program_people=listed_people):
                         return done
@@ -3313,7 +3311,8 @@ class ChatEngine:
                         said = (academics.course_text(named_course[0], latest)
                                 if len(named_course) == 1 else None)
                         if done := self._code_answer(
-                                turn, trace, said, sources, dataset_version, programs=academic,
+                                turn, trace, "program", said, sources, dataset_version,
+                                programs=academic,
                                 computed=course_facts):
                             return done
                 if named_people:
@@ -3336,7 +3335,7 @@ class ChatEngine:
                         reach = [people_module.contact_text(p) for p in found if p.get("n") in led]
                         said = " ".join([said, *(r for r in reach if r)]) if any(reach) else None
                     if done := self._code_answer(
-                            turn, trace, said, [*sources, *found_people],
+                            turn, trace, "person", said, [*sources, *found_people],
                             dataset_version or self.facts.active_release()[0], people=found,
                             computed=people_facts):
                         return done
@@ -3356,7 +3355,7 @@ class ChatEngine:
                     if (lists and earlier is None and not people_asked and not named_people
                             and not (programs and any(programs))
                             and not one_call.asks_more(latest)):
-                        if done := self._code_answer(turn, trace, said, found_sources,
+                        if done := self._code_answer(turn, trace, "club", said, found_sources,
                                                      dataset_version, clubs=kind_clubs,
                                                      computed=listed_facts):
                             return done
@@ -3364,7 +3363,7 @@ class ChatEngine:
                     sources = [*sources, *found_sources]
                     clubs = kind_clubs[:events.MAX_CATEGORY_CLUBS]
                     computed = [*computed, *listed_facts]
-                    if lists:
+                    if lists and turn.can_answer_as("club"):
                         code_parts.append(said)
                         code_view["clubs"] = kind_clubs
                 if searchable:
@@ -3402,16 +3401,16 @@ class ChatEngine:
                     if events_said and earlier is None and not people_asked \
                             and (calendar or {}).get("topic_matched") is not False \
                             and not named_people and not (programs and any(programs)) \
-                            and not events.asks_clubs(latest) and topic != "club" \
+                            and not events.asks_clubs(latest) \
                             and not one_call.asks_more(latest) \
                             and not events.asks_sessions(latest):
-                        if done := self._code_answer(turn, trace, events_said, sources,
+                        if done := self._code_answer(turn, trace, "event", events_said, sources,
                                                      dataset_version, conditions=receipt,
                                                      calendar=calendar, computed=computed):
                             return done
                     if receipt is not None and receipt.asked:
                         trace["conditions"] = {**receipt.as_trace(), "by": "writer"}
-                    if events_said:
+                    if events_said and turn.can_answer_as("event"):
                         code_parts.append(events_said)
                         # The model is told the events are said, so the calendar's own rules
                         # ("first say nothing matches") don't have it say them again (run 11:
@@ -3646,7 +3645,10 @@ class ChatEngine:
                     if found_taught is not None:
                         said, found_sources, taught_facts = found_taught
                         sources = [*sources, *found_sources]
-                        code_parts.append(said)
+                        if turn.can_answer_as("person"):
+                            code_parts.append(said)
+                        else:
+                            computed.append({"fact": said})
                         code_view["course_teachers"] = taught_facts
                 elif (programs and programs[0] and not named_people
                         and (people_module.asks_faculty_list(latest)
@@ -3657,7 +3659,10 @@ class ChatEngine:
                             not people_module.asks_faculty_list(latest), latest)
                     if said:
                         sources = [*sources, *found_sources]
-                        code_parts.append(said)
+                        if turn.can_answer_as("person"):
+                            code_parts.append(said)
+                        else:
+                            computed.append({"fact": said})
                         code_view["program_people"] = listed_people
                 asked = asked_time.ASKED.get()
                 if (date_kind := academic_calendar.kind_named(
@@ -3668,7 +3673,10 @@ class ChatEngine:
                             len(sources))
                     if said:
                         sources = [*sources, *found_sources]
-                        code_parts.insert(0, said)
+                        if turn.can_answer_as("dates"):
+                            code_parts.insert(0, said)
+                        else:
+                            computed.append({"fact": said})
                         code_view["academic_calendar"] = dated
                 budget.max_calls = max(budget.max_calls, budget.calls + 1)
                 with measure("Write the answer from the evidence"):
@@ -3819,18 +3827,25 @@ class ChatEngine:
         if found is None:
             return None
         said, url, facts = found
-        return self._code_answer(turn, trace, said,
+        return self._code_answer(turn, trace, "dates", said,
                                  [{"n": 1, "url": url, "title": "Academic calendar"}], version,
                                  calendar=facts)
 
-    def _names_a_team(self, message: str) -> bool:
-        """Whether a message names one of the release's varsity teams (teams.py)."""
+    def _release_teams(self) -> list[dict[str, Any]]:
+        """The release's varsity teams (teams.py); none when they can't be read."""
         version, identity_hash = self.facts.active_release()
         try:
-            return bool(teams.teams_named(message, self.facts.teams(version,
-                                                                    identity_hash=identity_hash)))
+            return self.facts.teams(version, identity_hash=identity_hash)
         except (EvidenceUnavailable, DatasetChanged):
-            return False
+            return []
+
+    def _plain_team_lookup(self, message: str) -> bool:
+        """Whether the graph and the student's words alone specify a complete team lookup."""
+        return teams.plain_lookup(message, self._release_teams())
+
+    def _names_a_team(self, message: str) -> bool:
+        """Whether a message names one of the release's varsity teams (teams.py)."""
+        return bool(teams.teams_named(message, self._release_teams()))
 
     def _team_answer(self, turn: Turn, trace: dict[str, Any], message: str) -> ChatResult | None:
         """The coaches, next games or results of the teams a question names, said by code
@@ -3842,16 +3857,23 @@ class ChatEngine:
         except (EvidenceUnavailable, DatasetChanged):
             return None
         picked = asked_time.ASKED.get()
-        said = (teams.answer(message, found, turn.campus_now.date(), picked=picked,
-                             now=turn.campus_now, breaks=self._breaks(turn.campus_now.date()))
-                if found else None)
+        if (turn.campus_topic is None or picked is None) and not teams.plain_lookup(message, found):
+            return None
+        # The team formatter applies home or away, days, part of day and a clock limit, and its
+        # receipt names any condition it can't check (conditions.py). Leave an academic date
+        # ("finals week") and compound questions to the path that reads the full question.
+        if one_call.asks_more(message) or (
+                picked is not None and (picked.date_kind != "none" or picked.term != "none")):
+            return None
+        said = teams.answer(message, found, turn.campus_now.date(), picked=picked,
+                            now=turn.campus_now, breaks=self._breaks(turn.campus_now.date()))
         if said is None:
             return None
         text, sources, records, receipt = said
-        return self._code_answer(turn, trace, text, sources, version, conditions=receipt,
-                                 teams=records)
+        return self._code_answer(turn, trace, "team", text, sources, version,
+                                 conditions=receipt, teams=records)
 
-    def _code_answer(self, turn: Turn, trace: dict[str, Any], said: str | None,
+    def _code_answer(self, turn: Turn, trace: dict[str, Any], topic: str, said: str | None,
                      sources: list[dict[str, Any]], dataset_version: str,
                      conditions: Receipt | None = None, **facts: Any,
                      ) -> ChatResult | None:
@@ -3862,7 +3884,9 @@ class ChatEngine:
         conditions (`conditions`, conditions.py) is the one honesty rule: a condition it did not
         use, or that the reads were unsure of, must be named in the text, or the answer is not
         code's alone. The receipt goes in the trace either way."""
-        if said is None:
+        # Sourced facts about something the student mentioned can help the writer.
+        # Only a lookup for the subject the student asked about may finish the turn.
+        if said is None or not turn.can_answer_as(topic):
             return None
         if conditions is not None and conditions.asked:
             trace["conditions"] = {**conditions.as_trace(), "by": "code"}
@@ -4362,6 +4386,7 @@ class ChatEngine:
             return await self._campus_answer(turn, request, trace, started=started,
                                              question=own)
         reading = await self._read_checked(context, reading, trace)
+        turn = replace(turn, campus_topic=reading.topic)
         # The read's time picks say when the question asks about, wherever a time is turned into
         # days (asked_time.py); this turn's own, as each request runs in its own task.
         asked_time.ASKED.set(reading.time)
@@ -4404,8 +4429,7 @@ class ChatEngine:
         # (11-03 practice: "Hi!" then the whole greeting after the answer).
         result = await self._campus_answer(turn, request, trace, question=question,
                                            started=started,
-                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)),
-                                           topic=reading.topic)
+                                           greeted=bool(triage.SOCIAL_LEADS.get(reading.social)))
         answer = result.body.get("answer")
         if result.status_code != 200 or not isinstance(answer, str) or situation_of(answer):
             return result
@@ -4489,32 +4513,31 @@ class ChatEngine:
         question = triage.asked(context.latest_message, reading)
         if (reading.question and question != reading.question
                 and not triage.asks_more(context.latest_message, reading.question)
-                and await self._code_lookup(reading.question)):
+                and await self._code_lookup(reading.question, reading.topic,
+                                            original=context.latest_message)):
             return reading.question
         return question
 
-    async def _code_lookup(self, question: str) -> bool:
+    async def _code_lookup(self, question: str, topic: str | None = None, *,
+                           original: str | None = None) -> bool:
         """Whether a question is a plain lookup code answers by itself: one listed office, venue
         or building ("Registrar phone number"), or the shuttle."""
         _, offices, _, venues, _, _ = await self._lists()
         buildings = await asyncio.to_thread(self._buildings)
-        return (code_route(question, offices, venues, buildings) is not None
-                or shuttle_route(question) is not None)
+        if code_route(question, offices, venues, buildings, topic=topic) is not None:
+            return original is None or keeps_lookup_scope(original, question, offices, venues,
+                                                          buildings)
+        # A plain shuttle lookup knows no route or stop. A rewrite may have dropped either.
+        shuttle = shuttle_route(question) if topic in (None, "shuttle") else None
+        return shuttle is not None and (original is None or shuttle_route(original) == shuttle)
 
     async def _code_understands(self, context: Context) -> bool:
-        """Whether code already understands the whole message, so it is not read first: a varsity
-        team's coaches, games or results ("how did men's soccer do this season", which the read
-        once called sports scores, 11-04 live check), or a plain lookup of one listed office,
-        venue or the shuttle ("Registrar phone number"). Plain questions don't wait for the read.
-        A calendar date question ("when are finals?") is read: the read picks its kind of date
-        and term (asked_time.py), which no word rule guesses any more."""
+        """Only a complete, self-contained lookup may bypass the question reader."""
         latest = context.latest_message
         if context.recent_messages or names_a_danger(latest):
             return False
-        if teams.asked(latest) and teams.plain_ask(latest):
-            names_a_team: bool = await asyncio.to_thread(self._names_a_team, latest)
-            if names_a_team:
-                return True
+        if bool(teams.asked(latest)) and await asyncio.to_thread(self._plain_team_lookup, latest):
+            return True
         return await self._code_lookup(latest)
 
     async def _read_checked(self, context: Context, reading: triage.Reading,
@@ -4557,8 +4580,8 @@ class ChatEngine:
               and await asyncio.to_thread(self._names_a_team, context.latest_message)):
             # A varsity team code knows is named: its games, coaches and results are the
             # athletics site's, which code reads (11-04 live check: "how did men's soccer do this
-            # season" was read as sports scores). Team questions that name a condition are read
-            # now (teams.plain_ask), so the limit must not keep them from the team's record.
+            # season" was read as sports scores). Only a plain team lookup skips the read
+            # (teams.plain_lookup), so the limit must not keep the rest from the team's record.
             corrected = replace(reading, limit="none", question=context.latest_message.strip(),
                                 topic="team")
             why = "team_named"
@@ -4947,14 +4970,14 @@ class ChatEngine:
 
     async def _campus_answer(self, turn: Turn, request: ChatRequest, trace: dict[str, Any],
                              floor_situation: str | None = None, *, question: str | None = None,
-                             started: float | None = None, greeted: bool = False,
-                             topic: str | None = None) -> ChatResult:
+                             started: float | None = None, greeted: bool = False) -> ChatResult:
         """The campus answer: code's routes, then the model's. `question` is the read's clean
         question, which every route and search reads in place of the student's words; `started`
         is when the turn began, so the read's time comes out of the turn's own; `greeted` is
-        whether code's lead already says hello or thanks; `topic` is what the read says the
-        question asks for (triage.TOPICS), which picks the path in place of the word rules, None
-        when there was no read."""
+        whether code's lead already says hello or thanks."""
+        topic = turn.campus_topic
+        if topic is not None:
+            trace["path"] = {"topic": topic, "by": "read"}
         with measure("Prepare conversation and root"):
             context = build_context(request)
             if question:
@@ -4983,8 +5006,8 @@ class ChatEngine:
                 return done
         # A varsity team's coaches, next games or results ("who coaches men's soccer"): code's
         # answer from the team's record, read from the athletics site (teams.py).
-        if (self.output == "written" and floor_situation is None and not context.recent_messages
-                and teams.asked(context.latest_message, picked)):
+        if (turn.can_answer_as("team") and self.output == "written" and floor_situation is None
+                and not context.recent_messages and teams.asked(context.latest_message, picked)):
             with measure("Read the varsity teams"):
                 done = await asyncio.to_thread(self._team_answer, turn, trace,
                                                context.latest_message)
@@ -4998,8 +5021,6 @@ class ChatEngine:
         # Audit plan item 8 (11-17): the read's topic picks the path. The word rules pick it only
         # when there was no read (a long message, a read that failed, a plain lookup code
         # understood without one).
-        if topic is not None:
-            trace["path"] = {"topic": topic, "by": "read"}
         paths = (picked_path(topic, context.latest_message)
                  if self.output == "written" and floor_situation is None else AnswerPath())
         calendar_asked = paths.calendar
@@ -5010,8 +5031,7 @@ class ChatEngine:
                 or people_asked:
             done = await self._one_call(turn, context, budget, trace, programs=named_programs,
                                         calendar_asked=calendar_asked,
-                                        named_people=named_people, people_asked=people_asked,
-                                        topic=topic)
+                                        named_people=named_people, people_asked=people_asked)
             if done is not None:
                 return done
         listed: tuple[Any, ...] | None = None
@@ -5028,7 +5048,7 @@ class ChatEngine:
             listed = await self._lists()
             buildings = await asyncio.to_thread(self._buildings)
             if not (plain and code_route(context.latest_message, listed[1], listed[3],
-                                         buildings)):
+                                         buildings, topic=topic)):
                 done = await self._one_call(turn, context, budget, trace)
                 if done is not None:
                     return done
@@ -5047,10 +5067,11 @@ class ChatEngine:
                 [context.latest_message, *(m.content for m in context.recent_messages[-2:])])
         attempts = 0
         finish: Finish | None = None
-        plan, plan_tool = (code_route(context.latest_message, offices, venues,
-                                      await asyncio.to_thread(self._buildings)) if plain
-                           else None), "graph_lookup"
-        if plan is None and plain:
+        plan = (code_route(context.latest_message, offices, venues,
+                           await asyncio.to_thread(self._buildings), topic=topic)
+                if plain else None)
+        plan_tool = "graph_lookup"
+        if plan is None and plain and turn.can_answer_as("shuttle"):
             plan, plan_tool = shuttle_route(context.latest_message), "shuttle_lookup"
         if plan is not None:
             trace["decidedBy"] = "code"

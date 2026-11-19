@@ -46,26 +46,19 @@ _NOT_VARSITY = re.compile(r"\b(?:club|clubs|intramural|intramurals|join|try ?out
                           r"walk ?on|recreational|pickup|pick up)\b")
 _RESULTS = re.compile(r"\b(?:score|scores|result|results|won|win|wins|winning|lose|lost|loss|"
                       r"losses|beat|record|doing|did|last|standings?)\b")
+# @ stands for one published name. Only these complete, unqualified requests skip the read: any
+# other word ("home", "tonight", "after 7", "mar 13") may hold a condition, which the read picks
+# (11-19 plan: "whens the next home mens lax game" listed three away games, because the read was
+# skipped and home was never picked).
+_PLAIN_LOOKUP = re.compile(
+    r"who coaches (?:the )?@|who is (?:the )?@ coach|"
+    r"(?:what(?:s| is) (?:the )?)?@ (?:coach|record)|how did (?:the )?@ do this season|"
+    r"when is the next @ (?:game|match|meet)|when does @ play next")
 # The most games said of one kind (next or last) for one team; in days the student names, more.
 MAX_GAMES = 3
 MAX_WINDOW_GAMES = 8
 # The conditions a team's games are filtered by (conditions.py).
 SLOTS = ("days", "part_of_day", "clock", "home_away")
-# The words of a team question that ask nothing of the read: a sport, men's or women's, what is
-# asked (coaches, next games, results) and the small words around them. Only such a question is
-# answered with no read; any other word ("home", "tonight", "after 7", "mar 13") may hold a
-# condition, which the read picks (11-19 plan: "whens the next home mens lax game" listed three
-# away games, because the read was skipped and home was never picked).
-_PLAIN_WORDS = frozenset("""
-who whos what whats when whens where is are was were the a an of for do does did how hows has
-have ramapo ramapos rcnj our team teams s varsity play plays playing played coach coaches coached
-coaching coachs head assistant staff next upcoming schedule schedules game games match matches
-meet meets score scores result results won win wins winning lose lost loss losses beat record
-doing last standings standing season this year so far going their its they them roadrunners
-men mens man boys guys male women womens woman girls ladies female lady me tell show give
-please pls can i you u what's
-""".split())
-
 # A record older than this is said with its date: results change as games are played.
 STALE_DAYS = 2
 
@@ -101,6 +94,19 @@ def teams_named(message: str, teams: Sequence[Mapping[str, Any]]) -> list[Mappin
     return gendered if gender and gendered else found
 
 
+def plain_lookup(message: str, teams: Sequence[Mapping[str, Any]]) -> bool:
+    """A complete, unqualified lookup by published team name can skip the reader.
+
+    Extra words may add a date or venue filter, or change the subject altogether.
+    """
+    words = _words(message)
+    for team in teams:
+        name = _words(str(team.get("name") or ""))
+        if name and name in words and _PLAIN_LOOKUP.fullmatch(words.replace(name, "@", 1)):
+            return True
+    return False
+
+
 def asked(message: str, picked: AskedTime | None = None) -> list[str]:
     """What a team question asks: its coaches, its next games, its results (in that order). A
     game asked about with no word of results ("when do they play") asks the next ones, as does a
@@ -118,17 +124,6 @@ def asked(message: str, picked: AskedTime | None = None) -> list[str]:
     if results:
         asks.append("results")
     return asks
-
-
-def plain_ask(message: str) -> bool:
-    """Whether every word of a team question is a sport's, men's or women's, what it asks or a
-    small word around them (_PLAIN_WORDS): it names no condition, so code answers it with no
-    read ("who coaches men's soccer", "how did field hockey do this season")."""
-    words = _words(message).split()
-    sports = " ".join(words)
-    for _, pattern in _SPORTS:
-        sports = pattern.sub(" ", sports)
-    return bool(words) and all(w in _PLAIN_WORDS for w in sports.split())
 
 
 # A schedule row whose "opponent" is a tournament round still to be drawn ("NJAC Tournament
@@ -199,7 +194,8 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
     """What code says of one team: the coaches, the next games or the results asked, each with
     its source's [n]. With `site` home or away (the read's pick, asked_time.py), only those games
     (18b blind run: "when's the next home swim meet?" got only the away meet), and the games
-    with no home or away mark said apart; with none left, the next game whatever its site. With
+    with no home or away mark said apart; with none left, that none is (a home game is never
+    offered for an away question: dev 4c4b7bb). With
     `window` (the days and times the read picked, asked_time.asked_window), the next games are
     those in it, said with the window ("tonight, Tuesday, November 3, after 7 PM"); with none in
     it, that none is, then the next game after it (11-19 plan: "is there a womens bball game
@@ -247,9 +243,6 @@ def team_text(team: Mapping[str, Any], asks: Sequence[str], today: date,
                          + "; ".join(lines) + f" [{schedule_n}].")
         if not upcoming and (games or which):
             parts.append(f"{name} has no more {which}games on {its} [{schedule_n}].")
-            if which and ahead:
-                parts.append(f"Its next game, home or away: {_game_line(ahead[0], False)} "
-                             f"[{schedule_n}].")
         unmarked = [g for g in ahead if site != "any" and not g.get("site")
                     and (window is None or _fits(g, window))]
         if unmarked:

@@ -97,8 +97,7 @@ def test_home_or_away_lists_only_those_games_on_every_schedule() -> None:
             assert all(site_of(schedule, o) == side for o in shown), (schedule["name"], side, text)
             if side not in sites:
                 # Nothing fits: say none, never show another site's game as if it fit.
-                assert f"no more {side} games" in text, text
-                assert not shown or "home or away" in text, text
+                assert f"no more {side} games" in text and not shown, text
         if {"home", "away"} <= sites:
             assert texts["home"] != texts["away"], schedule["name"]  # Change one: answers differ.
 
@@ -209,13 +208,16 @@ def test_unsure_home_or_away_lists_both_and_says_so() -> None:
 def test_a_team_question_naming_a_condition_is_read_first() -> None:
     # The read was skipped for every team question, so "home" never reached the answer (18b
     # blind run, and predicted #1). Only a question with no word of a condition skips it.
+    listed_teams = [WBB, MLAX, MSOC, FH]
     for plain in ("who coaches mens soccer", "how did field hockey do this season",
                   "When is the next women's basketball game?", "mens soccer record"):
-        assert teams.plain_ask(plain), plain
+        assert teams.plain_lookup(plain, listed_teams), plain
     for conditioned in ("whens the next home mens lax game", "womens bball tonight",
                         "any bball games after 7", "mens lax game on march 13",
-                        "is soccer playing at home this wknd", "swim meets this weekend"):
-        assert not teams.plain_ask(conditioned), conditioned
+                        "is soccer playing at home this wknd", "swim meets this weekend",
+                        "when is the next home men's lacrosse game",
+                        "when is the next women's basketball game after 7"):
+        assert not teams.plain_lookup(conditioned, listed_teams), conditioned
     # Days alone ask for the next games, once the read has picked them.
     assert teams.asked("mens soccer this weekend?") == []
     assert teams.asked("mens soccer this weekend?", AskedTime(when="this_weekend")) == ["next"]
@@ -380,7 +382,8 @@ def test_a_question_with_a_condition_beyond_the_window_is_not_answered_by_code_a
 
 
 def test_the_reads_new_conditions_are_checked_and_voted() -> None:
-    picks: dict[str, Any] = {"when": "weekday", "weekday": "monday", "month": 0, "day": 0, "break_name": "none",
+    picks: dict[str, Any] = {
+             "when": "weekday", "weekday": "monday", "month": 0, "day": 0, "break_name": "none",
              "side": "during", "part_of_day": "none", "date_kind": "none", "term": "none",
              "home_away": "any", "about": "", "days_ahead": 0,
              "through": {"weekday": "none", "month": 0, "day": 0},
@@ -471,7 +474,8 @@ def test_a_team_question_with_home_or_away_is_read_and_answered_with_that_site()
                  "team", TUESDAY)
     answer = result.body["answer"]
     assert answer.startswith("Women's Basketball has no more away games on its 2026-2027 "
-                             "schedule [1]. Its next game, home or away: Nov 7 (Sat)")
+                             "schedule [1].")
+    assert "Bradley Center" not in answer  # A home game is never offered as an away one.
     assert result.trace["decidedBy"] == "code"
     assert result.trace["conditions"] == {"asked": ["home_away"], "used": ["home_away"],
                                           "not_used": [], "unsure": [], "by": "code"}

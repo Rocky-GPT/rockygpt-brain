@@ -182,9 +182,36 @@ def asks_inside(message: str, building: dict[str, Any]) -> bool:
     return bool(covered) and not rooms and _INSIDE.search(rest) is not None
 
 
+def _days(words: Sequence[str]) -> set[str]:
+    days = set(words).intersection((*_WEEKDAYS, "tomorrow"))
+    if _TODAY.intersection(words):
+        days.add("today")
+    return days
+
+
+def _meals(text: str) -> set[str]:
+    return {meal for meal in _MEALS if re.search(rf"\b{meal}\b", text)}
+
+
+def keeps_lookup_scope(message: str, question: str, offices: Sequence[dict[str, Any]] | None,
+                       venues: Sequence[dict[str, Any]] | None,
+                       buildings: Sequence[dict[str, Any]] | None) -> bool:
+    """A shortened lookup must keep its named places and rooms and every requested field."""
+    def scope(text: str) -> tuple[set[frozenset[tuple[str, str]]], set[str], set[str]]:
+        words = _asked_words(text)
+        places, covered, rooms = _named(words, text, offices, venues, buildings)
+        rest = [word for i, word in enumerate(words) if i not in covered]
+        plain = " ".join(rest)
+        fields = {field for field, pattern in (*_ASKS, *_WHICH) if pattern.search(plain)}
+        return {frozenset(p) for p in places}, set(rooms), fields | _days(rest) | _meals(plain)
+
+    return scope(message) == scope(question)
+
+
 def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
                venues: Sequence[dict[str, Any]] | None,
-               buildings: Sequence[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+               buildings: Sequence[dict[str, Any]] | None = None, *,
+               topic: str | None = None) -> dict[str, Any] | None:
     """The graph_lookup arguments for a plain lookup of one listed office, venue or building, or
     None."""
     words = _asked_words(message)
@@ -204,6 +231,8 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
         return None
     places = sorted(said[0])
     kind = places[0][0]
+    if topic is not None and topic != ("dining" if kind == "venue" else "office"):
+        return None
     rest = [w for k, w in enumerate(words) if k not in covered]
     if any(w not in _PLAIN and w not in _WEEKDAYS for w in rest):
         return None
@@ -224,10 +253,10 @@ def code_route(message: str, offices: Sequence[dict[str, Any]] | None,
         # A building is asked where it is or what is open in it, and nothing else; a room in
         # it only where it is.
         return None
-    days = [w for w in rest if w in _WEEKDAYS]
-    day = (days[0] if len(days) == 1 else None if days else
-           "tomorrow" if "tomorrow" in rest else "today" if _TODAY & set(rest) else None)
-    meal = next((m for m in _MEALS if re.search(rf"\b{m}\b", text)), None)
+    days, meals = _days(rest), _meals(text)
+    if len(days) > 1 or len(meals) > 1:
+        return None
+    day, meal = next(iter(days), None), next(iter(meals), None)
     request: dict[str, Any] = {"fields": fields}
     if day or ("menu" in fields and meal):
         request["day"] = day or "today"
@@ -257,9 +286,9 @@ def shuttle_route(message: str) -> dict[str, Any] | None:
     words = _words(message)
     text = " ".join(words)
     which = [name for name, pattern in _WHICH if pattern.search(text)]
-    days = [w for w in words if w in _WEEKDAYS]
+    days = _days(words)
     if (not _SHUTTLE.search(text) or len(which) != 1 or len(days) > 1
             or any(w not in _SHUTTLE_PLAIN and w not in _WEEKDAYS for w in words)):
         return None
-    day = days[0] if days else "tomorrow" if "tomorrow" in words else None
+    day = next(iter(days - {"today"}), None)
     return {"requests": [{"stop": None, "which": which[0], "day": day}]}

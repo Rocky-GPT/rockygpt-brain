@@ -55,6 +55,9 @@ def test_a_possessive_name_and_two_fields_of_one_place_are_routed_by_code() -> N
 
 def test_anything_code_is_not_sure_of_is_left_to_the_model() -> None:
     assert route("Can I book an appointment with the Registrar?") is None  # words left over
+    assert route("Is the Library open Monday and Tuesday?") is None
+    assert route("Is the Library open tomorrow or on Monday?") is None
+    assert route("What's for lunch and dinner at Birch?") is None
     assert route("Registrar and Financial Aid phone numbers") is None  # two places
     assert route("Tell me about the Registrar") is None  # nothing it routes is asked
     assert route("What is the menu at the Library?") is None  # an office has no menu

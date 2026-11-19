@@ -807,6 +807,31 @@ def test_the_reads_topic_is_traced_and_a_lookup_topic_keeps_the_lookup() -> None
     assert result.trace["read"]["topic"] == "office"
 
 
+@pytest.mark.parametrize("rewrite", [
+    "What is the Registrar email?",
+    "What are the Counseling Center phone number and email?",
+])
+def test_a_shorter_lookup_keeps_the_office_and_fields_requested(rewrite: str) -> None:
+    message = "I lost my paperwork, what's the Registrar email and phone?"
+    gateway = ScriptedGateway(read(question=rewrite, topic="office"),
+                              completion("graph_lookup", {"requests": [
+                                  {"query": "Registrar", "fields": ["email", "phones"]}]}),
+                              finish())
+    result = ask(gateway, message)
+    assert latest_asked(gateway.inputs[1]) == message
+    assert "published@example.edu" in result.body["answer"]
+    assert "(201) 555-0100" in result.body["answer"]
+
+
+def test_a_shuttle_lookup_cannot_drop_the_students_stop() -> None:
+    message = "My lab runs late, when is the last shuttle to the train station?"
+    gateway = ScriptedGateway(read(question="When is the last shuttle?", topic="shuttle"),
+                              finish("unsupported"))
+    result = ask(gateway, message)
+    assert latest_asked(gateway.inputs[1]) == message
+    assert result.trace is not None and result.trace.get("decidedBy") != "code"
+
+
 def test_safe_text_speak_is_spelled_out_for_code_word_matching() -> None:
     # 11-18 blind run: "n" kept a two-part events question as one topic, so the next play was
     # missed. Only text-speak with one meaning is spelled out; real words and contractions stay.

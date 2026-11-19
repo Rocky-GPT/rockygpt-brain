@@ -272,6 +272,25 @@ def test_a_deadline_named_beside_another_ask_is_said_by_code_first() -> None:
     assert given["already_written"].startswith("The Fall 2026 academic calendar lists")
 
 
+def test_a_date_mentioned_as_background_is_evidence_for_the_procedure_answer() -> None:
+    from dataclasses import asdict
+
+    from rockygpt_brain.asked_time import AskedTime
+    from test_direct_writer import TUTOR, direct_reply
+    from test_triage import read
+
+    message = "How do I become a peer tutor after the deadline to withdraw from a course?"
+    gateway = PartsGateway(read(question=message, topic="how_to",
+                                time=asdict(AskedTime(date_kind="withdrawal_deadline"))),
+                           direct_reply(TUTOR))
+    result = ask(with_withdrawal_dates(), gateway, message, read_first=True)
+    given = json.loads(gateway.inputs[-1][1]["content"])
+    assert "academic calendar lists" in str(given["computed"])
+    assert "already_written" not in given
+    assert result.body["answer"].startswith(TUTOR)
+    assert URL not in {source["url"] for source in result.body["citations"]}
+
+
 def test_code_says_every_event_it_chose_for_a_topic_and_none_when_none_matches() -> None:
     start = datetime(2026, 11, 3, 9, tzinfo=CAMPUS_TZ)
     end = start + timedelta(days=5)
