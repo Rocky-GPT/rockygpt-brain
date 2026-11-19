@@ -2421,7 +2421,7 @@ class ChatEngine:
     def _read_calendar(self, message: str, now: datetime, numbered_from: int,
                        scores: Mapping[str, float] | None = None,
                        kinds: Mapping[str, Sequence[str]] | None = None,
-                       named_clubs: bool = True,
+                       named_clubs: bool = True, events_asked: bool = False,
                        ) -> tuple[dict[str, Any] | None, list[dict[str, Any]],
                                   list[dict[str, Any]], list[dict[str, Any]], str | None,
                                   Receipt | None]:
@@ -2430,8 +2430,12 @@ class ChatEngine:
         out from them (counts, food, the topic's other dates, a club's events), and the events
         in code's own words (events.topic_text); scores are the event cards' meaning and kinds
         their kinds (kinds.py), when the index has them. With `named_clubs` False (a kind's
-        clubs are listed already: _kind_list), no club is read. Last, the receipt of the
-        student's conditions (conditions.py), None when the calendar was not read."""
+        clubs are listed already: _kind_list), no club is read. The events are read when the
+        read says events are asked (`events_asked`, its topic) or, with no read, the words do
+        (11-19 study: "anything fun wed after 8ish" and "any live music tmrw after 11pm" were
+        read as event questions, but no event word was found, so the calendar was never read
+        and the reply said it had no verified information). Last, the receipt of the student's
+        conditions (conditions.py), None when the calendar was not read."""
         version, identity_hash = self.facts.active_release()
         named = self.facts.identities(("event", "club", "organization"))
         sources: list[dict[str, Any]] = []
@@ -2454,7 +2458,7 @@ class ChatEngine:
 
         def all_upcoming() -> list[dict[str, Any]]:
             return self._upcoming_events(now)
-        if events.asks_events(message):
+        if events_asked or events.asks_events(message):
             sources.append({"n": numbered_from + 1, "url": events.CALENDAR_URL,
                             "title": "Campus events calendar"})
             picked = asked_time.ASKED.get()
@@ -3385,7 +3389,8 @@ class ChatEngine:
                             await asyncio.to_thread(self._read_calendar, latest, turn.campus_now,
                                                     len(sources), event_scores,
                                                     index.kinds if index is not None else None,
-                                                    not kind_listed)
+                                                    not kind_listed,
+                                                    turn.campus_topic == "event")
                     clubs = clubs or named_clubs
                     sources = [*sources, *found_sources]
                     computed = [*computed, *calendar_facts]

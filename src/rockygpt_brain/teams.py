@@ -288,13 +288,23 @@ def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date, site: 
     asked, a record with none of it)."""
     named = teams_named(message, teams)
     asks = asked(message, picked)
-    if not named or len(named) > 2 or not asks:
-        return None
     if picked is not None and picked.home_away != "any":
         site = picked.home_away
     timed = {"days", "part_of_day", "clock"} & set(conditions.asked_of(picked))
-    window = (asked_time.asked_window(picked, now or datetime.combine(today, time(0, 0)), breaks)
+    # The days asked count from the start of the day: a game today with no result yet is still
+    # today's, and may be on now (11-19 study, asked at 8 PM: "a bball game after 7 tonight"
+    # was told none, then that the next game was tonight at 7:30).
+    first = datetime.combine((now.date() if now is not None else today), time(0, 0),
+                             tzinfo=now.tzinfo if now is not None else None)
+    window = (asked_time.asked_window(picked, first, breaks)
               if timed and "next" in asks else None)
+    if not named and teams and asks == ["next"] and site != "any":
+        # Home or away is only on the team schedules, never on the calendar: "any home games
+        # wed or thurs" names no sport, so every team's games are held to it (11-19 study:
+        # the calendar listed 20 events and said it couldn't tell home from away).
+        return _every_team(teams, today, site, window, picked)
+    if not named or len(named) > 2 or not asks:
+        return None
     used = (["home_away"] if site != "any" else []) + (sorted(timed) if window else [])
     receipt = conditions.receipt(picked, used, window, "the team schedules", SLOTS)
     sources: list[dict[str, Any]] = []
@@ -316,3 +326,71 @@ def answer(message: str, teams: Sequence[Mapping[str, Any]], today: date, site: 
     if receipt.said:
         texts.append(receipt.said)
     return "\n\n".join(texts), sources, [dict(t) for t in named], receipt
+
+
+def _every_team(teams: Sequence[Mapping[str, Any]], today: date, site: str,
+                window: Window | None, picked: AskedTime | None,
+                ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]], Receipt] | None:
+    """Every team's home (or away) games in the days and times asked, in date order, each with
+    its team and its schedule's [n]; with none, that none is, then the next one after the days
+    asked. None when no team lists a game."""
+    which, an = f"{site} ", "an" if site == "away" else "a"
+    games: list[tuple[date, int, Mapping[str, Any], Mapping[str, Any]]] = []
+    unmarked: list[tuple[date, int, Mapping[str, Any], Mapping[str, Any]]] = []
+    for team in teams:
+        for game in team.get("games") or []:
+            day = _dated(game)
+            if day is None or day < today or game.get("result") or not game.get("opponent"):
+                continue
+            at = asked_time.minutes_of(game.get("time"))
+            row = (day, at if at is not None else 1440, team, game)
+            if game.get("site") == site:
+                games.append(row)
+            elif not game.get("site"):
+                unmarked.append(row)
+    if not games and not unmarked:
+        return None
+    games.sort(key=lambda r: (r[0], r[1]))
+    unmarked.sort(key=lambda r: (r[0], r[1]))
+    sources: list[dict[str, Any]] = []
+    cited: list[Mapping[str, Any]] = []
+
+    def n_of(team: Mapping[str, Any]) -> int:
+        if team not in cited:
+            cited.append(team)
+            sources.append({"n": len(sources) + 1, "url": team.get("source_url"),
+                            "title": f"{team.get('name')} schedule (ramapoathletics.com)"})
+        return cited.index(team) + 1
+
+    def line(row: tuple[date, int, Mapping[str, Any], Mapping[str, Any]]) -> str:
+        return f"{row[2].get('name')}, {_upcoming_line(row[3], window)} [{n_of(row[2])}]"
+
+    parts: list[str] = []
+    if window is not None:
+        said = asked_time.phrase(window.label, window.start, window.end, window.days_said)
+        fits = [r for r in games if _fits(r[3], window)]
+        if fits:
+            parts.append(f"{which.title()}games on the team schedules {said}: "
+                         + "; ".join(line(r) for r in fits[:MAX_WINDOW_GAMES]) + ".")
+        else:
+            parts.append(f"None of the team schedules lists {an} {which}game {said}.")
+            later = [r for r in games if r[0] >= window.start.date()]
+            if later:
+                parts.append(f"The next {which}game: {line(later[0])}.")
+        unmarked = [r for r in unmarked if _fits(r[3], window)]
+    elif games:
+        parts.append(f"The next {which}games on the team schedules: "
+                     + "; ".join(line(r) for r in games[:MAX_GAMES]) + ".")
+    else:
+        parts.append(f"None of the team schedules lists an upcoming {which}game.")
+    if unmarked:
+        parts.append("Not marked home or away on the schedule: "
+                     + "; ".join(line(r) for r in unmarked[:MAX_GAMES]) + ".")
+    if not parts:
+        return None
+    timed = {"days", "part_of_day", "clock"} & set(conditions.asked_of(picked))
+    used = ["home_away", *(sorted(timed) if window else [])]
+    receipt = conditions.receipt(picked, used, window, "the team schedules", SLOTS)
+    if receipt.said:
+        parts.append(receipt.said)
+    return " ".join(parts), sources, [dict(t) for t in cited], receipt

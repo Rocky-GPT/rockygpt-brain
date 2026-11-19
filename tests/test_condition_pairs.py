@@ -205,6 +205,67 @@ def test_unsure_home_or_away_lists_both_and_says_so() -> None:
     assert text.endswith("I wasn't sure if you meant home or away games, so both are listed.")
 
 
+def test_a_game_on_tonight_still_fits_when_asked_after_it_started() -> None:
+    # 11-19 study, asked at 8 PM: "a bball game after 7 tonight" was told none, then that the
+    # next game was tonight at 7:30. The days asked count from the start of the day.
+    late = NOW.replace(hour=19, minute=20)
+    found = teams.answer("is there a womens bball game after 6 tonight", [WBB], late.date(),
+                         picked=AskedTime(when="tonight", clock=Clock("after", 6)), now=late,
+                         breaks=BREAKS)
+    assert found is not None
+    assert found[0].startswith("Women's Basketball's game tonight, Wednesday, November 18, "
+                               "after 6 PM: Nov 18 (Wed), 7:00 PM: at Away U")
+
+
+def test_home_games_naming_no_sport_are_every_teams_home_games() -> None:
+    # 11-19 study: "any home games wed or thurs" names no sport; the calendar can't tell home
+    # from away, so every team's schedule is read and held to it.
+    picked = AskedTime(when="this_weekend", home_away="home")
+    found = teams.answer("any home games this wknd", SCHEDULES, NOW.date(), picked=picked,
+                         now=NOW, breaks=BREAKS)
+    assert found is not None
+    text, sources, records, receipt = found
+    assert text.startswith("Home games on the team schedules this weekend, Friday, November 20 "
+                           "to Sunday, November 22: Women's Basketball, Nov 21 (Sat), 1:00 PM: vs "
+                           "Home College")
+    assert "Known Home" in text and "Road State" not in text and "Pool B" not in text
+    assert "Mystery College" not in text  # Unmarked, and Friday 4 PM is before the weekend.
+    week = teams.answer("home games this week?", SCHEDULES, NOW.date(),
+                        picked=AskedTime(when="this_week", home_away="home"), now=NOW,
+                        breaks=BREAKS)
+    assert week is not None
+    assert "Not marked home or away on the schedule: Field Hockey, Nov 20 (Fri)" in week[0]
+    assert receipt.kept and receipt.used == ("days", "home_away")
+    assert {s["title"] for s in sources} == {f"{r['name']} schedule (ramapoathletics.com)"
+                                             for r in records}
+    away = teams.answer("any away games this wknd", SCHEDULES, NOW.date(),
+                        picked=AskedTime(when="this_weekend", home_away="away"), now=NOW,
+                        breaks=BREAKS)
+    assert away is not None and away[0] != text  # Change one: the answers differ.
+    assert "Road State" in away[0] and "Home College" not in away[0]
+    # Nothing fits: says none, then the next one, labelled.
+    none = teams.answer("any away games next tues", SCHEDULES, NOW.date(),
+                        picked=AskedTime(when="next_weekday", weekday="tuesday",
+                                         home_away="away"), now=NOW, breaks=BREAKS)
+    assert none is not None and none[0].startswith("None of the team schedules lists an away "
+                                                   "game on Tuesday, November 24.")
+    assert "The next away game: Women's Basketball, Dec 3 (Thu)" in none[0]
+    # A sport named, or no home or away asked, is not every team's.
+    assert teams.answer("any games this wknd", SCHEDULES, NOW.date(),
+                        picked=AskedTime(when="this_weekend"), now=NOW) is None
+
+
+def test_a_bare_12_is_noon_and_midnight_only_at_night() -> None:
+    morning = asked_window(AskedTime(when="today", part_of_day="morning",
+                                     clock=Clock("before", 12)), NOW.replace(hour=8))
+    assert morning.label == "today, morning, before noon"
+    plain = asked_window(AskedTime(when="tomorrow", clock=Clock("between", 12, 0, "none", 3)),
+                         NOW)
+    assert plain.label.endswith("between noon and 3 PM")
+    night = asked_window(AskedTime(when="tonight", clock=Clock("before", 12)), NOW)
+    assert night.label.endswith("before midnight")
+
+
 def test_a_team_question_naming_a_condition_is_read_first() -> None:
     # The read was skipped for every team question, so "home" never reached the answer (18b
     # blind run, and predicted #1). Only a question with no word of a condition skips it.
@@ -507,3 +568,18 @@ def test_an_event_condition_the_calendar_cannot_check_is_said_in_the_answer() ->
         "I can't check \"for commuters\" from the calendar listings, so this isn't narrowed "
         "by it.")
     assert result.trace["conditions"]["not_used"] == ["other:for commuters"]
+
+
+def test_an_event_question_with_no_event_word_reads_the_calendar() -> None:
+    # 11-19 study: "anything fun wed after 8ish" was read as an event question, but no event
+    # word was found, so the calendar was never read and the reply had nothing to list.
+    from test_events import WEDNESDAY, calendar
+    message = "anything fun fri after 7ish"
+    assert not events.asks_events(message)
+    result = run(calendar(), message, {"when": "weekday", "weekday": "friday",
+                                       "clock": Clock("after", 7), "about": ""},
+                 "event", WEDNESDAY)
+    assert result.body["answer"].startswith(
+        "The calendar lists 1 event on Friday, October 23, after 7 PM [1]:")
+    assert "Trivia Night" in result.body["answer"]
+    assert result.trace["conditions"]["used"] == ["days", "clock"]

@@ -580,9 +580,15 @@ class Window:
 
 def _minutes(hour: int, minute: int, half: str, near: str) -> int:
     """A clock time in minutes after midnight. With no am or pm said, the day's part or "tonight"
-    says it (`near`), else 8 to 11 are morning and 12 and 1 to 7 afternoon or evening."""
+    says it (`near`: "am", "pm", or "night" for tonight and the evening), else 8 to 11 are
+    morning and 12 and 1 to 7 afternoon or evening. A bare 12 is noon, but midnight at night
+    (the end of the day): "anything today before 12" in the morning means noon (11-19 study:
+    "before noon" with the morning picked was read as "before midnight")."""
     if half == "none":
-        half = near if near != "none" else ("am" if 8 <= hour <= 11 else "pm")
+        if hour == 12:
+            return 1440 if near == "night" else 720 + minute
+        half = ("pm" if near in ("pm", "night") else near if near != "none"
+                else "am" if 8 <= hour <= 11 else "pm")
     return (hour % 12 + (12 if half == "pm" else 0)) * 60 + minute
 
 
@@ -614,7 +620,8 @@ def _clock_hours(asked: AskedTime) -> tuple[Hours, str] | None:
     clock = asked.clock
     if clock.relation == "none":
         return None
-    near = ("pm" if asked.when == "tonight" or asked.part_of_day in ("afternoon", "evening")
+    near = ("night" if asked.when == "tonight" or asked.part_of_day == "evening"
+            else "pm" if asked.part_of_day == "afternoon"
             else "am" if asked.part_of_day == "morning" else "none")
     at = _minutes(clock.hour, clock.minute, clock.half, near)
     if clock.relation == "before":
@@ -624,8 +631,7 @@ def _clock_hours(asked: AskedTime) -> tuple[Hours, str] | None:
     if clock.relation == "around":
         return Hours("on", max(at - 60, 0), min(at + 60, 1440)), f"around {clock_said(at)}"
     until = _minutes(clock.to_hour, clock.to_minute,
-                     clock.to_half if clock.to_half != "none" else
-                     (clock.half if clock.half != "none" else near), "none")
+                     clock.to_half if clock.to_half != "none" else clock.half, near)
     if until <= at and until + 720 < 1440:
         until += 720  # "between 7 and 9": 7 PM to 9 PM.
     if until <= at:
