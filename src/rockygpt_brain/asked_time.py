@@ -55,16 +55,12 @@ PROMPT = """- time: when the question asks about, and what kind of date, picked 
   grades_due, break (when a break or holiday is), classes_begin, classes_end, else none.
   term: the semester asked about: this (this or the current semester), next (next semester),
   fall, spring, summer, winter, else none. home_away: home or away when the question asks only
-  for home or only for away games, else any. about: what kind of event, activity or thing the
-  student wants, in a few plain words from the message with spelling fixed ("comedy shows",
-  "free food", "chess club", "black solidarity week"); empty when they ask only what is on
-  ("anything fun", "whats going on", "anything happening sat night") or say only who they are,
-  where they are or how they feel ("freshman stuck in the dorms")."""
+  for home or only for away games, else any."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object", "additionalProperties": False,
     "required": ["when", "weekday", "month", "day", "break_name", "side", "part_of_day",
-                 "date_kind", "term", "home_away", "about"],
+                 "date_kind", "term", "home_away"],
     "properties": {
         "when": {"type": "string", "enum": list(WHEN)},
         "weekday": {"type": "string", "enum": list(WEEKDAYS)},
@@ -76,11 +72,8 @@ SCHEMA: dict[str, Any] = {
         "date_kind": {"type": "string", "enum": list(DATE_KINDS)},
         "term": {"type": "string", "enum": list(TERMS)},
         "home_away": {"type": "string", "enum": list(HOME_AWAY)},
-        "about": {"type": "string"},
     },
 }
-# The longest "about" kept: a few words, not the question again.
-MAX_ABOUT_CHARS = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,15 +90,12 @@ class AskedTime:
     date_kind: str = "none"
     term: str = "none"
     home_away: str = "any"
-    # What the events asked are about (events.asked_topic): "" when the question asks only what
-    # is on; None when the read gave no such pick, and the question's own words are the topic.
-    about: str | None = None
 
     def as_trace(self) -> dict[str, Any]:
         """Only the picks that say something, for the turn's trace."""
         blank = AskedTime()
         return {name: getattr(self, name) for name in SCHEMA["required"]
-                if getattr(self, name) != getattr(blank, name) and getattr(self, name) != ""}
+                if getattr(self, name) != getattr(blank, name)}
 
     @property
     def span(self) -> tuple[str, str, int, int, str, str, str]:
@@ -130,21 +120,13 @@ def of(arguments: Any) -> AskedTime | None:
         return None
     month = month if 1 <= month <= 12 else 0
     day = day if 1 <= day <= 31 else 0
-    about = arguments.get("about")
-    about = " ".join(about.split()) if isinstance(about, str) else None
-    if about is not None and len(about) > MAX_ABOUT_CHARS:
-        about = None  # The question again, not what it is about: its own words are read.
-    return AskedTime(**{name: str(arguments[name]) for name in lists}, month=month, day=day,
-                     about=about)
+    return AskedTime(**{name: str(arguments[name]) for name in lists}, month=month, day=day)
 
 
 def vote(picks: Sequence[AskedTime]) -> AskedTime | None:
     """What most reads pick. The window's picks count as one (a read's "friday" and another's
     "evening" never mix into a window neither read gave); the kind of date, the term and home or
-    away are each voted alone. A tie goes to "no time named", the safe default. What the events
-    are about counts when most reads give one (most say "" when most ask only what is on), in the
-    wording most give, then the shortest; with no majority either way, the question's own words
-    are read (None)."""
+    away are each voted alone. A tie goes to "no time named", the safe default."""
     if not picks:
         return None
     half = len(picks) // 2
@@ -159,18 +141,7 @@ def vote(picks: Sequence[AskedTime]) -> AskedTime | None:
     return AskedTime(when, weekday, month, day, break_name, side, part,
                      most([p.date_kind for p in picks], blank.date_kind),
                      most([p.term for p in picks], blank.term),
-                     most([p.home_away for p in picks], blank.home_away),
-                     _about([p.about for p in picks], half))
-
-
-def _about(given: Sequence[str | None], half: int) -> str | None:
-    said = [a for a in given if a is not None]
-    if len([a for a in said if not a]) > half:
-        return ""
-    named = [a.casefold() for a in said if a]
-    if len(named) > half:
-        return min(named, key=lambda a: (-named.count(a), len(a), a))
-    return None
+                     most([p.home_away for p in picks], blank.home_away))
 
 
 def _start(day: date, now: datetime) -> datetime:
@@ -318,7 +289,7 @@ def said_words(asked: AskedTime | None) -> frozenset[str]:
     words = []
     if asked.when in ("month", "date") and 1 <= asked.month <= 12:
         words.append(_MONTH_WORDS[asked.month - 1])
-    if asked.when == "break" or asked.break_name != "none" or asked.date_kind == "break":
+    if asked.when == "break" or asked.date_kind == "break":
         words += [asked.break_name, _BREAK_WORDS]
     if asked.when == "rest_of_term" or asked.date_kind == "finals":
         words.append(_TERM_WORDS)

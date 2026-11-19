@@ -186,33 +186,3 @@ def test_the_words_naming_the_picked_time_say_when_not_what() -> None:
     over = asked_time.said_words(AskedTime(when="break", break_name="thanksgiving"))
     assert {"thanksgiving", "break", "recess"} <= over and "none" not in over
     assert "finals" in asked_time.said_words(AskedTime(when="rest_of_term"))
-    # A break named beside another time ("next mon and tues before thanksgiving break") still says
-    # when, not what.
-    assert "thanksgiving" in asked_time.said_words(
-        AskedTime(when="next_weekday", break_name="thanksgiving", side="before"))
-
-
-def test_what_the_events_are_about_is_the_reads_and_none_asked_is_none() -> None:
-    picks = {"when": "weekday", "weekday": "saturday", "month": 0, "day": 0,
-             "break_name": "none", "side": "during", "part_of_day": "evening",
-             "date_kind": "none", "term": "none", "home_away": "any"}
-    assert "about" in asked_time.SCHEMA["required"] and "about:" in asked_time.PROMPT
-    assert of({**picks, "about": "  comedy   shows "}) == AskedTime(
-        when="weekday", weekday="saturday", part_of_day="evening", about="comedy shows")
-    assert of({**picks, "about": "x" * 200}).about is None  # type: ignore[union-attr]
-    assert of(picks).about is None  # type: ignore[union-attr]
-    comedy, nothing = AskedTime(about="comedy"), AskedTime(about="")
-    assert vote([comedy, comedy, nothing]).about == "comedy"  # type: ignore[union-attr]
-    assert vote([nothing, nothing, comedy]).about == ""  # type: ignore[union-attr]
-    assert vote([comedy, nothing, AskedTime()]).about is None  # type: ignore[union-attr]
-    # 11-18 measure: the leftover words were the topic, and no event matched them.
-    lonely = ("freshman here stuck in the dorms all weekend, anything happening on campus sat "
-              "night??")
-    assert events.asked_topic(lonely)
-    token = asked_time.ASKED.set(AskedTime(when="weekday", weekday="saturday", about=""))
-    try:
-        assert events.asked_topic(lonely) == set()
-        asked_time.ASKED.set(AskedTime(about="comedy shows"))
-        assert events.asked_topic("any comdy stuff this wk") == events.asked_topic("comedy shows")
-    finally:
-        asked_time.ASKED.reset(token)

@@ -289,13 +289,7 @@ def asked_topic(message: str) -> set[str]:
     ("finals week", "before thanksgiving"; asked_time.said_words) say when, not what. A word
     saying an event's form or how it is liked (_FORM: "sessions", "meeting", "cool") counts only
     when nothing else is asked: "any club meetings" asks for meetings, "any book clubs meeting"
-    for book clubs. When the read said what the events are about (asked_time.AskedTime.about),
-    that is the topic, and "" is none: "freshman here stuck in the dorms all weekend, anything
-    happening sat night" asks only what is on (11-18 measure: the leftover words were matched
-    and the reply opened "the calendar lists no event that matches what you asked")."""
-    picked = asked_time.ASKED.get()
-    if picked is not None and picked.about is not None:
-        message = picked.about
+    for book clubs."""
     text = message.casefold()
     food = _FOOD_ASK.findall(text)
     words = (topic_words(message) - (_stems(" ".join(food)) if food else set())
