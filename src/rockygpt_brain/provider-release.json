@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-01-gpt-6-luna",
+  "version": "2026-11-27-gpt-6-luna",
   "model": "gpt-6-luna",
-  "verified_at": "2026-11-01T00:00:00-04:00",
-  "valid_until": "2026-12-01T00:00:00-05:00",
+  "verified_at": "2026-11-27T00:00:00-05:00",
+  "valid_until": "2027-01-01T00:00:00-05:00",
   "source": "https://developers.openai.com/api/docs/models/gpt-6-luna",
   "input_nusd_per_token": 125,
   "cached_input_nusd_per_token": 10,
